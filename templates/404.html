@@ -1,0 +1,36 @@
+{% load bootstrap4 %}
+<!DOCTYPE html>
+<html lang="zh-hans">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 - 页面未找到</title>
+    {% bootstrap_css %}
+    <style>
+        html, body { height: 100%; margin: 0; }
+        body { background: #f4f7f6; display: flex; align-items: center; justify-content: center; }
+        .error-card { border: none; border-radius: 1rem; overflow: hidden; width: 100%; }
+        .error-code { font-size: 8rem; line-height: 1; font-weight: 800; color: #dee2e6; position: absolute; top: -2rem; left: 2rem; z-index: 0; }
+        .error-content { position: relative; z-index: 1; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card error-card shadow-lg p-5">
+                    <div class="error-code">404</div>
+                    <div class="error-content text-center">
+                        <h1 class="display-4 font-weight-bold mb-4">页面失踪了</h1>
+                        <p class="lead text-muted mb-5">抱歉，您访问的页面不存在或已被移除。</p>
+                        <div class="btn-group">
+                            <a href="/" class="btn btn-primary btn-lg px-5 shadow-sm">返回首页</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% bootstrap_javascript jquery='full' %}
+</body>
+</html>

@@ -1,0 +1,298 @@
+{% extends 'core/base.html' %}
+{% load bootstrap4 %}
+{% load i18n %}
+
+{% block title %}{% trans "WebSocket 实时通信演示" %} - {{ block.super }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .message-container {
+        height: 400px;
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 1rem;
+        background: #f8f9fa;
+    }
+    
+    .message {
+        margin-bottom: 0.75rem;
+        padding: 0.5rem 0.75rem;
+        border-radius: 8px;
+    }
+    
+    .message.system {
+        background: #e7f3ff;
+        color: #0066cc;
+        text-align: center;
+    }
+    
+    .message.chat {
+        background: white;
+        border-left: 3px solid #007bff;
+    }
+    
+    .message .username {
+        font-weight: bold;
+        color: #495057;
+        margin-right: 0.5rem;
+    }
+    
+    .message .time {
+        font-size: 0.75rem;
+        color: #6c757d;
+    }
+    
+    .connection-status {
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.875rem;
+    }
+    
+    .status-connected {
+        background: #d4edda;
+        color: #155724;
+    }
+    
+    .status-disconnected {
+        background: #f8d7da;
+        color: #721c24;
+    }
+    
+    .notification-badge {
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        z-index: 1050;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">🔌 {% trans "WebSocket 实时通信演示" %}</h2>
+    
+    <div class="row">
+        <!-- 聊天室 -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">💬 {% trans "实时聊天室" %}</h5>
+                    <span id="connection-status" class="connection-status status-disconnected">{% trans "未连接" %}</span>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "房间名称" %}</label>
+                        <input type="text" id="room-name" class="form-control" value="public" placeholder="{% trans '输入房间名称' %}">
+                    </div>
+                    
+                    <div id="message-container" class="message-container mb-3">
+                        <div class="message system">
+                            {% trans "等待连接..." %}
+                        </div>
+                    </div>
+                    
+                    <div class="input-group">
+                        <input type="text" id="message-input" class="form-control" placeholder="{% trans '输入消息...' %}" disabled>
+                        <button id="send-btn" class="btn btn-primary" disabled>{% trans "发送" %}</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 控制面板 -->
+        <div class="col-md-4">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="mb-0">⚙️ {% trans "连接控制" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <button id="connect-btn" class="btn btn-success">{% trans "连接" %}</button>
+                        <button id="disconnect-btn" class="btn btn-danger" disabled>{% trans "断开" %}</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">📋 {% trans "使用说明" %}</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="mb-0">
+                        <li>{% trans "输入房间名并点击连接" %}</li>
+                        <li>{% trans "多个浏览器标签页可互相通信" %}</li>
+                        <li>{% trans "支持群组广播消息" %}</li>
+                        <li>{% trans "可在后台代码中集成通知推送" %}</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 通知徽章 -->
+<div id="notification-badge" class="notification-badge d-none">
+    <div class="alert alert-info alert-dismissible fade show" role="alert">
+        <strong>{% trans "通知!" %}</strong>
+        <span id="notification-message"></span>
+        <button type="button" class="btn-close" onclick="this.parentElement.classList.add('d-none')"></button>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let chatSocket = null;
+let notificationSocket = null;
+
+function getCurrentTime() {
+    const now = new Date();
+    return now.toLocaleTimeString(document.documentElement.lang === 'en' ? 'en-US' : 'zh-CN');
+}
+
+function addMessage(type, username, message) {
+    const container = document.getElementById('message-container');
+    const div = document.createElement('div');
+    div.className = `message ${type}`;
+    
+    if (type === 'system') {
+        div.innerHTML = `<span>${message}</span>`;
+    } else {
+        div.innerHTML = `
+            <span class="username">${username}</span>
+            <span class="time">[${getCurrentTime()}]</span>
+            <div>${message}</div>
+        `;
+    }
+    
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+}
+
+function updateConnectionStatus(connected) {
+    const status = document.getElementById('connection-status');
+    const sendBtn = document.getElementById('send-btn');
+    const messageInput = document.getElementById('message-input');
+    const disconnectBtn = document.getElementById('disconnect-btn');
+    const connectBtn = document.getElementById('connect-btn');
+    
+    if (connected) {
+        status.textContent = '{% trans "已连接" %}';
+        status.className = 'connection-status status-connected';
+        sendBtn.disabled = false;
+        messageInput.disabled = false;
+        disconnectBtn.disabled = false;
+        connectBtn.disabled = true;
+    } else {
+        status.textContent = '{% trans "未连接" %}';
+        status.className = 'connection-status status-disconnected';
+        sendBtn.disabled = true;
+        messageInput.disabled = true;
+        disconnectBtn.disabled = true;
+        connectBtn.disabled = false;
+    }
+}
+
+function connect() {
+    const roomName = document.getElementById('room-name').value || 'public';
+    
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsHost = window.location.host;
+    
+    // 连接聊天室
+    chatSocket = new WebSocket(
+        `${wsProtocol}//${wsHost}/ws/core/chat/${roomName}/`
+    );
+    
+    chatSocket.onopen = function(e) {
+        console.log('Chat connected:', e);
+        updateConnectionStatus(true);
+        addMessage('system', '', '{% trans "已连接到聊天室" %}');
+    };
+    
+    chatSocket.onmessage = function(e) {
+        const data = JSON.parse(e.data);
+        console.log('Chat message:', data);
+        
+        if (data.type === 'system') {
+            addMessage('system', '', data.message);
+        } else if (data.type === 'chat') {
+            addMessage('chat', data.user, data.message);
+        }
+    };
+    
+    chatSocket.onclose = function(e) {
+        console.log('Chat disconnected:', e);
+        updateConnectionStatus(false);
+        addMessage('system', '', '{% trans "连接已断开" %}');
+    };
+    
+    chatSocket.onerror = function(e) {
+        console.error('Chat error:', e);
+        addMessage('system', '', '{% trans "连接错误" %}');
+    };
+    
+    // 连接通知通道（如果用户已登录）
+    {% if user.is_authenticated %}
+    notificationSocket = new WebSocket(
+        `${wsProtocol}//${wsHost}/ws/core/notifications/`
+    );
+    
+    notificationSocket.onmessage = function(e) {
+        const data = JSON.parse(e.data);
+        if (data.type === 'notification') {
+            showNotification(data.title, data.message);
+        }
+    };
+    {% endif %}
+}
+
+function disconnect() {
+    if (chatSocket) {
+        chatSocket.close();
+        chatSocket = null;
+    }
+    if (notificationSocket) {
+        notificationSocket.close();
+        notificationSocket = null;
+    }
+    updateConnectionStatus(false);
+}
+
+function sendMessage() {
+    const input = document.getElementById('message-input');
+    const message = input.value.trim();
+    
+    if (message && chatSocket) {
+        chatSocket.send(JSON.stringify({
+            'type': 'chat',
+            'message': message
+        }));
+        input.value = '';
+    }
+}
+
+function showNotification(title, message) {
+    const badge = document.getElementById('notification-badge');
+    const msgEl = document.getElementById('notification-message');
+    msgEl.textContent = `${title}: ${message}`;
+    badge.classList.remove('d-none');
+    
+    setTimeout(() => {
+        badge.classList.add('d-none');
+    }, 5000);
+}
+
+// 事件绑定
+document.getElementById('connect-btn').addEventListener('click', connect);
+document.getElementById('disconnect-btn').addEventListener('click', disconnect);
+document.getElementById('send-btn').addEventListener('click', sendMessage);
+
+document.getElementById('message-input').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        sendMessage();
+    }
+});
+</script>
+{% endblock %}

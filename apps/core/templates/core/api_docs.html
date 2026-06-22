@@ -1,0 +1,254 @@
+{% extends 'core/base.html' %}
+{% load bootstrap4 %}
+{% load i18n %}
+
+{% block title %}{% trans "项目 API 接口文档" %} - {{ block.super }}{% endblock %}
+
+{% block container_type %}container-fluid p-0{% endblock %}
+
+{% block extra_css %}
+<style>
+    .sidebar-sticky {
+        position: sticky;
+        top: 80px;
+        height: calc(100vh - 100px);
+        overflow-y: auto;
+    }
+    .sidebar .nav-pills .nav-link.active {
+        background-color: #007bff;
+    }
+    .endpoint-card {
+        scroll-margin-top: 90px;
+    }
+    .method-badge {
+        min-width: 60px;
+        width: auto;
+        padding: 0.5rem 0.75rem;
+        text-align: center;
+        display: inline-block;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+    }
+    /* 侧边栏折叠旋转动画 */
+    .chevron-icon {
+        transition: transform 0.3s ease;
+    }
+    .nav-link.collapsed .chevron-icon {
+        transform: rotate(-90deg);
+    }
+    .sidebar .nav-item .nav-link:hover {
+        background-color: #f8f9fa;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if needs_auth %}
+<div class="container text-center py-5 mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow-sm border-0 p-5" style="border-radius: 20px;">
+                <div class="mb-4">
+                    <span style="font-size: 5rem;">🔒</span>
+                </div>
+                <h3 class="font-weight-bold text-dark mb-3">{% trans "需要登录访问" %}</h3>
+                <p class="text-muted mb-4 lead">{% trans "抱歉，项目 API 接口文档包含敏感配置信息，仅限已登录用户查看。请先登录您的账号。" %}</p>
+                <div class="mt-2">
+                    <a href="{% url 'users:login' %}?next={{ request.path }}" class="btn btn-primary btn-lg px-5 shadow-sm font-weight-bold" style="border-radius: 10px;">
+                        {% trans "立即登录" %}
+                    </a>
+                </div>
+                <div class="mt-4">
+                    <a href="/" class="text-secondary small">{% trans "返回首页" %}</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="container-fluid pl-md-0 pr-md-5 mt-4">
+    <div class="row no-gutters">
+        <!-- 左侧侧边栏 -->
+        <nav class="col-md-3 col-lg-2 d-none d-md-block sidebar pl-0">
+            <div class="sidebar-sticky border-right pr-4">
+                <h6 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-3 text-muted text-uppercase">
+                    <span>{% trans "API 分类" %}</span>
+                </h6>
+                <ul class="nav nav-pills flex-column">
+                    {% for category in categories %}
+                    <li class="nav-item mb-2">
+                        <a class="nav-link font-weight-bold d-flex justify-content-between align-items-center shadow-sm py-3 {% if not forloop.first %}collapsed{% endif %}" 
+                           href="#sub-{{ category.app_name }}" 
+                           data-toggle="collapse"
+                           aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}"
+                           style="border-radius: 8px;">
+                            <span>📂 {{ category.app_name }}</span>
+                            <i class="fas fa-chevron-down small chevron-icon"></i>
+                        </a>
+                        <div id="sub-{{ category.app_name }}" class="collapse {% if forloop.first %}show{% endif %} mt-2">
+                            <ul class="nav flex-column ml-3 small">
+                                {% for endpoint in category.endpoints %}
+                                <li class="nav-item">
+                                    <a class="nav-link text-muted py-2 hover-bg" href="#{{ endpoint.id }}">
+                                        {{ endpoint.name }}
+                                    </a>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </nav>
+
+        <!-- 右侧内容区 -->
+        <main role="main" class="col-md-9 col-lg-10 pl-md-5">
+            <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-3 mb-4 border-bottom">
+                <h2 class="h2 font-weight-bold text-dark">🚀 {% trans "项目 API 接口配置说明" %}</h2>
+                <div class="btn-toolbar mb-2 mb-md-0">
+                    <span class="badge badge-primary p-2 px-3 shadow-sm">Version {{ version }}</span>
+                </div>
+            </div>
+
+            <div class="alert alert-info shadow-sm mb-5 p-4 border-0" style="border-radius: 12px; background-color: #e3f2fd;">
+                <h6 class="font-weight-bold mb-2"><i class="fas fa-key mr-2"></i>{% trans "认证方式" %}</h6>
+                <p class="mb-0">{% trans "本项目使用" %} <code>{{ auth_scheme }}</code>。{% trans "请在请求头中添加：" %}<br>
+                <code class="bg-white px-2 py-1 rounded mt-2 d-inline-block">{{ header_example }}</code></p>
+            </div>
+
+            {% for category in categories %}
+            <div id="app-{{ category.app_name }}" class="mb-5 pb-4">
+                <h4 class="text-primary font-weight-bold mb-4 border-bottom pb-3">
+                    <i class="fas fa-box-open mr-2"></i>{% trans "应用模块：" %}{{ category.app_name }}
+                </h4>
+                
+                {% for endpoint in category.endpoints %}
+                <div id="{{ endpoint.id }}" class="card shadow-sm border-0 mb-5 endpoint-card" style="border-radius: 15px; overflow: hidden;">
+                    <div class="card-header bg-white border-bottom-0 py-4 px-4">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h5 class="mb-2 font-weight-bold text-dark">
+                                    <span class="badge badge-{% if 'GET' in endpoint.method %}success{% elif 'POST' in endpoint.method %}primary{% else %}warning{% endif %} method-badge mr-3 py-2">
+                                        {{ endpoint.method }}
+                                    </span>
+                                    {{ endpoint.name }}
+                                </h5>
+                                <p class="text-muted small mb-0 ml-1">{{ endpoint.description }}</p>
+                            </div>
+                            <code class="text-primary font-weight-bold bg-light px-3 py-2 rounded">{{ base_url }}/{{ endpoint.path }}</code>
+                        </div>
+                    </div>
+                    <div class="card-body bg-light px-4 py-4">
+                        <div class="row">
+                            <div class="col-xl-6">
+                                {% if endpoint.params %}
+                                <h6 class="font-weight-bold text-dark mb-3"><i class="fas fa-list-ul mr-2 text-primary"></i> {% trans "请求参数" %}</h6>
+                                <div class="table-responsive mb-4">
+                                    <table class="table table-borderless table-hover bg-white shadow-sm" style="border-radius: 10px;">
+                                        <thead style="background-color: #f8f9fa;">
+                                            <tr>
+                                                <th class="py-3 px-4">{% trans "参数名" %}</th>
+                                                <th class="py-3 px-4">{% trans "类型" %}</th>
+                                                <th class="py-3 px-4">{% trans "说明" %}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for param in endpoint.params %}
+                                            <tr>
+                                                <td class="px-4"><code>{{ param.name }}</code></td>
+                                                <td class="px-4"><span class="badge badge-light border">{{ param.type }}</span></td>
+                                                <td class="px-4 text-secondary small">{{ param.desc }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                {% endif %}
+
+                                <h6 class="font-weight-bold text-dark mt-4 mb-3"><i class="fas fa-terminal mr-2 text-primary"></i> {% trans "示例请求" %}</h6>
+                                <pre class="bg-dark text-white p-4 rounded-lg shadow-sm mb-0"><code>curl -X {{ endpoint.method|slice:":4" }} {{ base_url }}/{{ endpoint.path }}</code></pre>
+                            </div>
+
+                            <div class="col-xl-6 mt-4 mt-xl-0">
+                                {% if endpoint.sample_response %}
+                                <h6 class="font-weight-bold text-dark mb-3"><i class="fas fa-code mr-2 text-primary"></i> {% trans "响应示例" %}</h6>
+                                <pre class="bg-dark text-success p-4 rounded-lg shadow-sm mb-0" style="max-height: 450px; overflow-y: auto; font-size: 0.9rem; line-height: 1.5;"><code>{{ endpoint.sample_response }}</code></pre>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% empty %}
+            <div class="text-center py-5">
+                <i class="fas fa-folder-open fa-4x text-muted mb-4"></i>
+                <h5 class="text-muted">{% trans "暂无已配置的 API 接口" %}</h5>
+            </div>
+            {% endfor %}
+        </main>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 侧边栏活动状态切换
+        const navLinks = document.querySelectorAll('.sidebar .nav-link');
+        
+        function updateActiveLink() {
+            let fromTop = window.scrollY + 100;
+            let currentActive = null;
+
+            navLinks.forEach(link => {
+                let targetId = link.hash;
+                // 如果是折叠链接，尝试获取其对应的应用锚点
+                if (link.getAttribute('data-toggle') === 'collapse') {
+                    targetId = link.hash.replace('#sub-', '#app-');
+                }
+                
+                let section = document.querySelector(targetId);
+                if (section && section.offsetTop <= fromTop) {
+                    currentActive = link;
+                }
+            });
+
+            if (currentActive) {
+                navLinks.forEach(l => l.classList.remove('active'));
+                currentActive.classList.add('active');
+            }
+        }
+
+        window.addEventListener('scroll', updateActiveLink);
+        updateActiveLink(); // 初始化状态
+
+        // 平滑滚动
+        document.querySelectorAll('.sidebar a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                const targetId = this.getAttribute('href');
+                
+                // 如果是折叠链接，点击时只滚动到对应的 App 区域
+                if (this.getAttribute('data-toggle') === 'collapse') {
+                    const sectionId = targetId.replace('#sub-', '#app-');
+                    const section = document.querySelector(sectionId);
+                    if (section) {
+                        e.preventDefault();
+                        section.scrollIntoView({ behavior: 'smooth' });
+                    }
+                    return; // 让 Bootstrap 处理 collapse 逻辑
+                }
+
+                // 普通接口链接
+                const section = document.querySelector(targetId);
+                if (section) {
+                    e.preventDefault();
+                    section.scrollIntoView({ behavior: 'smooth' });
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}

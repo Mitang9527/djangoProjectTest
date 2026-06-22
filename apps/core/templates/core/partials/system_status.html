@@ -1,0 +1,90 @@
+{% load i18n %}
+<div class="space-y-6" id="stats-content" x-data="{
+    // 初始化在线用户数，如果从外部有传入则使用
+    init() {
+        // 等待 Alpine 组件初始化完成
+        this.$nextTick(() => {
+            // 找到父组件并同步 onlineUsers
+            const parentEl = document.querySelector('[x-data*="onlineUsers"]');
+            if (parentEl && parentEl._x_dataStack) {
+                const parentData = parentEl._x_dataStack[0];
+                if (parentData.onlineUsers > 0) {
+                    this.localOnlineUsers = parentData.onlineUsers;
+                }
+            }
+        });
+    },
+    localOnlineUsers: {% firstof stats.active_users 0 %},
+    watchOnlineUsers() {
+        const parentEl = document.querySelector('[x-data*="onlineUsers"]');
+        if (parentEl && parentEl._x_dataStack) {
+            return parentEl._x_dataStack[0].onlineUsers;
+        }
+        return this.localOnlineUsers;
+    }
+}">
+    <!-- CPU Usage -->
+    <div class="group">
+        <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center space-x-2">
+                <div class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+                <span class="text-sm font-bold text-slate-700">{% trans "CPU 使用率" %}</span>
+            </div>
+            <span class="text-sm font-black text-blue-600">{{ stats.cpu_usage }}%</span>
+        </div>
+        <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+            <div class="bg-gradient-to-r from-blue-400 to-blue-600 h-full rounded-full transition-all duration-1000 ease-out shadow-sm" 
+                 style="width: {{ stats.cpu_usage }}%"></div>
+        </div>
+    </div>
+    
+    <!-- Memory Usage -->
+    <div class="group">
+        <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center space-x-2">
+                <div class="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></div>
+                <span class="text-sm font-bold text-slate-700">{% trans "内存占用" %}</span>
+            </div>
+            <span class="text-sm font-black text-indigo-600">{{ stats.mem_usage }}%</span>
+        </div>
+        <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+            <div class="bg-gradient-to-r from-indigo-400 to-indigo-600 h-full rounded-full transition-all duration-1000 ease-out shadow-sm" 
+                 style="width: {{ stats.mem_usage }}%"></div>
+        </div>
+    </div>
+
+    <!-- Active Users (WebSocket 实时) -->
+    <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between group hover:bg-white hover:shadow-lg transition-all">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 bg-green-100 text-green-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+            </div>
+            <div>
+                <p class="text-xs text-slate-400 font-medium">{% trans "当前在线用户" %}</p>
+                <p class="text-lg font-black text-slate-900" x-text="watchOnlineUsers()"></p>
+            </div>
+        </div>
+        <div class="flex -space-x-2">
+            <div class="w-6 h-6 rounded-full bg-blue-400 border-2 border-white"></div>
+            <div class="w-6 h-6 rounded-full bg-indigo-400 border-2 border-white"></div>
+            <div class="w-6 h-6 rounded-full bg-slate-300 border-2 border-white flex items-center justify-center text-[8px] font-bold text-white" x-text="'+'+(Math.max(0, watchOnlineUsers() - 2))"></div>
+        </div>
+    </div>
+
+    <!-- Last Update Footer -->
+    <div class="flex items-center justify-center space-x-2 opacity-50">
+        <svg class="w-3 h-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        <span class="text-[10px] font-medium uppercase tracking-widest">{% trans "数据同步于" %} {{ stats.last_update }}</span>
+    </div>
+</div>
+<script>
+    // 双重保障：在内容加载完成后重置刷新状态
+    if (window.Alpine) {
+        setTimeout(() => {
+            const el = document.querySelector('[x-data*="refreshing"]');
+            if (el && el._x_dataStack) {
+                el._x_dataStack[0].refreshing = false;
+            }
+        }, 100);
+    }
+</script>

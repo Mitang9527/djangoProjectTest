@@ -1,0 +1,280 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: djangoProjectTest\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-06-21 05:40+0800\n"
+"PO-Revision-Date: 2026-06-21 05:40+0800\n"
+"Last-Translator: GPT-5.4\n"
+"Language-Team: English\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "白天模式"
+msgstr "Light Mode"
+
+msgid "夜晚模式"
+msgstr "Dark Mode"
+
+msgid "跟随系统"
+msgstr "Follow System"
+
+msgid "仪表盘"
+msgstr "Dashboard"
+
+msgid "该模块的详细管理功能正在建设中，目前您可以看到此占位页面。"
+msgstr "Detailed management features for this module are under development. This is currently a placeholder page."
+
+msgid "新增"
+msgstr "Add"
+
+msgid "租户管理"
+msgstr "Tenant Management"
+
+msgid "用户管理"
+msgstr "User Management"
+
+msgid "这里将用于维护租户成员、账号状态和所属角色，后续会补充完整的增删改查能力。"
+msgstr "This page will manage tenant members, account status, and assigned roles. Full CRUD capabilities will be added later."
+
+msgid "新增用户"
+msgstr "Add User"
+
+msgid "角色管理"
+msgstr "Role Management"
+
+msgid "这里将用于维护 SaaS 后台角色、权限分配和访问范围，当前先提供独立页面入口。"
+msgstr "This page will manage backend roles, permission assignments, and access scopes. For now, it provides an independent entry page."
+
+msgid "新增角色"
+msgstr "Add Role"
+
+msgid "权限管理"
+msgstr "Permission Management"
+
+msgid "这里将用于维护菜单权限、操作权限和角色授权规则，详细内容后续再完善。"
+msgstr "This page will manage menu permissions, action permissions, and role authorization rules. More details will be added later."
+
+msgid "新增权限"
+msgstr "Add Permission"
+
+msgid "套餐管理"
+msgstr "Plan Management"
+
+msgid "这里将用于维护套餐、功能包和价格策略，当前先提供 SaaS 内部占位页面。"
+msgstr "This page will manage plans, feature bundles, and pricing strategies. For now, it serves as an internal SaaS placeholder page."
+
+msgid "新增套餐"
+msgstr "Add Plan"
+
+msgid "订阅管理"
+msgstr "Subscription Management"
+
+msgid "这里将用于查看租户订阅周期、续费情况和套餐生效状态，后续补充业务明细。"
+msgstr "This page will show tenant subscription cycles, renewals, and plan activation status. Business details will be added later."
+
+msgid "新增订阅"
+msgstr "Add Subscription"
+
+msgid "订单管理"
+msgstr "Order Management"
+
+msgid "这里将用于维护订单记录、支付状态和业务流水，当前先提供独立的管理页面。"
+msgstr "This page will manage order records, payment status, and transaction flows. For now, it provides an independent management page."
+
+msgid "新增订单"
+msgstr "Add Order"
+
+msgid "发票管理"
+msgstr "Invoice Management"
+
+msgid "这里将用于管理发票申请、开票状态和发票归档，详细流程后续再实现。"
+msgstr "This page will manage invoice requests, issuance status, and invoice archiving. The detailed process will be implemented later."
+
+msgid "新增发票"
+msgstr "Add Invoice"
+
+msgid "简体中文"
+msgstr "Simplified Chinese"
+
+msgid "English"
+msgstr "English"
+
+msgid "系统设置"
+msgstr "System Settings"
+
+msgid "所选语言暂不支持，已恢复为默认语言。"
+msgstr "The selected language is not supported and has been reset to the default language."
+
+msgid "所选主题无效，已恢复为默认主题。"
+msgstr "The selected theme is invalid and has been reset to the default theme."
+
+msgid "系统设置已保存。"
+msgstr "System settings have been saved."
+
+msgid "SaaS 后台管理系统"
+msgstr "SaaS Admin System"
+
+msgid "SaaS Admin"
+msgstr "SaaS Admin"
+
+msgid "系统管理"
+msgstr "System Management"
+
+msgid "套餐列表"
+msgstr "Plan List"
+
+msgid "订单列表"
+msgstr "Order List"
+
+msgid "首页"
+msgstr "Home"
+
+msgid "个人中心"
+msgstr "Profile"
+
+msgid "退出登录"
+msgstr "Log Out"
+
+msgid "欢迎回来，%(username)s！"
+msgstr "Welcome back, %(username)s!"
+
+msgid "这是您的 SaaS 后台管理系统，祝您工作愉快！"
+msgstr "This is your SaaS admin system. Have a productive day!"
+
+msgid "租户总数"
+msgstr "Total Tenants"
+
+msgid "较上月"
+msgstr "vs last month"
+
+msgid "活跃订单"
+msgstr "Active Orders"
+
+msgid "活跃用户"
+msgstr "Active Users"
+
+msgid "今日收入"
+msgstr "Today's Revenue"
+
+msgid "较昨日"
+msgstr "vs yesterday"
+
+msgid "最近订单"
+msgstr "Recent Orders"
+
+msgid "查看全部"
+msgstr "View All"
+
+msgid "订单号"
+msgstr "Order No."
+
+msgid "金额"
+msgstr "Amount"
+
+msgid "状态"
+msgstr "Status"
+
+msgid "时间"
+msgstr "Time"
+
+msgid "暂无订单数据"
+msgstr "No order data yet"
+
+msgid "快捷操作"
+msgstr "Quick Actions"
+
+msgid "租户列表"
+msgstr "Tenant List"
+
+msgid "多语言设置"
+msgstr "Language Settings"
+
+msgid "在这里可以统一管理 SaaS 后台的显示偏好，当前先支持语言切换和白天/夜晚模式。"
+msgstr "Here you can manage the display preferences of the SaaS backend. Language switching and light/dark mode are currently supported."
+
+msgid "当前语言:"
+msgstr "Current Language:"
+
+msgid "当前主题:"
+msgstr "Current Theme:"
+
+msgid "保存后会记住您的语言偏好，后续可继续补充更多国际化文案。"
+msgstr "After saving, your language preference will be remembered. More internationalized content can be added later."
+
+msgid "显示语言"
+msgstr "Display Language"
+
+msgid "已支持"
+msgstr "Supported"
+
+msgid "简体中文、English"
+msgstr "Simplified Chinese, English"
+
+msgid "生效方式"
+msgstr "How It Applies"
+
+msgid "基于 Django Locale 持久化，下次访问仍会保留。"
+msgstr "Persisted with Django Locale, and it will be retained on your next visit."
+
+msgid "主题模式"
+msgstr "Theme Mode"
+
+msgid "支持白天、夜晚以及跟随系统三种模式，保存后会立即应用到后台界面。"
+msgstr "Supports Light, Dark, and Follow System modes. Changes are applied to the admin interface immediately after saving."
+
+msgid "使用浅色界面，适合白天办公场景。"
+msgstr "Uses a light interface, suitable for daytime work."
+
+msgid "使用深色界面，降低夜间使用时的眩光。"
+msgstr "Uses a dark interface to reduce glare during nighttime use."
+
+msgid "自动跟随操作系统外观设置。"
+msgstr "Automatically follows the operating system appearance setting."
+
+msgid "操作说明"
+msgstr "Instructions"
+
+msgid "语言设置会通过浏览器 cookie 记住您的偏好，后续页面访问会自动沿用。"
+msgstr "Language settings are remembered through browser cookies and automatically reused on later visits."
+
+msgid "主题模式支持白天、夜晚和跟随系统，切换后无需重新登录。"
+msgstr "Theme mode supports Light, Dark, and Follow System, and changes take effect without logging in again."
+
+msgid "后续可继续在这里扩展通知开关、默认首页、时间格式等更多系统偏好。"
+msgstr "You can later extend more system preferences here, such as notification toggles, default homepage, and time format."
+
+msgid "保存设置"
+msgstr "Save Settings"
+
+msgid "点击保存后立即应用新设置，当前系统设置页面已经替代原来的占位页。"
+msgstr "Click Save to apply the new settings immediately. This system settings page has replaced the original placeholder page."
+
+msgid "保存系统设置"
+msgstr "Save System Settings"
+
+msgid "新建租户"
+msgstr "Create Tenant"
+
+msgid "名称"
+msgstr "Name"
+
+msgid "标识"
+msgstr "Slug"
+
+msgid "套餐"
+msgstr "Plan"
+
+msgid "创建时间"
+msgstr "Created At"
+
+msgid "暂无数据"
+msgstr "No data available"
+
+msgid "%(page_title)s 页面已创建"
+msgstr "%(page_title)s page has been created"
+
+msgid "返回仪表盘"
+msgstr "Back to Dashboard"

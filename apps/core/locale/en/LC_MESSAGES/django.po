@@ -1,0 +1,160 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: djangoProjectTest\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-06-21 06:05+0800\n"
+"PO-Revision-Date: 2026-06-21 06:05+0800\n"
+"Last-Translator: GPT-5.4\n"
+"Language-Team: English\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Django 企业级架构"
+msgstr "Django Enterprise Architecture"
+
+msgid "首页"
+msgstr "Home"
+
+msgid "SaaS 后台"
+msgstr "SaaS Admin"
+
+msgid "接口文档"
+msgstr "API Docs"
+
+msgid "账户管理"
+msgstr "Account"
+
+msgid "个人资料"
+msgstr "Profile"
+
+msgid "退出登录"
+msgstr "Log Out"
+
+msgid "登录"
+msgstr "Log In"
+
+msgid "免费注册"
+msgstr "Sign Up Free"
+
+msgid "在线"
+msgstr "Online"
+
+msgid "© 2026 Django Enterprise Architecture. Built with ❤️ and Modern Stack."
+msgstr "© 2026 Django Enterprise Architecture. Built with ❤️ and Modern Stack."
+
+msgid "知道了"
+msgstr "Got It"
+
+msgid "v2.0.0 现已发布"
+msgstr "v2.0.0 Now Available"
+
+msgid "构建"
+msgstr "Build"
+
+msgid "下一代"
+msgstr "Next-Gen"
+
+msgid "企业级 Django 应用"
+msgstr "Enterprise Django Applications"
+
+msgid "完美融合 Django 的稳健、HTMX 的轻量、Alpine.js 的灵活与 Tailwind CSS 的极简。"
+msgstr "Combines Django's robustness, HTMX's lightweight approach, Alpine.js flexibility, and Tailwind CSS minimalism."
+
+msgid "为您提供开箱即用的高性能、可扩展架构方案。"
+msgstr "Provides an out-of-the-box high-performance and scalable architecture."
+
+msgid "立即开始使用"
+msgstr "Get Started Now"
+
+msgid "查看开发文档"
+msgstr "View Developer Docs"
+
+msgid "进入 SaaS 后台"
+msgstr "Enter SaaS Admin"
+
+msgid "欢迎回来，%(username)s"
+msgstr "Welcome back, %(username)s"
+
+msgid "Powering by"
+msgstr "Powered By"
+
+msgid "正在初始化 WebSocket 连接..."
+msgstr "Initializing WebSocket connection..."
+
+msgid "✅ WebSocket 连接成功"
+msgstr "✅ WebSocket connected"
+
+msgid "📨 收到 WebSocket 消息:"
+msgstr "📨 WebSocket message received:"
+
+msgid "👥 在线用户数已更新:"
+msgstr "👥 Online user count updated:"
+
+msgid "❌ 解析 WebSocket 消息失败:"
+msgstr "❌ Failed to parse WebSocket message:"
+
+msgid "❌ WebSocket 错误:"
+msgstr "❌ WebSocket error:"
+
+msgid "❌ WebSocket 连接关闭，5秒后重试..."
+msgstr "❌ WebSocket closed, retrying in 5 seconds..."
+
+msgid "系统监控"
+msgstr "System Monitoring"
+
+msgid "实时性能指标"
+msgstr "Real-time Performance Metrics"
+
+msgid "CPU 使用率"
+msgstr "CPU Usage"
+
+msgid "内存占用"
+msgstr "Memory Usage"
+
+msgid "当前在线用户"
+msgstr "Online Users"
+
+msgid "数据同步于 "
+msgstr "Synced at "
+
+msgid "自动刷新频率"
+msgstr "Auto Refresh Rate"
+
+msgid "60s / 次"
+msgstr "60s / cycle"
+
+msgid "分环境配置"
+msgstr "Environment-based Config"
+
+msgid "解耦 base、dev、prod 配置，通过环境变量完美适配 CI/CD 流程。"
+msgstr "Separates base, dev, and prod settings and adapts perfectly to CI/CD through environment variables."
+
+msgid "了解详情"
+msgstr "Learn More"
+
+msgid "极致日志体验"
+msgstr "Advanced Logging"
+
+msgid "基于 Loguru 的全方位日志追踪，支持 JSON 格式化输出与异常上下文捕获。"
+msgstr "End-to-end logging powered by Loguru with JSON output and exception context capture."
+
+msgid "现代化 API"
+msgstr "Modern API"
+
+msgid "自动生成 OpenAPI 3.0 交互式文档，配合自定义渲染器，提供一致的响应格式。"
+msgstr "Automatically generates interactive OpenAPI 3.0 documentation with custom renderers for consistent responses."
+
+msgid "查看文档"
+msgstr "View Docs"
+
+msgid "实时双向通信"
+msgstr "Real-time Communication"
+
+msgid "集成 Channels 提供的 WebSocket 支持，为您的应用注入实时交互基因。"
+msgstr "Integrates Channels-powered WebSocket support to bring real-time interactions into your application."
+
+msgid "运行演示"
+msgstr "Run Demo"
