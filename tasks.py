@@ -406,7 +406,7 @@ ns.add_collection(db)
 # ns.add_collection(code)
 ns.add_collection(pro)
 ns.add_collection(docker)
-ns.add_collection(git_ns)
+# ns.add_collection(git_ns)
 
 
 # =========================

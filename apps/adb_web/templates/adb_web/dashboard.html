@@ -1,0 +1,300 @@
+{% extends 'core/base.html' %}
+
+{% block title %}ADB 工具 - Web 控制台{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-8" x-data="adbDashboard()" x-init="init()">
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-slate-900 dark:text-white">ADB 工具 Web 控制台</h1>
+        <p class="text-slate-500 mt-2">基于 adbutils 库，从 adb_tools.py 分离 Web 端</p>
+    </div>
+
+    <div x-show="error" x-cloak class="mb-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl" x-text="error"></div>
+    <div x-show="message" x-cloak class="mb-4 p-4 bg-green-50 border border-green-200 text-green-700 rounded-xl" x-text="message"></div>
+
+    <!-- 设备选择 -->
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow p-6 mb-6 border border-slate-100 dark:border-slate-800">
+        <div class="flex flex-wrap gap-4 items-end">
+            <div class="flex-1 min-w-[200px]">
+                <label class="block text-sm font-medium mb-2">已连接设备</label>
+                <select x-model="serial" @change="loadPackages()" class="w-full rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 px-4 py-2">
+                    <option value="">请选择设备</option>
+                    <template x-for="d in devices" :key="d.serial">
+                        <option :value="d.serial" x-text="`${d.serial} | ${d.model} | Android ${d.android_version}`"></option>
+                    </template>
+                </select>
+            </div>
+            <button @click="refreshDevices()" class="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700">刷新设备</button>
+        </div>
+    </div>
+
+    <div class="grid lg:grid-cols-3 gap-6">
+        <!-- 应用操作 -->
+        <div class="bg-white dark:bg-slate-900 rounded-2xl shadow p-6 border border-slate-100 dark:border-slate-800">
+            <h2 class="text-lg font-bold mb-4">应用管理</h2>
+            <div class="space-y-3">
+                <select x-model="packageName" class="w-full rounded-xl border px-3 py-2 dark:bg-slate-800 dark:border-slate-700">
+                    <option value="">选择包名</option>
+                    <template x-for="p in packages" :key="p">
+                        <option :value="p" x-text="p"></option>
+                    </template>
+                </select>
+                <input x-model="packageName" placeholder="或手动输入包名" class="w-full rounded-xl border px-3 py-2 dark:bg-slate-800 dark:border-slate-700" />
+                <div class="grid grid-cols-2 gap-2">
+                    <button @click="appAction('start')" class="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm">启动</button>
+                    <button @click="appAction('stop')" class="px-3 py-2 bg-orange-600 text-white rounded-lg text-sm">结束进程</button>
+                    <button @click="appAction('clear')" class="px-3 py-2 bg-amber-600 text-white rounded-lg text-sm">清除数据</button>
+                    <button @click="appAction('uninstall')" class="px-3 py-2 bg-red-600 text-white rounded-lg text-sm">卸载</button>
+                    <button @click="appAction('export')" class="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm col-span-2">导出 APK</button>
+                </div>
+                <div>
+                    <label class="text-sm">安装 APK</label>
+                    <input type="file" accept=".apk" @change="apkFile = $event.target.files[0]" class="w-full text-sm mt-1" />
+                    <button @click="installApk()" class="mt-2 w-full px-3 py-2 bg-blue-600 text-white rounded-lg text-sm">安装</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 设备工具 -->
+        <div class="bg-white dark:bg-slate-900 rounded-2xl shadow p-6 border border-slate-100 dark:border-slate-800">
+            <h2 class="text-lg font-bold mb-4">设备工具</h2>
+            <div class="space-y-3">
+                <button @click="screenshot()" class="w-full px-3 py-2 bg-purple-600 text-white rounded-lg">截图</button>
+                <button @click="languageSettings()" class="w-full px-3 py-2 bg-slate-600 text-white rounded-lg">打开语言设置</button>
+                <div>
+                    <input x-model="inputText" placeholder="ADB 输入文本" class="w-full rounded-xl border px-3 py-2 dark:bg-slate-800 dark:border-slate-700" />
+                    <button @click="sendInput()" class="mt-2 w-full px-3 py-2 bg-teal-600 text-white rounded-lg text-sm">发送文本</button>
+                </div>
+                <div>
+                    <input x-model="shellCmd" placeholder="Shell 命令" class="w-full rounded-xl border px-3 py-2 dark:bg-slate-800 dark:border-slate-700" />
+                    <button @click="runShell()" class="mt-2 w-full px-3 py-2 bg-gray-700 text-white rounded-lg text-sm">执行 Shell</button>
+                </div>
+                <pre x-show="shellOutput" class="text-xs bg-slate-100 dark:bg-slate-800 p-3 rounded-lg overflow-auto max-h-40" x-text="shellOutput"></pre>
+            </div>
+        </div>
+
+        <!-- 日志 / 流量 / 录屏 -->
+        <div class="bg-white dark:bg-slate-900 rounded-2xl shadow p-6 border border-slate-100 dark:border-slate-800">
+            <h2 class="text-lg font-bold mb-4">日志 / 流量 / 录屏</h2>
+            <div class="space-y-3">
+                <div class="grid grid-cols-2 gap-2">
+                    <button @click="logcatAction('clear')" class="px-3 py-2 bg-yellow-600 text-white rounded-lg text-sm">清理日志</button>
+                    <button @click="logcatAction('dump')" class="px-3 py-2 bg-yellow-700 text-white rounded-lg text-sm">导出日志</button>
+                </div>
+                <input x-model="logKeyword" placeholder="日志关键词（可选）" class="w-full rounded-xl border px-3 py-2 dark:bg-slate-800 dark:border-slate-700" />
+                <button @click="flowStats()" class="w-full px-3 py-2 bg-cyan-600 text-white rounded-lg text-sm">流量统计</button>
+                <pre x-show="flowOutput" class="text-xs bg-slate-100 dark:bg-slate-800 p-3 rounded-lg" x-text="flowOutput"></pre>
+                <button @click="listRecordings()" class="w-full px-3 py-2 bg-pink-600 text-white rounded-lg text-sm">列出录屏</button>
+                <select x-model="recordingIndex" class="w-full rounded-xl border px-3 py-2 dark:bg-slate-800 dark:border-slate-700">
+                    <template x-for="r in recordings" :key="r.index">
+                        <option :value="r.index" x-text="`${r.index}: ${r.filename}`"></option>
+                    </template>
+                </select>
+                <button @click="pullRecording()" class="w-full px-3 py-2 bg-pink-700 text-white rounded-lg text-sm">拉取录屏</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 截图预览 -->
+    <div x-show="screenshotUrl" x-cloak class="mt-6 bg-white dark:bg-slate-900 rounded-2xl shadow p-6 border">
+        <h2 class="text-lg font-bold mb-4">最新截图</h2>
+        <a :href="screenshotUrl" target="_blank"><img :src="screenshotUrl" class="max-w-full rounded-xl border" alt="screenshot" /></a>
+    </div>
+</div>
+
+<script>
+function adbDashboard() {
+    return {
+        devices: [],
+        packages: [],
+        recordings: [],
+        serial: '',
+        packageName: '',
+        inputText: '',
+        shellCmd: '',
+        shellOutput: '',
+        logKeyword: '',
+        flowOutput: '',
+        recordingIndex: 0,
+        apkFile: null,
+        screenshotUrl: '',
+        error: '',
+        message: '',
+        apiBase: '/api/adb_web/devices',
+
+        get csrfToken() {
+            const match = document.cookie.match(/csrftoken=([^;]+)/);
+            return match ? match[1] : '';
+        },
+
+        async init() {
+            await this.refreshDevices();
+        },
+
+        requireSerial() {
+            if (!this.serial) {
+                this.error = '请先选择设备';
+                return false;
+            }
+            this.error = '';
+            return true;
+        },
+
+        async api(path, options = {}) {
+            const headers = options.headers || {};
+            if (!(options.body instanceof FormData)) {
+                headers['Content-Type'] = 'application/json';
+            }
+            headers['X-CSRFToken'] = this.csrfToken;
+            const resp = await fetch(path, { credentials: 'same-origin', ...options, headers });
+            const json = await resp.json();
+            if (!resp.ok) {
+                throw new Error(json.msg || json.detail || '请求失败');
+            }
+            return json.data !== undefined ? json.data : json;
+        },
+
+        async refreshDevices() {
+            try {
+                this.devices = await this.api(this.apiBase + '/');
+                if (this.devices.length === 1) {
+                    this.serial = this.devices[0].serial;
+                    await this.loadPackages();
+                }
+            } catch (e) {
+                this.error = e.message;
+            }
+        },
+
+        async loadPackages() {
+            if (!this.serial) return;
+            try {
+                const data = await this.api(`${this.apiBase}/${encodeURIComponent(this.serial)}/packages/`);
+                this.packages = data.packages || [];
+            } catch (e) {
+                this.error = e.message;
+            }
+        },
+
+        async screenshot() {
+            if (!this.requireSerial()) return;
+            try {
+                const data = await this.api(`${this.apiBase}/${encodeURIComponent(this.serial)}/screenshot/`, { method: 'POST' });
+                this.screenshotUrl = data.url;
+                this.message = '截图成功';
+            } catch (e) { this.error = e.message; }
+        },
+
+        async appAction(action) {
+            if (!this.requireSerial() || !this.packageName) {
+                this.error = '请选择设备并填写包名';
+                return;
+            }
+            const enc = encodeURIComponent(this.serial);
+            const body = JSON.stringify({ package_name: this.packageName });
+            try {
+                if (action === 'export') {
+                    const data = await this.api(`${this.apiBase}/${enc}/app/export/?package_name=${encodeURIComponent(this.packageName)}`);
+                    window.open(data.url, '_blank');
+                    this.message = 'APK 导出成功';
+                    return;
+                }
+                const map = { start: 'start', stop: 'stop', clear: 'clear', uninstall: 'uninstall' };
+                const data = await this.api(`${this.apiBase}/${enc}/app/${map[action]}/`, { method: 'POST', body });
+                this.message = data.message || '操作成功';
+                if (action === 'uninstall') await this.loadPackages();
+            } catch (e) { this.error = e.message; }
+        },
+
+        async installApk() {
+            if (!this.requireSerial() || !this.apkFile) {
+                this.error = '请选择设备和 APK 文件';
+                return;
+            }
+            const fd = new FormData();
+            fd.append('apk', this.apkFile);
+            try {
+                const data = await this.api(`${this.apiBase}/${encodeURIComponent(this.serial)}/app/install/`, { method: 'POST', body: fd });
+                this.message = data.message;
+                await this.loadPackages();
+            } catch (e) { this.error = e.message; }
+        },
+
+        async sendInput() {
+            if (!this.requireSerial() || !this.inputText) return;
+            try {
+                const data = await this.api(`${this.apiBase}/${encodeURIComponent(this.serial)}/input/`, {
+                    method: 'POST', body: JSON.stringify({ text: this.inputText }),
+                });
+                this.message = data.message;
+            } catch (e) { this.error = e.message; }
+        },
+
+        async runShell() {
+            if (!this.requireSerial() || !this.shellCmd) return;
+            try {
+                const data = await this.api(`${this.apiBase}/${encodeURIComponent(this.serial)}/shell/`, {
+                    method: 'POST', body: JSON.stringify({ command: this.shellCmd }),
+                });
+                this.shellOutput = data.output;
+            } catch (e) { this.error = e.message; }
+        },
+
+        async languageSettings() {
+            if (!this.requireSerial()) return;
+            try {
+                const data = await this.api(`${this.apiBase}/${encodeURIComponent(this.serial)}/language/`, { method: 'POST' });
+                this.message = data.message;
+            } catch (e) { this.error = e.message; }
+        },
+
+        async logcatAction(action) {
+            if (!this.requireSerial()) return;
+            const enc = encodeURIComponent(this.serial);
+            try {
+                if (action === 'clear') {
+                    const data = await this.api(`${this.apiBase}/${enc}/logcat/clear/`, { method: 'POST' });
+                    this.message = data.message;
+                } else {
+                    const data = await this.api(`${this.apiBase}/${enc}/logcat/dump/`, {
+                        method: 'POST', body: JSON.stringify({ keyword: this.logKeyword, lines: 500 }),
+                    });
+                    this.message = `日志已导出 (${data.lines} 行)`;
+                    if (data.url) window.open(data.url, '_blank');
+                }
+            } catch (e) { this.error = e.message; }
+        },
+
+        async flowStats() {
+            if (!this.requireSerial() || !this.packageName) return;
+            try {
+                const data = await this.api(`${this.apiBase}/${encodeURIComponent(this.serial)}/flow/`, {
+                    method: 'POST', body: JSON.stringify({ package_name: this.packageName }),
+                });
+                this.flowOutput = `移动↑${data.rmnet_up_kb}KB ↓${data.rmnet_down_kb}KB | WiFi↑${data.wifi_up_kb}KB ↓${data.wifi_down_kb}KB`;
+            } catch (e) { this.error = e.message; }
+        },
+
+        async listRecordings() {
+            if (!this.requireSerial()) return;
+            try {
+                const data = await this.api(`${this.apiBase}/${encodeURIComponent(this.serial)}/recordings/`);
+                this.recordings = data.recordings || [];
+                this.message = `找到 ${this.recordings.length} 个录屏`;
+            } catch (e) { this.error = e.message; }
+        },
+
+        async pullRecording() {
+            if (!this.requireSerial()) return;
+            try {
+                const data = await this.api(`${this.apiBase}/${encodeURIComponent(this.serial)}/recordings/pull/`, {
+                    method: 'POST', body: JSON.stringify({ index: parseInt(this.recordingIndex) }),
+                });
+                window.open(data.url, '_blank');
+                this.message = '录屏拉取成功';
+            } catch (e) { this.error = e.message; }
+        },
+    };
+}
+</script>
+{% endblock %}
