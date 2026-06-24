@@ -10,8 +10,25 @@ from django.utils.decorators import method_decorator
 from django.utils.translation import gettext_lazy as _
 from django.views import View
 from rest_framework import viewsets, permissions
+from rest_framework.decorators import api_view, permission_classes as drf_permission_classes
+from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from loguru import logger
+
+from .permissions import (
+    TenantViewPermission, TenantManagePermission,
+    UserViewPermission, UserManagePermission,
+    RoleViewPermission, RoleManagePermission,
+    SystemViewPermission, SystemManagePermission,
+    PlanViewPermission, PlanManagePermission,
+    OrderViewPermission, OrderManagePermission,
+    InvoiceViewPermission, InvoiceManagePermission,
+    AdbViewPermission, AdbOperatePermission,
+    ConfigViewPermission, ConfigManagePermission,
+    ReadWriteTenantPermission,
+    HasTenantPermission,
+)
+from .mixins import TenantQuerysetMixin
 
 from .models import (
     Plan,
@@ -86,27 +103,34 @@ class PlaceholderModuleView(View):
 
 @method_decorator(login_required, name='dispatch')
 class TenantListView(View):
+    template_name = 'saas/tenant_list.html'
+
     def get(self, request):
-        tenants = Tenant.objects.all()
-        return render(request, 'saas/tenant_list.html', {'tenants': tenants, 'title': _('租户管理')})
+        return render(request, self.template_name, {'title': _('租户管理')})
 
 
-class MemberListView(PlaceholderModuleView):
-    page_title = _('用户管理')
-    page_description = _('这里将用于维护租户成员、账号状态和所属角色，后续会补充完整的增删改查能力。')
-    action_text = _('新增用户')
+@method_decorator(login_required, name='dispatch')
+class MemberListView(View):
+    template_name = 'saas/member_list.html'
+
+    def get(self, request):
+        return render(request, self.template_name, {'title': _('用户管理')})
 
 
-class RoleListView(PlaceholderModuleView):
-    page_title = _('角色管理')
-    page_description = _('这里将用于维护 SaaS 后台角色、权限分配和访问范围，当前先提供独立页面入口。')
-    action_text = _('新增角色')
+@method_decorator(login_required, name='dispatch')
+class RoleListView(View):
+    template_name = 'saas/role_list.html'
+
+    def get(self, request):
+        return render(request, self.template_name, {'title': _('角色管理')})
 
 
-class PermissionListView(PlaceholderModuleView):
-    page_title = _('权限管理')
-    page_description = _('这里将用于维护菜单权限、操作权限和角色授权规则，详细内容后续再完善。')
-    action_text = _('新增权限')
+@method_decorator(login_required, name='dispatch')
+class PermissionListView(View):
+    template_name = 'saas/permission_list.html'
+
+    def get(self, request):
+        return render(request, self.template_name, {'title': _('权限管理')})
 
 
 class PlanListView(PlaceholderModuleView):
@@ -180,7 +204,7 @@ class ConfigListView(View):
 
         translation.activate(language)
 
-        response = redirect('saas:config-list')
+        response = redirect('saas:config-page')
         response.set_cookie(
             settings.LANGUAGE_COOKIE_NAME,
             language,
@@ -208,7 +232,7 @@ class ConfigListView(View):
 class PlanViewSet(viewsets.ModelViewSet):
     queryset = Plan.objects.all()
     serializer_class = PlanSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, ReadWriteTenantPermission.for_module("billing.plan")]
 
 
 @extend_schema_view(
@@ -222,7 +246,7 @@ class PlanViewSet(viewsets.ModelViewSet):
 class PlanFeatureViewSet(viewsets.ModelViewSet):
     queryset = PlanFeature.objects.all()
     serializer_class = PlanFeatureSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, ReadWriteTenantPermission.for_module("billing.plan")]
 
 
 @extend_schema_view(
@@ -236,7 +260,10 @@ class PlanFeatureViewSet(viewsets.ModelViewSet):
 class TenantViewSet(viewsets.ModelViewSet):
     queryset = Tenant.objects.all()
     serializer_class = TenantSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, ReadWriteTenantPermission.for_module("tenant")]
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
 
 
 @extend_schema_view(
@@ -247,10 +274,10 @@ class TenantViewSet(viewsets.ModelViewSet):
     partial_update=extend_schema(summary='Partially update a tenant subscription', tags=['SaaS']),
     destroy=extend_schema(summary='Delete a tenant subscription', tags=['SaaS']),
 )
-class TenantSubscriptionViewSet(viewsets.ModelViewSet):
+class TenantSubscriptionViewSet(TenantQuerysetMixin, viewsets.ModelViewSet):
     queryset = TenantSubscription.objects.all()
     serializer_class = TenantSubscriptionSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, ReadWriteTenantPermission.for_module("billing.subscription")]
 
 
 @extend_schema_view(
@@ -261,10 +288,10 @@ class TenantSubscriptionViewSet(viewsets.ModelViewSet):
     partial_update=extend_schema(summary='Partially update a tenant config', tags=['SaaS']),
     destroy=extend_schema(summary='Delete a tenant config', tags=['SaaS']),
 )
-class TenantConfigViewSet(viewsets.ModelViewSet):
+class TenantConfigViewSet(TenantQuerysetMixin, viewsets.ModelViewSet):
     queryset = TenantConfig.objects.all()
     serializer_class = TenantConfigSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, ReadWriteTenantPermission.for_module("config")]
 
 
 @extend_schema_view(
@@ -278,7 +305,7 @@ class TenantConfigViewSet(viewsets.ModelViewSet):
 class PermissionViewSet(viewsets.ModelViewSet):
     queryset = Permission.objects.all()
     serializer_class = PermissionSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, ReadWriteTenantPermission.for_module("role")]
 
 
 @extend_schema_view(
@@ -289,10 +316,10 @@ class PermissionViewSet(viewsets.ModelViewSet):
     partial_update=extend_schema(summary='Partially update a role', tags=['SaaS']),
     destroy=extend_schema(summary='Delete a role', tags=['SaaS']),
 )
-class RoleViewSet(viewsets.ModelViewSet):
+class RoleViewSet(TenantQuerysetMixin, viewsets.ModelViewSet):
     queryset = Role.objects.all()
     serializer_class = RoleSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, ReadWriteTenantPermission.for_module("role")]
 
 
 @extend_schema_view(
@@ -303,10 +330,10 @@ class RoleViewSet(viewsets.ModelViewSet):
     partial_update=extend_schema(summary='Partially update a tenant member', tags=['SaaS']),
     destroy=extend_schema(summary='Delete a tenant member', tags=['SaaS']),
 )
-class TenantMemberViewSet(viewsets.ModelViewSet):
+class TenantMemberViewSet(TenantQuerysetMixin, viewsets.ModelViewSet):
     queryset = TenantMember.objects.all()
     serializer_class = TenantMemberSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, ReadWriteTenantPermission.for_module("user")]
 
 
 @extend_schema_view(
@@ -317,10 +344,10 @@ class TenantMemberViewSet(viewsets.ModelViewSet):
     partial_update=extend_schema(summary='Partially update an order', tags=['SaaS']),
     destroy=extend_schema(summary='Delete an order', tags=['SaaS']),
 )
-class OrderViewSet(viewsets.ModelViewSet):
+class OrderViewSet(TenantQuerysetMixin, viewsets.ModelViewSet):
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, ReadWriteTenantPermission.for_module("billing.order")]
 
 
 @extend_schema_view(
@@ -331,7 +358,135 @@ class OrderViewSet(viewsets.ModelViewSet):
     partial_update=extend_schema(summary='Partially update an invoice', tags=['SaaS']),
     destroy=extend_schema(summary='Delete an invoice', tags=['SaaS']),
 )
-class InvoiceViewSet(viewsets.ModelViewSet):
+class InvoiceViewSet(TenantQuerysetMixin, viewsets.ModelViewSet):
     queryset = Invoice.objects.all()
     serializer_class = InvoiceSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, ReadWriteTenantPermission.for_module("billing.invoice")]
+
+
+# ---------------------------------------------------------------------------
+# /api/saas/me/permissions/ — 返回当前用户拥有的权限 slug 集合
+# 前端用来控制菜单项是否显示
+# ---------------------------------------------------------------------------
+@extend_schema(
+    summary="获取当前用户权限列表",
+    tags=["SaaS"],
+    responses={200: {"type": "object", "properties": {
+        "is_super_admin": {"type": "boolean"},
+        "permissions": {"type": "array", "items": {"type": "string"}},
+    }}},
+)
+@api_view(["GET"])
+@drf_permission_classes([permissions.IsAuthenticated])
+def me_permissions(request):
+    """
+    返回当前登录用户在当前租户下拥有的权限 slug 集合。
+    超级管理员返回全部权限 slug。
+    前端可缓存此结果用于菜单渲染。
+    """
+    from .permissions import _is_super_admin
+    from .permission_registry import ALL_PERMISSION_SLUGS
+
+    user = request.user
+
+    if _is_super_admin(user):
+        return Response({
+            "is_super_admin": True,
+            "permissions": ALL_PERMISSION_SLUGS,
+        })
+
+    # 按当前租户过滤成员关系
+    tenant_id = getattr(request, 'tenant_id', None) or request.session.get('current_tenant_id')
+    members = (
+        TenantMember.objects
+        .filter(user=user, is_active=True)
+        .select_related("role")
+        .prefetch_related("role__permissions")
+    )
+    if tenant_id:
+        members = members.filter(tenant_id=tenant_id)
+
+    slugs = set()
+    for member in members:
+        role = member.role
+        if not role or not role.is_active:
+            continue
+        for perm in role.permissions.filter(is_active=True):
+            slugs.add(perm.slug)
+
+    return Response({
+        "is_super_admin": False,
+        "permissions": sorted(slugs),
+    })
+
+
+# ===============================================
+# 系统用户管理页面视图
+# ===============================================
+
+class SystemUserListView(View):
+    """系统用户管理页面"""
+
+    def get(self, request):
+        return render(request, 'saas/user_list.html', {
+            'title': '系统用户',
+        })
+
+
+# ===============================================
+# 租户切换 API
+# ===============================================
+
+@api_view(['GET'])
+@drf_permission_classes([permissions.IsAuthenticated])
+def me_tenants(request):
+    """返回当前用户可访问的租户列表"""
+    is_super = request.user.is_superuser or getattr(request.user, 'role', 'user') == 'admin'
+    if is_super:
+        tenants = list(Tenant.objects.filter(status='active').values('id', 'name', 'slug'))
+    else:
+        members = TenantMember.objects.filter(
+            user=request.user, is_active=True
+        ).select_related('tenant')
+        tenants = [
+            {'id': str(m.tenant.id), 'name': m.tenant.name, 'slug': m.tenant.slug}
+            for m in members if m.tenant.status == 'active'
+        ]
+
+    current_id = request.session.get('current_tenant_id')
+    return Response({
+        'tenants': tenants,
+        'current_tenant_id': current_id,
+    })
+
+
+@api_view(['POST'])
+@drf_permission_classes([permissions.IsAuthenticated])
+def switch_tenant(request):
+    """切换当前活跃租户（传 null 清除上下文，回到管理员全量视图）"""
+    tenant_id = request.data.get('tenant_id')
+    
+    if not tenant_id:
+        request.session.pop('current_tenant_id', None)
+        logger.info(f"用户 {request.user.username} 清除租户上下文，进入全局视图")
+        return Response({'msg': '已切换到全局视图', 'tenant': None})
+
+    is_super = request.user.is_superuser or getattr(request.user, 'role', 'user') == 'admin'
+    if is_super:
+        tenant = Tenant.objects.filter(id=tenant_id).first()
+    else:
+        member = TenantMember.objects.filter(
+            user=request.user, tenant_id=tenant_id, is_active=True
+        ).select_related('tenant').first()
+        tenant = member.tenant if member else None
+
+    if not tenant:
+        return Response({'msg': '无权限访问该租户'}, status=403)
+
+    request.session['current_tenant_id'] = str(tenant.id)
+    logger.info(f"用户 {request.user.username} 切换到租户 {tenant.name}")
+
+    return Response({
+        'msg': f'已切换到 {tenant.name}',
+        'tenant': {'id': str(tenant.id), 'name': tenant.name, 'slug': tenant.slug},
+    })

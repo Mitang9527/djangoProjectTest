@@ -16,6 +16,14 @@ class PackageActionSerializer(serializers.Serializer):
 
 class ShellCommandSerializer(serializers.Serializer):
     command = serializers.CharField(max_length=4096, help_text="Shell 命令")
+    cwd = serializers.CharField(
+        max_length=512,
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        default=None,
+        help_text="当前工作目录（前端维护，服务端在命令前插入 cd <cwd> &&）",
+    )
 
 
 class InputTextSerializer(serializers.Serializer):
@@ -63,3 +71,20 @@ class MonkeySerializer(serializers.Serializer):
 
 class InstallApkSerializer(serializers.Serializer):
     apk = serializers.FileField(help_text="APK 安装包")
+
+
+class TabCompleteSerializer(serializers.Serializer):
+    prefix = serializers.CharField(
+        max_length=1024,
+        allow_blank=True,
+        default="",
+        help_text="当前输入的前缀（含路径），用于 compgen -f 补全",
+    )
+    cwd = serializers.CharField(
+        max_length=512,
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        default=None,
+        help_text="当前工作目录",
+    )

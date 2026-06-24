@@ -3,7 +3,7 @@
 {% load static %}
 
 {% block saas_content %}
-<div x-data="tenantManager" x-init="init()">
+<div x-data="userManager" x-init="init()">
     <!-- 页面头部 -->
     <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
         <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
@@ -11,7 +11,7 @@
             <button @click="openCreate()"
                     class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-1.5">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                {% trans "新建租户" %}
+                {% trans "新建用户" %}
             </button>
         </div>
 
@@ -20,18 +20,19 @@
             <table class="w-full">
                 <thead class="bg-slate-50 dark:bg-slate-950/60">
                     <tr>
-                        <th class="px-6 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-left">{% trans "名称" %}</th>
-                        <th class="px-6 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-left">{% trans "标识" %}</th>
-                        <th class="px-6 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-left">{% trans "域名" %}</th>
+                        <th class="px-6 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-left">{% trans "用户名" %}</th>
+                        <th class="px-6 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-left">{% trans "邮箱" %}</th>
+                        <th class="px-6 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-left">{% trans "昵称" %}</th>
+                        <th class="px-6 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-left">{% trans "手机号" %}</th>
+                        <th class="px-6 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-left">{% trans "角色" %}</th>
                         <th class="px-6 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-left">{% trans "状态" %}</th>
-                        <th class="px-6 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-left">{% trans "套餐" %}</th>
-                        <th class="px-6 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-left">{% trans "创建时间" %}</th>
+                        <th class="px-6 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-left">{% trans "注册时间" %}</th>
                         <th class="px-6 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-right">{% trans "操作" %}</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
                     <tr x-show="loading" class="h-64">
-                        <td colspan="7" class="px-6 py-4 text-center">
+                        <td colspan="8" class="px-6 py-4 text-center">
                             <svg class="animate-spin h-6 w-6 text-blue-500 mx-auto" fill="none" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                             </svg>
@@ -39,18 +40,21 @@
                     </tr>
                     <template x-for="item in items" :key="item.id">
                         <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
-                            <td class="px-6 py-4 text-sm font-medium text-slate-900 dark:text-slate-100" x-text="item.name"></td>
-                            <td class="px-6 py-4 text-sm text-slate-500 dark:text-slate-400 font-mono" x-text="item.slug"></td>
-                            <td class="px-6 py-4 text-sm text-slate-500 dark:text-slate-400" x-text="item.domain || '---'"></td>
+                            <td class="px-6 py-4 text-sm font-medium text-slate-900 dark:text-slate-100" x-text="item.username"></td>
+                            <td class="px-6 py-4 text-sm text-slate-500 dark:text-slate-400" x-text="item.email || '---'"></td>
+                            <td class="px-6 py-4 text-sm text-slate-500 dark:text-slate-400" x-text="item.nickname || '---'"></td>
+                            <td class="px-6 py-4 text-sm text-slate-500 dark:text-slate-400" x-text="item.mobile || '---'"></td>
                             <td class="px-6 py-4 text-sm">
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                                      :class="item.status === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' :
-                                             item.status === 'suspended' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300' :
-                                             'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'"
-                                      x-text="{'active':'{% trans '活跃' %}','pending':'{% trans '待开通' %}','suspended':'{% trans '已暂停' %}','cancelled':'{% trans '已取消' %}'}[item.status] || item.status"></span>
+                                      :class="item.role === 'admin' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'"
+                                      x-text="item.role === 'admin' ? '{% trans '管理员' %}' : '{% trans '普通用户' %}'"></span>
                             </td>
-                            <td class="px-6 py-4 text-sm text-slate-500 dark:text-slate-400" x-text="item.plan_name || '---'"></td>
-                            <td class="px-6 py-4 text-sm text-slate-500 dark:text-slate-400" x-text="item.created_at?.slice(0,10)"></td>
+                            <td class="px-6 py-4 text-sm">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                      :class="item.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'"
+                                      x-text="item.is_active ? '{% trans '启用' %}' : '{% trans '禁用' %}'"></span>
+                            </td>
+                            <td class="px-6 py-4 text-sm text-slate-500 dark:text-slate-400" x-text="item.date_joined?.slice(0,10)"></td>
                             <td class="px-6 py-4 text-sm text-right">
                                 <button @click="openEdit(item)" class="text-blue-600 hover:text-blue-800 font-medium mr-3">{% trans "编辑" %}</button>
                                 <button @click="confirmDelete(item)" class="text-red-500 hover:text-red-700 font-medium">{% trans "删除" %}</button>
@@ -58,7 +62,7 @@
                         </tr>
                     </template>
                     <tr x-show="!loading && items.length === 0">
-                        <td colspan="7" class="px-6 py-12 text-center text-slate-400 dark:text-slate-500">{% trans "暂无数据" %}</td>
+                        <td colspan="8" class="px-6 py-12 text-center text-slate-400 dark:text-slate-500">{% trans "暂无数据" %}</td>
                     </tr>
                 </tbody>
             </table>
@@ -70,62 +74,75 @@
         <div class="flex items-center justify-center min-h-screen px-4">
             <div class="fixed inset-0 bg-black/40" @click="modalOpen=false"></div>
             <div class="relative bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-800 w-full max-w-lg p-6" @click.stop>
-                <h4 class="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4" x-text="editing ? '{% trans "编辑租户" %}' : '{% trans "新建租户" %}'"></h4>
+                <h4 class="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4" x-text="editing ? '{% trans "编辑用户" %}' : '{% trans "新建用户" %}'"></h4>
                 <form @submit.prevent="save" class="space-y-4">
                     <div>
-                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{% trans "名称" %} *</label>
-                        <input type="text" x-model="form.name" required
-                               @input="clearFieldError('name')"
-                               :class="errors.name ? 'border-red-500 focus:ring-red-500' : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500'"
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{% trans "用户名" %} *</label>
+                        <input type="text" x-model="form.username" required
+                               @input="clearFieldError('username')"
+                               :class="errors.username ? 'border-red-500 focus:ring-red-500' : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500'"
                                class="w-full px-3 py-2 border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:border-transparent transition-colors">
-                        <p x-show="errors.name" x-text="errors.name"
-                           class="text-red-500 text-xs mt-1"></p>
+                        <p x-show="errors.username" x-text="errors.username" class="text-red-500 text-xs mt-1"></p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{% trans "标识" %} *</label>
-                        <input type="text" x-model="form.slug" required
-                               @input="clearFieldError('slug')"
-                               :class="errors.slug ? 'border-red-500 focus:ring-red-500' : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500'"
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{% trans "密码" %}
+                            <span x-show="!editing" class="text-red-500">*</span>
+                            <span x-show="editing" class="text-slate-400 text-xs">({% trans "留空则不修改" %})</span>
+                        </label>
+                        <input type="password" x-model="form.password"
+                               :required="!editing"
+                               @input="clearFieldError('password')"
+                               :class="errors.password ? 'border-red-500 focus:ring-red-500' : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500'"
                                class="w-full px-3 py-2 border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:border-transparent transition-colors">
-                        <p x-show="errors.slug" x-text="errors.slug"
-                           class="text-red-500 text-xs mt-1"></p>
+                        <p x-show="errors.password" x-text="errors.password" class="text-red-500 text-xs mt-1"></p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{% trans "域名" %}</label>
-                        <input type="text" x-model="form.domain"
-                               @input="clearFieldError('domain')"
-                               :class="errors.domain ? 'border-red-500 focus:ring-red-500' : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500'"
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{% trans "邮箱" %} *</label>
+                        <input type="email" x-model="form.email" required
+                               @input="clearFieldError('email')"
+                               :class="errors.email ? 'border-red-500 focus:ring-red-500' : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500'"
                                class="w-full px-3 py-2 border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:border-transparent transition-colors">
-                        <p x-show="errors.domain" x-text="errors.domain"
-                           class="text-red-500 text-xs mt-1"></p>
+                        <p x-show="errors.email" x-text="errors.email" class="text-red-500 text-xs mt-1"></p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{% trans "昵称" %}</label>
+                            <input type="text" x-model="form.nickname"
+                                   @input="clearFieldError('nickname')"
+                                   :class="errors.nickname ? 'border-red-500 focus:ring-red-500' : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500'"
+                                   class="w-full px-3 py-2 border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:border-transparent transition-colors">
+                            <p x-show="errors.nickname" x-text="errors.nickname" class="text-red-500 text-xs mt-1"></p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{% trans "手机号" %}</label>
+                            <input type="text" x-model="form.mobile"
+                                   @input="clearFieldError('mobile')"
+                                   :class="errors.mobile ? 'border-red-500 focus:ring-red-500' : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500'"
+                                   class="w-full px-3 py-2 border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:border-transparent transition-colors">
+                            <p x-show="errors.mobile" x-text="errors.mobile" class="text-red-500 text-xs mt-1"></p>
+                        </div>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{% trans "状态" %}</label>
-                        <select x-model="form.status"
-                                @change="clearFieldError('status')"
-                                :class="errors.status ? 'border-red-500 focus:ring-red-500' : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500'"
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{% trans "角色" %}</label>
+                        <select x-model="form.role"
+                                @change="clearFieldError('role')"
+                                :class="errors.role ? 'border-red-500 focus:ring-red-500' : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500'"
                                 class="w-full px-3 py-2 border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:border-transparent transition-colors">
-                            <option value="active">{% trans "活跃" %}</option>
-                            <option value="pending">{% trans "待开通" %}</option>
-                            <option value="suspended">{% trans "已暂停" %}</option>
-                            <option value="cancelled">{% trans "已取消" %}</option>
+                            <option value="user">{% trans "普通用户" %}</option>
+                            <option value="admin">{% trans "管理员" %}</option>
                         </select>
-                        <p x-show="errors.status" x-text="errors.status"
-                           class="text-red-500 text-xs mt-1"></p>
+                        <p x-show="errors.role" x-text="errors.role" class="text-red-500 text-xs mt-1"></p>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{% trans "套餐" %}</label>
-                        <select x-model="form.plan"
-                                @change="clearFieldError('plan')"
-                                :class="errors.plan ? 'border-red-500 focus:ring-red-500' : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500'"
+                    <div x-show="editing">
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{% trans "启用状态" %}</label>
+                        <select x-model="form.is_active"
+                                @change="clearFieldError('is_active')"
+                                :class="errors.is_active ? 'border-red-500 focus:ring-red-500' : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500'"
                                 class="w-full px-3 py-2 border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:border-transparent transition-colors">
-                            <option value="">---</option>
-                            <template x-for="p in plans" :key="p.id">
-                                <option :value="p.id" x-text="p.name"></option>
-                            </template>
+                            <option :value="true">{% trans "启用" %}</option>
+                            <option :value="false">{% trans "禁用" %}</option>
                         </select>
-                        <p x-show="errors.plan" x-text="errors.plan"
-                           class="text-red-500 text-xs mt-1"></p>
+                        <p x-show="errors.is_active" x-text="errors.is_active" class="text-red-500 text-xs mt-1"></p>
                     </div>
                     <div class="flex justify-end gap-3 pt-2">
                         <button type="button" @click="modalOpen=false" class="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors">{% trans "取消" %}</button>
@@ -143,7 +160,7 @@
             <div class="relative bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-800 w-full max-w-sm p-6">
                 <h4 class="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">{% trans "确认删除" %}</h4>
                 <p class="text-sm text-slate-500 dark:text-slate-400 mb-6">
-                    {% trans "确定要删除租户" %} <strong class="text-slate-900 dark:text-slate-100" x-text="deleteTarget?.name"></strong> {% trans "吗？此操作不可撤销。" %}
+                    {% trans "确定要删除用户" %} <strong class="text-slate-900 dark:text-slate-100" x-text="deleteTarget?.username"></strong> {% trans "吗？此操作不可撤销。" %}
                 </p>
                 <div class="flex justify-end gap-3">
                     <button @click="deleteModal=false" class="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors">{% trans "取消" %}</button>
@@ -165,48 +182,36 @@
 {% block extra_js %}
 <script>
 document.addEventListener('alpine:init', () => {
-    Alpine.data('tenantManager', () => ({
+    Alpine.data('userManager', () => ({
         items: [],
-        plans: [],
         loading: true,
         modalOpen: false,
         deleteModal: false,
         editing: null,
         deleteTarget: null,
-        form: { name: '', slug: '', domain: '', status: 'active', plan: '' },
+        form: { username: '', password: '', email: '', nickname: '', mobile: '', role: 'user', is_active: true },
         errors: {},
         toast: { show: false, msg: '', type: 'success' },
 
         async init() {
-            await Promise.all([this.fetchList(), this.fetchPlans()]);
+            await this.fetchList();
         },
 
         async fetchList() {
             this.loading = true;
             try {
-                const resp = await saasFetch('/saas/api/tenants/?page_size=200');
-                console.log('[tenant] GET status:', resp.status, resp.ok);
+                const resp = await saasFetch('/api/users/api/manage/?page_size=200');
                 const data = await resp.json();
-                console.log('[tenant] GET body:', data);
                 if (!resp.ok) {
-                    const detail = data.detail || data.msg || (typeof data === 'object' ? JSON.stringify(data) : data);
+                    const detail = data.detail || data.msg || JSON.stringify(data);
                     throw new Error('HTTP ' + resp.status + ': ' + detail);
                 }
-                // Handle wrapped response: { code, msg, data: { count, next, previous, results } }
                 const payload = data.data || data;
                 this.items = Array.isArray(payload) ? payload : (payload.results || []);
             } catch (e) {
-                console.error('[tenant] fetchList error:', e);
+                console.error('[user] fetchList error:', e);
                 this.toastMsg('{% trans "加载失败" %}: ' + e.message, 'error');
             } finally { this.loading = false; }
-        },
-
-        async fetchPlans() {
-            try {
-                const data = await (await saasFetch('/saas/api/plans/?page_size=200')).json();
-                const payload = data.data || data;
-                this.plans = Array.isArray(payload) ? payload : (payload.results || []);
-            } catch (e) { console.error('[tenant] fetchPlans error:', e); }
         },
 
         clearErrors() { this.errors = {}; },
@@ -214,44 +219,59 @@ document.addEventListener('alpine:init', () => {
 
         openCreate() {
             this.editing = null;
-            this.form = { name: '', slug: '', domain: '', status: 'active', plan: '' };
+            this.form = { username: '', password: '', email: '', nickname: '', mobile: '', role: 'user', is_active: true };
             this.clearErrors();
             this.modalOpen = true;
         },
 
         openEdit(item) {
             this.editing = item;
-            this.form = { name: item.name, slug: item.slug, domain: item.domain || '', status: item.status, plan: item.plan || '' };
+            this.form = {
+                username: item.username,
+                password: '',
+                email: item.email || '',
+                nickname: item.nickname || '',
+                mobile: item.mobile || '',
+                role: item.role || 'user',
+                is_active: item.is_active
+            };
             this.clearErrors();
             this.modalOpen = true;
         },
 
         async save() {
-            const payload = { ...this.form };
-            if (!payload.plan) payload.plan = null;
-            console.log('[tenant] SAVE payload:', payload, 'editing:', !!this.editing);
+            const payload = {
+                username: this.form.username,
+                email: this.form.email,
+                nickname: this.form.nickname || '',
+                mobile: this.form.mobile || '',
+                role: this.form.role,
+            };
+            if (!this.editing) {
+                payload.password = this.form.password;
+            } else {
+                if (this.form.password) payload.password = this.form.password;
+                payload.is_active = this.form.is_active;
+            }
             try {
                 let r;
                 if (this.editing) {
-                    r = await saasFetch(`/saas/api/tenants/${this.editing.id}/`, {
+                    r = await saasFetch(`/api/users/api/manage/${this.editing.id}/`, {
                         method: 'PUT',
                         body: JSON.stringify(payload)
                     });
                 } else {
-                    r = await saasFetch('/saas/api/tenants/', {
+                    r = await saasFetch('/api/users/api/manage/', {
                         method: 'POST',
                         body: JSON.stringify(payload)
                     });
                 }
-                console.log('[tenant] SAVE response status:', r.status, r.ok);
                 if (r.ok) {
                     this.modalOpen = false;
                     this.toastMsg(this.editing ? '{% trans "更新成功" %}' : '{% trans "创建成功" %}', 'success');
                     await this.fetchList();
                 } else {
                     const body = await r.json();
-                    console.error('[tenant] SAVE error:', body);
-                    // 将字段级错误映射到表单下方显示
                     this.errors = {};
                     const errData = body.data || {};
                     if (typeof errData === 'object' && !Array.isArray(errData)) {
@@ -259,13 +279,12 @@ document.addEventListener('alpine:init', () => {
                             this.errors[key] = Array.isArray(val) ? val[0] : String(val);
                         }
                     }
-                    // 兜底 toast
                     if (Object.keys(this.errors).length === 0) {
                         this.toastMsg(formatApiError(body, '{% trans "保存失败" %}'), 'error');
                     }
                 }
             } catch (e) {
-                console.error('[tenant] SAVE exception:', e);
+                console.error('[user] SAVE exception:', e);
                 this.toastMsg('{% trans "网络错误" %}: ' + e.message, 'error');
             }
         },
@@ -278,13 +297,14 @@ document.addEventListener('alpine:init', () => {
         async doDelete() {
             if (!this.deleteTarget) return;
             try {
-                const r = await saasFetch(`/saas/api/tenants/${this.deleteTarget.id}/`, { method: 'DELETE' });
+                const r = await saasFetch(`/api/users/api/manage/${this.deleteTarget.id}/`, { method: 'DELETE' });
                 if (r.ok || r.status === 204) {
                     this.deleteModal = false;
                     this.toastMsg('{% trans "删除成功" %}', 'success');
                     this.items = this.items.filter(i => i.id !== this.deleteTarget.id);
                 } else {
-                    this.toastMsg('{% trans "删除失败" %}', 'error');
+                    const body = await r.json().catch(() => ({}));
+                    this.toastMsg(body.msg || body.detail || '{% trans "删除失败" %}', 'error');
                 }
             } catch (e) {
                 this.toastMsg('{% trans "网络错误" %}', 'error');

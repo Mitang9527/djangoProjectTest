@@ -93,6 +93,68 @@ class RefreshTokenSerializer(serializers.Serializer):
     """刷新 Token 序列化器"""
     refresh = serializers.CharField(required=True, help_text="刷新 Token")
 
+class UserManageSerializer(serializers.ModelSerializer):
+    """管理员操作用户的序列化器（创建/编辑/删除）"""
+    password = serializers.CharField(write_only=True, min_length=6, required=False, label="密码")
+
+    class Meta:
+        model = User
+        fields = ('id', 'username', 'password', 'email', 'nickname', 'mobile', 'role', 'is_active', 'date_joined')
+        read_only_fields = ('id', 'date_joined')
+        extra_kwargs = {
+            'username': {'validators': [UniqueValidator(queryset=User.objects.all(), message="用户名已存在")]},
+            'email': {'required': True, 'validators': [UniqueValidator(queryset=User.objects.all(), message="该邮箱已被注册")]},
+            'mobile': {'required': False, 'allow_blank': True, 'validators': [UniqueValidator(queryset=User.objects.all(), message="该手机号已被注册")]},
+        }
+
+    def validate_username(self, value):
+        qs = User.objects.filter(username=value)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError(f'用户名：{value}当前已存在')
+        return value
+
+    def validate_email(self, value):
+        qs = User.objects.filter(email=value)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError(f'邮箱：{value}当前已存在')
+        return value
+
+    def validate_mobile(self, value):
+        if not value:
+            return value
+        qs = User.objects.filter(mobile=value)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError(f'手机号：{value}当前已存在')
+        return value
+
+    def create(self, validated_data):
+        password = validated_data.pop('password', None)
+        if not validated_data.get('mobile'):
+            validated_data['mobile'] = None
+        user = User.objects.create_user(**validated_data)
+        if password:
+            user.set_password(password)
+            user.save(update_fields=['password'])
+        return user
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop('password', None)
+        if not validated_data.get('mobile', instance.mobile):
+            validated_data['mobile'] = None
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        if password:
+            instance.set_password(password)
+        instance.save()
+        return instance
+
+
 class LogoutSerializer(serializers.Serializer):
     """登出序列化器"""
     refresh = serializers.CharField(required=True, help_text="刷新 Token")

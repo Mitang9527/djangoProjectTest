@@ -8,7 +8,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import (
     UserRegisterSerializer, UserDetailSerializer, UserLoginSerializer, TestApiSerializer,
-    CustomTokenObtainPairSerializer, RefreshTokenSerializer, LogoutSerializer
+    CustomTokenObtainPairSerializer, RefreshTokenSerializer, LogoutSerializer, UserManageSerializer
 )
 from .permissions import IsAdminOrSelf, DataPermissionMixin
 from loguru import logger
@@ -469,4 +469,38 @@ class VerifyTokenView(APIView):
                 'role': getattr(request.user, 'role', 'user'),
             }
         })
+
+
+# =====================================================
+# 用户管理 ViewSet（供 SaaS 后台使用）
+# =====================================================
+from rest_framework import viewsets
+
+class UserManageViewSet(viewsets.ModelViewSet):
+    """
+    系统用户管理 ViewSet（CRUD）
+    供 SaaS 后台管理页面使用，admin 可操作所有用户，普通用户无权限。
+    """
+    queryset = User.objects.all()
+    serializer_class = UserManageSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['role', 'is_active']
+    search_fields = ['username', 'email', 'nickname', 'mobile']
+    ordering_fields = ['id', 'date_joined', 'username']
+    ordering = ['-date_joined']
+
+    def get_queryset(self):
+        user = self.request.user
+        if getattr(user, 'role', 'user') == 'admin' or user.is_superuser:
+            return User.objects.all()
+        return User.objects.filter(id=user.id)
+
+    def perform_destroy(self, instance):
+        # 不能删除自己
+        if instance == self.request.user:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError("不能删除自己的账号")
+        instance.delete()
 

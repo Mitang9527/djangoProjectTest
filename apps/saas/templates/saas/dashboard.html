@@ -12,19 +12,19 @@
         <h1 class="text-xl md:text-2xl font-bold mb-2">{% blocktrans with username=user.username %}欢迎回来，{{ username }}！{% endblocktrans %}</h1>
         <p class="text-blue-100 mb-4">{% trans "这是您的 SaaS 后台管理系统，祝您工作愉快！" %}</p>
         <div class="flex flex-wrap gap-3">
-            <a href="{% url 'saas:tenant-list' %}" class="inline-flex items-center px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-colors backdrop-blur-sm">
+            <a href="{% url 'saas:tenant-page' %}" class="inline-flex items-center px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-colors backdrop-blur-sm">
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                 </svg>
                 {% trans "租户管理" %}
             </a>
-            <a href="{% url 'saas:plan-list' %}" class="inline-flex items-center px-4 py-2 bg-white text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors">
+            <a href="{% url 'saas:plan-page' %}" class="inline-flex items-center px-4 py-2 bg-white text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors">
                 {% trans "套餐管理" %}
             </a>
-            <a href="{% url 'saas:order-list' %}" class="inline-flex items-center px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-colors backdrop-blur-sm">
+            <a href="{% url 'saas:order-page' %}" class="inline-flex items-center px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-colors backdrop-blur-sm">
                 {% trans "订单管理" %}
             </a>
-            <a href="{% url 'saas:config-list' %}" class="inline-flex items-center px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-colors backdrop-blur-sm">
+            <a href="{% url 'saas:config-page' %}" class="inline-flex items-center px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-colors backdrop-blur-sm">
                 {% trans "系统设置" %}
             </a>
         </div>
@@ -136,7 +136,7 @@
     <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
         <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
             <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100">{% trans "最近订单" %}</h3>
-            <a href="{% url 'saas:order-list' %}" class="text-sm text-blue-600 hover:text-blue-700 font-medium">{% trans "查看全部" %}</a>
+            <a href="{% url 'saas:order-page' %}" class="text-sm text-blue-600 hover:text-blue-700 font-medium">{% trans "查看全部" %}</a>
         </div>
         <div class="overflow-x-auto">
             {% if recent_orders %}
@@ -181,31 +181,31 @@
             <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100">{% trans "快捷操作" %}</h3>
         </div>
         <div class="p-6 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-            <a href="{% url 'saas:tenant-list' %}" class="flex flex-col items-center p-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-slate-800 transition-all">
+            <a href="{% url 'saas:tenant-page' %}" class="flex flex-col items-center p-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-slate-800 transition-all">
                 <span class="text-sm font-medium text-slate-700 dark:text-slate-200">{% trans "租户列表" %}</span>
             </a>
-            <a href="{% url 'saas:member-list' %}" class="flex flex-col items-center p-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl hover:border-green-300 hover:bg-green-50 dark:hover:bg-slate-800 transition-all">
+            <a href="{% url 'saas:member-page' %}" class="flex flex-col items-center p-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl hover:border-green-300 hover:bg-green-50 dark:hover:bg-slate-800 transition-all">
                 <span class="text-sm font-medium text-slate-700 dark:text-slate-200">{% trans "用户管理" %}</span>
             </a>
-            <a href="{% url 'saas:role-list' %}" class="flex flex-col items-center p-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl hover:border-sky-300 hover:bg-sky-50 dark:hover:bg-slate-800 transition-all">
+            <a href="{% url 'saas:role-page' %}" class="flex flex-col items-center p-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl hover:border-sky-300 hover:bg-sky-50 dark:hover:bg-slate-800 transition-all">
                 <span class="text-sm font-medium text-slate-700 dark:text-slate-200">{% trans "角色管理" %}</span>
             </a>
-            <a href="{% url 'saas:permission-list' %}" class="flex flex-col items-center p-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl hover:border-cyan-300 hover:bg-cyan-50 dark:hover:bg-slate-800 transition-all">
+            <a href="{% url 'saas:permission-page' %}" class="flex flex-col items-center p-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl hover:border-cyan-300 hover:bg-cyan-50 dark:hover:bg-slate-800 transition-all">
                 <span class="text-sm font-medium text-slate-700 dark:text-slate-200">{% trans "权限管理" %}</span>
             </a>
-            <a href="{% url 'saas:plan-list' %}" class="flex flex-col items-center p-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-slate-800 transition-all">
+            <a href="{% url 'saas:plan-page' %}" class="flex flex-col items-center p-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-slate-800 transition-all">
                 <span class="text-sm font-medium text-slate-700 dark:text-slate-200">{% trans "套餐管理" %}</span>
             </a>
-            <a href="{% url 'saas:subscription-list' %}" class="flex flex-col items-center p-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl hover:border-fuchsia-300 hover:bg-fuchsia-50 dark:hover:bg-slate-800 transition-all">
+            <a href="{% url 'saas:subscription-page' %}" class="flex flex-col items-center p-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl hover:border-fuchsia-300 hover:bg-fuchsia-50 dark:hover:bg-slate-800 transition-all">
                 <span class="text-sm font-medium text-slate-700 dark:text-slate-200">{% trans "订阅管理" %}</span>
             </a>
-            <a href="{% url 'saas:order-list' %}" class="flex flex-col items-center p-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl hover:border-amber-300 hover:bg-amber-50 dark:hover:bg-slate-800 transition-all">
+            <a href="{% url 'saas:order-page' %}" class="flex flex-col items-center p-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl hover:border-amber-300 hover:bg-amber-50 dark:hover:bg-slate-800 transition-all">
                 <span class="text-sm font-medium text-slate-700 dark:text-slate-200">{% trans "订单管理" %}</span>
             </a>
-            <a href="{% url 'saas:invoice-list' %}" class="flex flex-col items-center p-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl hover:border-orange-300 hover:bg-orange-50 dark:hover:bg-slate-800 transition-all">
+            <a href="{% url 'saas:invoice-page' %}" class="flex flex-col items-center p-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl hover:border-orange-300 hover:bg-orange-50 dark:hover:bg-slate-800 transition-all">
                 <span class="text-sm font-medium text-slate-700 dark:text-slate-200">{% trans "发票管理" %}</span>
             </a>
-            <a href="{% url 'saas:config-list' %}" class="flex flex-col items-center p-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl hover:border-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
+            <a href="{% url 'saas:config-page' %}" class="flex flex-col items-center p-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl hover:border-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
                 <span class="text-sm font-medium text-slate-700 dark:text-slate-200">{% trans "系统设置" %}</span>
             </a>
         </div>

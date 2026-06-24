@@ -1,109 +1,270 @@
-{% extends 'core/base.html' %}
+{% extends 'saas/base_saas.html' %}
+{% load i18n %}
 
 {% block title %}ADB 工具 - Web 控制台{% endblock %}
 
-{% block content %}
-<div class="max-w-7xl mx-auto px-4 py-8" x-data="adbDashboard()" x-init="init()">
-    <div class="mb-8">
-        <h1 class="text-3xl font-bold text-slate-900 dark:text-white">ADB 工具 Web 控制台</h1>
-        <p class="text-slate-500 mt-2">基于 adbutils 库，从 adb_tools.py 分离 Web 端</p>
+{% block saas_content %}
+<div x-data="adbDashboard()" x-init="init()">
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-slate-900 dark:text-white">ADB 工具 Web 控制台</h1>
+        <p class="text-slate-500 mt-1 text-sm">基于 adbutils 库，Web 端设备管理</p>
     </div>
 
-    <div x-show="error" x-cloak class="mb-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl" x-text="error"></div>
-    <div x-show="message" x-cloak class="mb-4 p-4 bg-green-50 border border-green-200 text-green-700 rounded-xl" x-text="message"></div>
+    <!-- 通知条 -->
+    <template x-if="error">
+        <div class="mb-4 flex items-start gap-3 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl">
+            <svg class="w-5 h-5 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span x-text="error" class="flex-1 text-sm"></span>
+            <button @click="error=''" class="text-red-400 hover:text-red-600">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+    </template>
+    <template x-if="message">
+        <div class="mb-4 flex items-start gap-3 p-4 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl">
+            <svg class="w-5 h-5 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span x-text="message" class="flex-1 text-sm"></span>
+            <button @click="message=''" class="text-emerald-400 hover:text-emerald-600">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+    </template>
 
     <!-- 设备选择 -->
     <div class="bg-white dark:bg-slate-900 rounded-2xl shadow p-6 mb-6 border border-slate-100 dark:border-slate-800">
         <div class="flex flex-wrap gap-4 items-end">
-            <div class="flex-1 min-w-[200px]">
-                <label class="block text-sm font-medium mb-2">已连接设备</label>
-                <select x-model="serial" @change="loadPackages()" class="w-full rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 px-4 py-2">
+            <div class="flex-1 min-w-[240px]">
+                <label class="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">
+                    已连接设备
+                </label>
+                <select x-model="serial" @change="onSerialChange()" class="w-full rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
                     <option value="">请选择设备</option>
                     <template x-for="d in devices" :key="d.serial">
-                        <option :value="d.serial" x-text="`${d.serial} | ${d.model} | Android ${d.android_version}`"></option>
+                        <option :value="d.serial" x-text="d.serial"></option>
                     </template>
                 </select>
+                <!-- 设备信息徽章：选中设备后展示 model 和 android_version -->
+                <template x-if="serial && devices.find(d => d.serial === serial)">
+                    <div class="mt-2 flex flex-wrap gap-2">
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600">
+                            <svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                            <span x-text="devices.find(d => d.serial === serial)?.model || '未知型号'"></span>
+                        </span>
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-700">
+                            <svg class="w-3 h-3 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2h-4M9 3a1 1 0 000 2h6a1 1 0 100-2H9zM9 3v2m6-2v2"/></svg>
+                            <span x-text="'Android ' + (devices.find(d => d.serial === serial)?.android_version || '?')"></span>
+                        </span>
+                    </div>
+                </template>
             </div>
-            <button @click="refreshDevices()" class="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700">刷新设备</button>
+            <button @click="refreshDevices()" :disabled="loading" class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                <svg class="w-4 h-4" :class="loading ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                刷新设备
+            </button>
         </div>
     </div>
 
     <div class="grid lg:grid-cols-3 gap-6">
-        <!-- 应用操作 -->
+        <!-- 应用管理 -->
         <div class="bg-white dark:bg-slate-900 rounded-2xl shadow p-6 border border-slate-100 dark:border-slate-800">
-            <h2 class="text-lg font-bold mb-4">应用管理</h2>
+            <h2 class="text-lg font-bold mb-4 text-slate-900 dark:text-white">应用管理</h2>
             <div class="space-y-3">
-                <select x-model="packageName" class="w-full rounded-xl border px-3 py-2 dark:bg-slate-800 dark:border-slate-700">
-                    <option value="">选择包名</option>
-                    <template x-for="p in packages" :key="p">
-                        <option :value="p" x-text="p"></option>
-                    </template>
-                </select>
-                <input x-model="packageName" placeholder="或手动输入包名" class="w-full rounded-xl border px-3 py-2 dark:bg-slate-800 dark:border-slate-700" />
-                <div class="grid grid-cols-2 gap-2">
-                    <button @click="appAction('start')" class="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm">启动</button>
-                    <button @click="appAction('stop')" class="px-3 py-2 bg-orange-600 text-white rounded-lg text-sm">结束进程</button>
-                    <button @click="appAction('clear')" class="px-3 py-2 bg-amber-600 text-white rounded-lg text-sm">清除数据</button>
-                    <button @click="appAction('uninstall')" class="px-3 py-2 bg-red-600 text-white rounded-lg text-sm">卸载</button>
-                    <button @click="appAction('export')" class="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm col-span-2">导出 APK</button>
+                <div>
+                    <label class="block text-xs font-medium text-slate-500 mb-1">从列表选择</label>
+                    <select x-model="packageName" @change="saveState()" class="w-full rounded-xl border px-3 py-2 dark:bg-slate-800 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                        <option value="">选择包名（需先选设备）</option>
+                        <template x-for="p in packages" :key="p">
+                            <option :value="p" x-text="p"></option>
+                        </template>
+                    </select>
                 </div>
                 <div>
-                    <label class="text-sm">安装 APK</label>
-                    <input type="file" accept=".apk" @change="apkFile = $event.target.files[0]" class="w-full text-sm mt-1" />
-                    <button @click="installApk()" class="mt-2 w-full px-3 py-2 bg-blue-600 text-white rounded-lg text-sm">安装</button>
+                    <label class="block text-xs font-medium text-slate-500 mb-1">手动输入</label>
+                    <input x-model="packageName" @input="saveState()" placeholder="com.example.app" class="w-full rounded-xl border px-3 py-2 dark:bg-slate-800 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
+                </div>
+                <div class="grid grid-cols-2 gap-2 pt-1">
+                    <button @click="appAction('start')" :disabled="loading" class="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                        <span x-show="!loading || currentAction !== 'start'">启动</span>
+                        <span x-show="loading && currentAction === 'start'">执行中...</span>
+                    </button>
+                    <button @click="appAction('stop')" :disabled="loading" class="px-3 py-2 bg-orange-600 text-white rounded-lg text-sm hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                        <span x-show="!loading || currentAction !== 'stop'">结束进程</span>
+                        <span x-show="loading && currentAction === 'stop'">执行中...</span>
+                    </button>
+                    <button @click="appAction('clear')" :disabled="loading" class="px-3 py-2 bg-amber-600 text-white rounded-lg text-sm hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                        <span x-show="!loading || currentAction !== 'clear'">清除数据</span>
+                        <span x-show="loading && currentAction === 'clear'">执行中...</span>
+                    </button>
+                    <button @click="appAction('uninstall')" :disabled="loading" class="px-3 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                        <span x-show="!loading || currentAction !== 'uninstall'">卸载</span>
+                        <span x-show="loading && currentAction === 'uninstall'">执行中...</span>
+                    </button>
+                    <button @click="appAction('export')" :disabled="loading" class="col-span-2 px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                        <span x-show="!loading || currentAction !== 'export'">导出 APK</span>
+                        <span x-show="loading && currentAction === 'export'">导出中...</span>
+                    </button>
+                </div>
+                <div class="border-t border-slate-100 dark:border-slate-700 pt-3">
+                    <label class="block text-xs font-medium text-slate-500 mb-1">安装 APK</label>
+                    <input type="file" accept=".apk" @change="apkFile = $event.target.files[0]" class="w-full text-sm mt-1 file:mr-2 file:px-3 file:py-1 file:rounded-lg file:border-0 file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200" />
+                    <button @click="installApk()" :disabled="loading || !apkFile" class="mt-2 w-full px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                        <span x-show="!loading || currentAction !== 'install'">安装</span>
+                        <span x-show="loading && currentAction === 'install'">安装中...</span>
+                    </button>
+                    <!-- 安装成功后提示刷新包列表 -->
+                    <template x-if="installSuccess">
+                        <div class="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-700 flex items-center justify-between gap-2">
+                            <span>安装成功！可刷新包列表后选择新包启动。</span>
+                            <button @click="loadPackages(); installSuccess = false" class="shrink-0 px-3 py-1 bg-blue-600 text-white rounded-lg text-xs hover:bg-blue-700 transition-colors">刷新包列表</button>
+                        </div>
+                    </template>
                 </div>
             </div>
         </div>
 
         <!-- 设备工具 -->
         <div class="bg-white dark:bg-slate-900 rounded-2xl shadow p-6 border border-slate-100 dark:border-slate-800">
-            <h2 class="text-lg font-bold mb-4">设备工具</h2>
+            <h2 class="text-lg font-bold mb-4 text-slate-900 dark:text-white">设备工具</h2>
             <div class="space-y-3">
-                <button @click="screenshot()" class="w-full px-3 py-2 bg-purple-600 text-white rounded-lg">截图</button>
-                <button @click="languageSettings()" class="w-full px-3 py-2 bg-slate-600 text-white rounded-lg">打开语言设置</button>
-                <div>
-                    <input x-model="inputText" placeholder="ADB 输入文本" class="w-full rounded-xl border px-3 py-2 dark:bg-slate-800 dark:border-slate-700" />
-                    <button @click="sendInput()" class="mt-2 w-full px-3 py-2 bg-teal-600 text-white rounded-lg text-sm">发送文本</button>
+                <button @click="screenshot()" :disabled="loading" class="w-full inline-flex items-center justify-center gap-2 px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    <span x-show="!loading || currentAction !== 'screenshot'">截图</span>
+                    <span x-show="loading && currentAction === 'screenshot'">截图中...</span>
+                </button>
+                <button @click="languageSettings()" :disabled="loading" class="w-full px-3 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm">打开语言设置</button>
+
+                <div class="border-t border-slate-100 dark:border-slate-700 pt-3">
+                    <label class="block text-xs font-medium text-slate-500 mb-1">ADB 文本输入</label>
+                    <input x-model="inputText" placeholder="要输入的文本" class="w-full rounded-xl border px-3 py-2 dark:bg-slate-800 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm" @keydown.enter="sendInput()" />
+                    <button @click="sendInput()" :disabled="loading || !inputText" class="mt-2 w-full px-3 py-2 bg-teal-600 text-white rounded-lg text-sm hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                        <span x-show="!loading || currentAction !== 'input'">发送文本</span>
+                        <span x-show="loading && currentAction === 'input'">发送中...</span>
+                    </button>
                 </div>
-                <div>
-                    <input x-model="shellCmd" placeholder="Shell 命令" class="w-full rounded-xl border px-3 py-2 dark:bg-slate-800 dark:border-slate-700" />
-                    <button @click="runShell()" class="mt-2 w-full px-3 py-2 bg-gray-700 text-white rounded-lg text-sm">执行 Shell</button>
+
+                <div x-data="{ open: false }" @keydown.escape.window="open = false" @tab-open.window="open = true" @tab-close.window="open = false" class="relative">
+                    <label class="block text-xs font-medium text-slate-500 mb-1">Shell 命令</label>
+                    <!-- 当前目录指示器 -->
+                    <div class="flex items-center gap-1 mb-1 text-xs text-slate-400 font-mono">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+                        <span x-text="shellCwd || '/'"></span>
+                        <button @click="shellCwd = '/'" class="ml-1 text-slate-300 hover:text-slate-500" title="重置到根目录">⟳</button>
+                    </div>
+                    <div class="flex gap-2">
+                        <div class="flex-1 relative">
+                            <input x-ref="shellInput"
+                                   x-model="shellCmd"
+                                   :placeholder="'$ ' + (shellCwd || '/')"
+                                   class="w-full rounded-xl border px-3 py-2 dark:bg-slate-800 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-gray-500 text-sm font-mono"
+                                   @keydown.enter.prevent="open ? confirmTab() : runShell()"
+                                   @keydown.tab.prevent="triggerTabComplete()"
+                                   @keydown.up.prevent="open ? tabNavUp() : historyUp()"
+                                   @keydown.down.prevent="open ? tabNavDown() : historyDown()"
+                                   @keydown.escape="open = false; tabCandidates = []"
+                                   @input="open = false; tabCandidates = []"
+                                   @blur="setTimeout(() => { open = false; tabCandidates = []; }, 150)" />
+                            <!-- Tab 补全下拉浮层 -->
+                            <div x-show="open && tabCandidates.length > 0"
+                                 x-cloak
+                                 class="absolute bottom-full left-0 mb-1 w-full bg-slate-800 border border-slate-600 rounded-xl shadow-xl z-50 overflow-hidden">
+                                <div class="text-xs text-slate-400 px-3 pt-2 pb-1 border-b border-slate-700 flex items-center justify-between">
+                                    <span x-text="tabCandidates.length + ' 个候选 · Tab/↑↓ 导航 · Enter 确认 · Esc 关闭'"></span>
+                                    <span x-show="tabLoading" class="text-blue-400">加载中...</span>
+                                </div>
+                                <ul class="max-h-40 overflow-y-auto py-1">
+                                    <template x-for="(c, i) in tabCandidates" :key="c">
+                                        <li @mousedown.prevent="applyTabCandidate(c)"
+                                            :class="i === tabIdx ? 'bg-blue-600 text-white' : 'text-green-300 hover:bg-slate-700'"
+                                            class="px-3 py-1 text-xs font-mono cursor-pointer truncate"
+                                            x-text="c">
+                                        </li>
+                                    </template>
+                                </ul>
+                            </div>
+                        </div>
+                        <button @click="runShell()" :disabled="loading || !shellCmd" class="px-3 py-2 bg-gray-700 text-white rounded-lg text-sm hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                            <svg x-show="!loading || currentAction !== 'shell'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg>
+                            <svg x-show="loading && currentAction === 'shell'" class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                        </button>
+                    </div>
+                    <!-- 输出区：始终显示，无输出时显示提示 -->
+                    <pre class="mt-2 text-xs bg-slate-900 text-green-400 p-3 rounded-lg overflow-auto max-h-48 font-mono whitespace-pre-wrap"
+                         x-show="shellOutput !== null"
+                         x-text="shellOutput || '(无输出)'"></pre>
                 </div>
-                <pre x-show="shellOutput" class="text-xs bg-slate-100 dark:bg-slate-800 p-3 rounded-lg overflow-auto max-h-40" x-text="shellOutput"></pre>
             </div>
         </div>
 
         <!-- 日志 / 流量 / 录屏 -->
         <div class="bg-white dark:bg-slate-900 rounded-2xl shadow p-6 border border-slate-100 dark:border-slate-800">
-            <h2 class="text-lg font-bold mb-4">日志 / 流量 / 录屏</h2>
+            <h2 class="text-lg font-bold mb-4 text-slate-900 dark:text-white">日志 / 流量 / 录屏</h2>
             <div class="space-y-3">
                 <div class="grid grid-cols-2 gap-2">
-                    <button @click="logcatAction('clear')" class="px-3 py-2 bg-yellow-600 text-white rounded-lg text-sm">清理日志</button>
-                    <button @click="logcatAction('dump')" class="px-3 py-2 bg-yellow-700 text-white rounded-lg text-sm">导出日志</button>
+                    <button @click="logcatAction('clear')" :disabled="loading" class="px-3 py-2 bg-yellow-600 text-white rounded-lg text-sm hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                        <span x-show="!loading || currentAction !== 'logcat-clear'">清理日志</span>
+                        <span x-show="loading && currentAction === 'logcat-clear'">清理中...</span>
+                    </button>
+                    <button @click="logcatAction('dump')" :disabled="loading" class="px-3 py-2 bg-yellow-700 text-white rounded-lg text-sm hover:bg-yellow-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                        <span x-show="!loading || currentAction !== 'logcat-dump'">导出日志</span>
+                        <span x-show="loading && currentAction === 'logcat-dump'">导出中...</span>
+                    </button>
                 </div>
-                <input x-model="logKeyword" placeholder="日志关键词（可选）" class="w-full rounded-xl border px-3 py-2 dark:bg-slate-800 dark:border-slate-700" />
-                <button @click="flowStats()" class="w-full px-3 py-2 bg-cyan-600 text-white rounded-lg text-sm">流量统计</button>
-                <pre x-show="flowOutput" class="text-xs bg-slate-100 dark:bg-slate-800 p-3 rounded-lg" x-text="flowOutput"></pre>
-                <button @click="listRecordings()" class="w-full px-3 py-2 bg-pink-600 text-white rounded-lg text-sm">列出录屏</button>
-                <select x-model="recordingIndex" class="w-full rounded-xl border px-3 py-2 dark:bg-slate-800 dark:border-slate-700">
-                    <template x-for="r in recordings" :key="r.index">
-                        <option :value="r.index" x-text="`${r.index}: ${r.filename}`"></option>
+                <input x-model="logKeyword" placeholder="日志关键词（可选）" class="w-full rounded-xl border px-3 py-2 dark:bg-slate-800 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-yellow-500 text-sm" />
+
+                <div class="border-t border-slate-100 dark:border-slate-700 pt-3">
+                    <label class="block text-xs font-medium text-slate-500 mb-2">流量统计（需先填写包名）</label>
+                    <button @click="flowStats()" :disabled="loading || !packageName" class="w-full px-3 py-2 bg-cyan-600 text-white rounded-lg text-sm hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                        <span x-show="!loading || currentAction !== 'flow'">流量统计</span>
+                        <span x-show="loading && currentAction === 'flow'">统计中...</span>
+                    </button>
+                    <template x-if="flowOutput">
+                        <pre class="mt-2 text-xs bg-slate-100 dark:bg-slate-800 p-3 rounded-lg text-slate-700 dark:text-slate-300" x-text="flowOutput"></pre>
                     </template>
-                </select>
-                <button @click="pullRecording()" class="w-full px-3 py-2 bg-pink-700 text-white rounded-lg text-sm">拉取录屏</button>
+                </div>
+
+                <div class="border-t border-slate-100 dark:border-slate-700 pt-3">
+                    <label class="block text-xs font-medium text-slate-500 mb-2">录屏管理</label>
+                    <button @click="listRecordings()" :disabled="loading" class="w-full px-3 py-2 bg-pink-600 text-white rounded-lg text-sm hover:bg-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                        <span x-show="!loading || currentAction !== 'list-recordings'">列出录屏</span>
+                        <span x-show="loading && currentAction === 'list-recordings'">加载中...</span>
+                    </button>
+                    <template x-if="recordings.length > 0">
+                        <div class="mt-2 space-y-2">
+                            <select x-model="recordingIndex" class="w-full rounded-xl border px-3 py-2 dark:bg-slate-800 dark:border-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-pink-500">
+                                <template x-for="r in recordings" :key="r.index">
+                                    <option :value="r.index" x-text="`${r.index}: ${r.filename}`"></option>
+                                </template>
+                            </select>
+                            <button @click="pullRecording()" :disabled="loading" class="w-full px-3 py-2 bg-pink-700 text-white rounded-lg text-sm hover:bg-pink-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                                <span x-show="!loading || currentAction !== 'pull-recording'">拉取录屏</span>
+                                <span x-show="loading && currentAction === 'pull-recording'">拉取中...</span>
+                            </button>
+                        </div>
+                    </template>
+                </div>
             </div>
         </div>
     </div>
 
     <!-- 截图预览 -->
-    <div x-show="screenshotUrl" x-cloak class="mt-6 bg-white dark:bg-slate-900 rounded-2xl shadow p-6 border">
-        <h2 class="text-lg font-bold mb-4">最新截图</h2>
-        <a :href="screenshotUrl" target="_blank"><img :src="screenshotUrl" class="max-w-full rounded-xl border" alt="screenshot" /></a>
-    </div>
+    <template x-if="screenshotUrl">
+        <div class="mt-6 bg-white dark:bg-slate-900 rounded-2xl shadow p-6 border border-slate-100 dark:border-slate-800">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-bold text-slate-900 dark:text-white">最新截图</h2>
+                <button @click="screenshotUrl = ''" class="text-xs text-slate-400 hover:text-slate-600">关闭</button>
+            </div>
+            <a :href="screenshotUrl" target="_blank">
+                <img :src="screenshotUrl" class="max-w-sm rounded-xl border shadow-sm hover:shadow-md transition-shadow" alt="screenshot" />
+            </a>
+            <p class="mt-2 text-xs text-slate-400">点击图片在新标签页查看原图</p>
+        </div>
+    </template>
 </div>
 
 <script>
 function adbDashboard() {
+    const STORAGE_KEY = 'adb_dashboard_state';
+
     return {
         devices: [],
         packages: [],
@@ -112,31 +273,85 @@ function adbDashboard() {
         packageName: '',
         inputText: '',
         shellCmd: '',
-        shellOutput: '',
+        shellOutput: null,       // null = 未执行过，'' = 执行成功无输出
+        shellCwd: '/',           // 前端维护的当前目录
+        shellHistory: [],        // 历史命令记录
+        shellHistoryIdx: -1,     // 上下键导航位置
+        // Tab 补全
+        tabCandidates: [],       // 候选列表
+        tabIdx: 0,               // 当前选中候选索引
+        tabLoading: false,       // 补全请求进行中
+        tabPrefix: '',           // 触发补全时的 word 前缀（命令的最后一个 token）
+        tabCmdPrefix: '',        // 触发补全时 word 前面的命令部分
         logKeyword: '',
         flowOutput: '',
+        installSuccess: false,
         recordingIndex: 0,
         apkFile: null,
         screenshotUrl: '',
         error: '',
         message: '',
+        loading: false,
+        currentAction: '',
         apiBase: '/api/adb_web/devices',
 
+        // ---------- 持久化 ----------
+        saveState() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                    serial: this.serial,
+                    packageName: this.packageName,
+                }));
+            } catch (_) {}
+        },
+
+        loadState() {
+            try {
+                const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+                if (saved.serial)      this.serial      = saved.serial;
+                if (saved.packageName) this.packageName = saved.packageName;
+            } catch (_) {}
+        },
+
+        // ---------- 工具 ----------
         get csrfToken() {
             const match = document.cookie.match(/csrftoken=([^;]+)/);
             return match ? match[1] : '';
         },
 
+        /** 每次操作前清空上一次的 message/error，避免 Alpine 认为值未变而不刷新 */
+        clearFeedback() {
+            this.error = '';
+            this.message = '';
+        },
+
+        setError(msg) {
+            this.error = '';
+            this.$nextTick(() => { this.error = msg; });
+        },
+
+        setMessage(msg) {
+            this.message = '';
+            this.$nextTick(() => { this.message = msg; });
+        },
+
         async init() {
+            this.loadState();
+            // refreshDevices 内部已处理"仅一台设备自动选中后 loadPackages"的情况
+            // 这里只需要处理"恢复了上次 serial 且 refreshDevices 未重新加载包名"的场景
             await this.refreshDevices();
+            // refreshDevices 只在 list.length===1 时加载了包名
+            // 如果恢复的 serial 仍在线但设备数 > 1，需要在这里补一次
+            if (this.serial && this.packages.length === 0) {
+                await this.loadPackages(true /* silent */);
+            }
         },
 
         requireSerial() {
             if (!this.serial) {
-                this.error = '请先选择设备';
+                this.setError('请先选择设备');
                 return false;
             }
-            this.error = '';
             return true;
         },
 
@@ -149,152 +364,419 @@ function adbDashboard() {
             const resp = await fetch(path, { credentials: 'same-origin', ...options, headers });
             const json = await resp.json();
             if (!resp.ok) {
-                throw new Error(json.msg || json.detail || '请求失败');
+                throw new Error(json.msg || json.detail || JSON.stringify(json) || '请求失败');
             }
             return json.data !== undefined ? json.data : json;
         },
 
-        async refreshDevices() {
+        async withLoading(action, fn) {
+            if (this.loading) return;
+            this.loading = true;
+            this.currentAction = action;
+            this.clearFeedback();
             try {
-                this.devices = await this.api(this.apiBase + '/');
-                if (this.devices.length === 1) {
-                    this.serial = this.devices[0].serial;
-                    await this.loadPackages();
-                }
+                await fn();
             } catch (e) {
-                this.error = e.message;
+                this.setError(e.message);
+            } finally {
+                this.loading = false;
+                this.currentAction = '';
             }
         },
 
-        async loadPackages() {
+        // ---------- 设备 ----------
+        async refreshDevices() {
+            await this.withLoading('refresh', async () => {
+                const list = await this.api(this.apiBase + '/');
+                this.devices = list;
+                // 恢复上次保存的 serial（若仍在线），否则若只有一台直接选中
+                const savedSerial = this.serial;
+                const stillOnline = savedSerial && list.some(d => d.serial === savedSerial);
+                if (stillOnline) {
+                    // 保持当前选择不变
+                } else if (list.length === 1) {
+                    this.serial = list[0].serial;
+                    this.saveState();
+                    await this.loadPackages();
+                }
+            });
+        },
+
+        async onSerialChange() {
+            this.saveState();
+            this.packages = [];
+            this.packageName = '';
+            await this.loadPackages();
+        },
+
+        async loadPackages(silent = false) {
             if (!this.serial) return;
+            // 防抖：同一设备 30s 内不重复拉取（除非 silent=false 为手动刷新）
+            const now = Date.now();
+            if (silent && this._lastPkgSerial === this.serial && this._lastPkgTime && now - this._lastPkgTime < 30000) {
+                return;
+            }
+            if (!silent) this.clearFeedback();
             try {
                 const data = await this.api(`${this.apiBase}/${encodeURIComponent(this.serial)}/packages/`);
                 this.packages = data.packages || [];
+                this._lastPkgSerial = this.serial;
+                this._lastPkgTime = Date.now();
             } catch (e) {
-                this.error = e.message;
+                if (!silent) this.setError('加载包列表失败: ' + e.message);
             }
         },
 
+        // ---------- 截图 ----------
         async screenshot() {
-            if (!this.requireSerial()) return;
-            try {
+            await this.withLoading('screenshot', async () => {
+                if (!this.requireSerial()) throw new Error('');
                 const data = await this.api(`${this.apiBase}/${encodeURIComponent(this.serial)}/screenshot/`, { method: 'POST' });
                 this.screenshotUrl = data.url;
-                this.message = '截图成功';
-            } catch (e) { this.error = e.message; }
+                this.setMessage('截图成功');
+            });
         },
 
+        // ---------- 应用操作 ----------
         async appAction(action) {
-            if (!this.requireSerial() || !this.packageName) {
-                this.error = '请选择设备并填写包名';
-                return;
-            }
-            const enc = encodeURIComponent(this.serial);
-            const body = JSON.stringify({ package_name: this.packageName });
-            try {
+            await this.withLoading(action, async () => {
+                if (!this.requireSerial()) throw new Error('');
+                if (!this.packageName) throw new Error('请先填写或选择包名');
+                const enc = encodeURIComponent(this.serial);
+                const body = JSON.stringify({ package_name: this.packageName });
+
                 if (action === 'export') {
                     const data = await this.api(`${this.apiBase}/${enc}/app/export/?package_name=${encodeURIComponent(this.packageName)}`);
                     window.open(data.url, '_blank');
-                    this.message = 'APK 导出成功';
+                    this.setMessage('APK 导出成功');
                     return;
                 }
+
                 const map = { start: 'start', stop: 'stop', clear: 'clear', uninstall: 'uninstall' };
                 const data = await this.api(`${this.apiBase}/${enc}/app/${map[action]}/`, { method: 'POST', body });
-                this.message = data.message || '操作成功';
-                if (action === 'uninstall') await this.loadPackages();
-            } catch (e) { this.error = e.message; }
+                this.setMessage(data.message || '操作成功');
+                if (action === 'uninstall') {
+                    this.packageName = '';
+                    this.saveState();
+                    await this.loadPackages(true);
+                }
+            });
         },
 
         async installApk() {
-            if (!this.requireSerial() || !this.apkFile) {
-                this.error = '请选择设备和 APK 文件';
-                return;
-            }
-            const fd = new FormData();
-            fd.append('apk', this.apkFile);
-            try {
+            await this.withLoading('install', async () => {
+                if (!this.requireSerial()) throw new Error('');
+                if (!this.apkFile) throw new Error('请选择 APK 文件');
+                const fd = new FormData();
+                fd.append('apk', this.apkFile);
                 const data = await this.api(`${this.apiBase}/${encodeURIComponent(this.serial)}/app/install/`, { method: 'POST', body: fd });
-                this.message = data.message;
-                await this.loadPackages();
-            } catch (e) { this.error = e.message; }
+                this.installSuccess = true;
+                this.setMessage(data.message || '安装成功');
+            });
         },
 
+        // ---------- 设备工具 ----------
         async sendInput() {
-            if (!this.requireSerial() || !this.inputText) return;
-            try {
+            await this.withLoading('input', async () => {
+                if (!this.requireSerial()) throw new Error('');
+                if (!this.inputText) throw new Error('请输入文本');
                 const data = await this.api(`${this.apiBase}/${encodeURIComponent(this.serial)}/input/`, {
                     method: 'POST', body: JSON.stringify({ text: this.inputText }),
                 });
-                this.message = data.message;
-            } catch (e) { this.error = e.message; }
+                this.setMessage(data.message || '发送成功');
+            });
         },
 
         async runShell() {
-            if (!this.requireSerial() || !this.shellCmd) return;
+            await this.withLoading('shell', async () => {
+                if (!this.requireSerial()) throw new Error('');
+                const cmd = this.shellCmd.trim();
+                if (!cmd) throw new Error('请输入命令');
+
+                // 记录历史
+                if (this.shellHistory[0] !== cmd) {
+                    this.shellHistory.unshift(cmd);
+                    if (this.shellHistory.length > 50) this.shellHistory.pop();
+                }
+                this.shellHistoryIdx = -1;
+
+                // ── 拦截纯 cd 命令，在前端维护 cwd ──
+                // 模式：cd、cd /xxx、cd ..、cd ~
+                const cdMatch = cmd.match(/^cd\s*(.*)$/);
+                if (cdMatch) {
+                    const target = cdMatch[1].trim();
+                    // 用服务端执行 pwd 来验证目录是否存在
+                    const newCwd = await this._resolveCwd(target);
+                    if (newCwd !== null) {
+                        this.shellCwd = newCwd;
+                        this.shellOutput = '';    // 先清空（强制 Alpine 感知变化）
+                        await this.$nextTick();
+                        this.shellOutput = `已切换到 ${newCwd}`;
+                        this.shellCmd = '';
+                    } else {
+                        this.shellOutput = '';
+                        await this.$nextTick();
+                        this.shellOutput = `cd: ${target || '/'}: 路径无效或不存在`;
+                    }
+                    return;
+                }
+
+                // ── 普通命令，带 35s AbortController 超时 ──
+                const controller = new AbortController();
+                const timer = setTimeout(() => controller.abort(), 35000);
+                let data;
+                try {
+                    const resp = await fetch(
+                        `${this.apiBase}/${encodeURIComponent(this.serial)}/shell/`,
+                        {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            signal: controller.signal,
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': this.csrfToken,
+                            },
+                            body: JSON.stringify({ command: cmd, cwd: this.shellCwd }),
+                        }
+                    );
+                    const json = await resp.json();
+                    if (!resp.ok) throw new Error(json.msg || json.detail || '请求失败');
+                    data = json.data !== undefined ? json.data : json;
+                } catch (e) {
+                    if (e.name === 'AbortError') throw new Error('命令执行超时（35s），请检查命令是否阻塞');
+                    throw e;
+                } finally {
+                    clearTimeout(timer);
+                }
+
+                // ── 强制刷新输出（即使内容相同也让 Alpine 感知到变化）──
+                const output = data.output ?? '(无输出)';
+                this.shellOutput = null;       // 先置 null
+                await this.$nextTick();
+                this.shellOutput = output || '(无输出)';
+
+                this.shellCmd = '';
+            });
+        },
+
+        /** 执行 `cd <target>` 后用 pwd 验证并返回真实路径，失败返回 null */
+        async _resolveCwd(target) {
             try {
-                const data = await this.api(`${this.apiBase}/${encodeURIComponent(this.serial)}/shell/`, {
-                    method: 'POST', body: JSON.stringify({ command: this.shellCmd }),
-                });
-                this.shellOutput = data.output;
-            } catch (e) { this.error = e.message; }
+                const destCmd = target === '' || target === '~'
+                    ? 'cd && pwd'
+                    : target === '..'
+                        ? `cd ${JSON.stringify(this.shellCwd)} && cd .. && pwd`
+                        : (target.startsWith('/')
+                            ? `cd ${target} && pwd`
+                            : `cd ${JSON.stringify(this.shellCwd)} && cd ${target} && pwd`);
+
+                const resp = await fetch(
+                    `${this.apiBase}/${encodeURIComponent(this.serial)}/shell/`,
+                    {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': this.csrfToken },
+                        body: JSON.stringify({ command: destCmd, cwd: null }),  // cwd=null 不双重 cd
+                    }
+                );
+                const json = await resp.json();
+                if (!resp.ok) return null;
+                const d = json.data !== undefined ? json.data : json;
+                const pwd = (d.output || '').trim();
+                return pwd && pwd.startsWith('/') ? pwd : null;
+            } catch (_) {
+                return null;
+            }
+        },
+
+        /** 上键：历史记录向旧 */
+        historyUp() {
+            if (!this.shellHistory.length) return;
+            this.shellHistoryIdx = Math.min(this.shellHistoryIdx + 1, this.shellHistory.length - 1);
+            this.shellCmd = this.shellHistory[this.shellHistoryIdx];
+        },
+
+        /** 下键：历史记录向新 */
+        historyDown() {
+            if (this.shellHistoryIdx <= 0) { this.shellHistoryIdx = -1; this.shellCmd = ''; return; }
+            this.shellHistoryIdx--;
+            this.shellCmd = this.shellHistory[this.shellHistoryIdx];
+        },
+
+        // ---------- Tab 补全 ----------
+
+        /**
+         * 按 Tab 时触发。
+         * 解析光标前的最后一个 token 作为补全前缀，
+         * 发请求到 tab-complete 接口，处理候选。
+         */
+        async triggerTabComplete() {
+            if (!this.serial) return;
+
+            // 提取最后一个 token 作为路径前缀
+            const cmd = this.shellCmd;
+            const lastSpaceIdx = cmd.lastIndexOf(' ');
+            const wordPrefix = lastSpaceIdx >= 0 ? cmd.slice(lastSpaceIdx + 1) : cmd;
+            const cmdPrefix  = lastSpaceIdx >= 0 ? cmd.slice(0, lastSpaceIdx + 1) : '';
+
+            if (wordPrefix === '' && cmd === '') return;   // 空命令行不触发
+
+            this.tabLoading = true;
+            this.tabPrefix = wordPrefix;
+            this.tabCmdPrefix = cmdPrefix;
+
+            try {
+                const resp = await fetch(
+                    `${this.apiBase}/${encodeURIComponent(this.serial)}/tab-complete/`,
+                    {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': this.csrfToken,
+                        },
+                        body: JSON.stringify({ prefix: wordPrefix, cwd: this.shellCwd }),
+                    }
+                );
+                const json = await resp.json();
+                if (!resp.ok) return;
+                const data = json.data !== undefined ? json.data : json;
+                const candidates = data.candidates || [];
+
+                if (candidates.length === 0) {
+                    // 无候选，bell（忽略）
+                    return;
+                }
+                if (candidates.length === 1) {
+                    // 唯一候选，直接补全
+                    this.applyTabCandidate(candidates[0]);
+                    return;
+                }
+
+                // 多个候选：先尝试补全公共前缀
+                const common = this._commonPrefix(candidates);
+                if (common.length > wordPrefix.length) {
+                    // 有更长的公共前缀，先补到公共前缀，不展开列表
+                    this.shellCmd = cmdPrefix + common;
+                    this.tabCandidates = [];
+                    return;
+                }
+
+                // 展示候选下拉
+                this.tabCandidates = candidates;
+                this.tabIdx = 0;
+                this.$dispatch('tab-open');
+            } catch (_) {
+                // 补全失败静默忽略
+            } finally {
+                this.tabLoading = false;
+            }
+        },
+
+        /** Tab 补全下拉中按 ↑ */
+        tabNavUp() {
+            if (!this.tabCandidates.length) return;
+            this.tabIdx = (this.tabIdx - 1 + this.tabCandidates.length) % this.tabCandidates.length;
+        },
+
+        /** Tab 补全下拉中按 ↓ */
+        tabNavDown() {
+            if (!this.tabCandidates.length) return;
+            this.tabIdx = (this.tabIdx + 1) % this.tabCandidates.length;
+        },
+
+        /** 在补全下拉打开时按 Enter/Tab，确认当前选中候选 */
+        confirmTab() {
+            if (this.tabCandidates.length > 0) {
+                this.applyTabCandidate(this.tabCandidates[this.tabIdx]);
+            } else {
+                this.runShell();
+            }
+        },
+
+        /** 将选中的候选写回输入框 */
+        applyTabCandidate(candidate) {
+            this.shellCmd = this.tabCmdPrefix + candidate;
+            this.tabCandidates = [];
+            this.tabIdx = 0;
+            this.$dispatch('tab-close');
+            this.$nextTick(() => {
+                this.$refs.shellInput && this.$refs.shellInput.focus();
+            });
+        },
+
+        /** 求字符串数组的公共前缀 */
+        _commonPrefix(arr) {
+            if (!arr.length) return '';
+            let prefix = arr[0];
+            for (let i = 1; i < arr.length; i++) {
+                while (!arr[i].startsWith(prefix)) {
+                    prefix = prefix.slice(0, -1);
+                    if (!prefix) return '';
+                }
+            }
+            return prefix;
         },
 
         async languageSettings() {
-            if (!this.requireSerial()) return;
-            try {
+            await this.withLoading('language', async () => {
+                if (!this.requireSerial()) throw new Error('');
                 const data = await this.api(`${this.apiBase}/${encodeURIComponent(this.serial)}/language/`, { method: 'POST' });
-                this.message = data.message;
-            } catch (e) { this.error = e.message; }
+                this.setMessage(data.message || '已打开语言设置');
+            });
         },
 
+        // ---------- 日志 ----------
         async logcatAction(action) {
-            if (!this.requireSerial()) return;
-            const enc = encodeURIComponent(this.serial);
-            try {
+            await this.withLoading('logcat-' + action, async () => {
+                if (!this.requireSerial()) throw new Error('');
+                const enc = encodeURIComponent(this.serial);
                 if (action === 'clear') {
                     const data = await this.api(`${this.apiBase}/${enc}/logcat/clear/`, { method: 'POST' });
-                    this.message = data.message;
+                    this.setMessage(data.message || '日志已清理');
                 } else {
                     const data = await this.api(`${this.apiBase}/${enc}/logcat/dump/`, {
                         method: 'POST', body: JSON.stringify({ keyword: this.logKeyword, lines: 500 }),
                     });
-                    this.message = `日志已导出 (${data.lines} 行)`;
+                    this.setMessage(`日志已导出 (${data.lines} 行)`);
                     if (data.url) window.open(data.url, '_blank');
                 }
-            } catch (e) { this.error = e.message; }
+            });
         },
 
+        // ---------- 流量 ----------
         async flowStats() {
-            if (!this.requireSerial() || !this.packageName) return;
-            try {
+            await this.withLoading('flow', async () => {
+                if (!this.requireSerial()) throw new Error('');
+                if (!this.packageName) throw new Error('请先填写包名');
                 const data = await this.api(`${this.apiBase}/${encodeURIComponent(this.serial)}/flow/`, {
                     method: 'POST', body: JSON.stringify({ package_name: this.packageName }),
                 });
-                this.flowOutput = `移动↑${data.rmnet_up_kb}KB ↓${data.rmnet_down_kb}KB | WiFi↑${data.wifi_up_kb}KB ↓${data.wifi_down_kb}KB`;
-            } catch (e) { this.error = e.message; }
+                this.flowOutput = `移动 ↑${data.rmnet_up_kb}KB ↓${data.rmnet_down_kb}KB | WiFi ↑${data.wifi_up_kb}KB ↓${data.wifi_down_kb}KB`;
+            });
         },
 
+        // ---------- 录屏 ----------
         async listRecordings() {
-            if (!this.requireSerial()) return;
-            try {
+            await this.withLoading('list-recordings', async () => {
+                if (!this.requireSerial()) throw new Error('');
                 const data = await this.api(`${this.apiBase}/${encodeURIComponent(this.serial)}/recordings/`);
                 this.recordings = data.recordings || [];
-                this.message = `找到 ${this.recordings.length} 个录屏`;
-            } catch (e) { this.error = e.message; }
+                this.setMessage(`找到 ${this.recordings.length} 个录屏`);
+            });
         },
 
         async pullRecording() {
-            if (!this.requireSerial()) return;
-            try {
+            await this.withLoading('pull-recording', async () => {
+                if (!this.requireSerial()) throw new Error('');
                 const data = await this.api(`${this.apiBase}/${encodeURIComponent(this.serial)}/recordings/pull/`, {
                     method: 'POST', body: JSON.stringify({ index: parseInt(this.recordingIndex) }),
                 });
                 window.open(data.url, '_blank');
-                this.message = '录屏拉取成功';
-            } catch (e) { this.error = e.message; }
+                this.setMessage('录屏拉取成功');
+            });
         },
     };
 }
 </script>
-{% endblock %}
+{% endblock saas_content %}

@@ -7,4 +7,4 @@ from django.views.decorators.http import require_http_methods
 @require_http_methods(["GET"])
 def dashboard(request):
     """ADB 工具 Web 管理页"""
-    return render(request, "adb_web/dashboard.html")
+    return render(request, "adb_web/dashboard.html", {"title": "终端 设备管理"})

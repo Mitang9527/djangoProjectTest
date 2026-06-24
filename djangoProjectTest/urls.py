@@ -10,19 +10,6 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from loguru import logger
-from rest_framework.routers import DefaultRouter
-from saas.views import (
-    PlanViewSet,
-    PlanFeatureViewSet,
-    TenantViewSet,
-    TenantSubscriptionViewSet,
-    TenantConfigViewSet,
-    PermissionViewSet,
-    RoleViewSet,
-    TenantMemberViewSet,
-    OrderViewSet,
-    InvoiceViewSet
-)
 
 
 def discover_app_urls():
@@ -68,8 +55,6 @@ def discover_app_urls():
 from django.urls import path, include
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 from core.views import AdminRequiredMixin
-from saas.views import DashboardView
-
 # 创建带权限保护的视图类
 class AdminOnlySpectacularAPIView(AdminRequiredMixin, SpectacularAPIView):
     pass
@@ -79,19 +64,6 @@ class AdminOnlySpectacularSwaggerView(AdminRequiredMixin, SpectacularSwaggerView
 
 class AdminOnlySpectacularRedocView(AdminRequiredMixin, SpectacularRedocView):
     pass
-
-# 配置 SaaS API 路由
-saas_router = DefaultRouter()
-saas_router.register(r'plans', PlanViewSet)
-saas_router.register(r'plan-features', PlanFeatureViewSet)
-saas_router.register(r'tenants', TenantViewSet)
-saas_router.register(r'tenant-subscriptions', TenantSubscriptionViewSet)
-saas_router.register(r'tenant-configs', TenantConfigViewSet)
-saas_router.register(r'permissions', PermissionViewSet)
-saas_router.register(r'roles', RoleViewSet)
-saas_router.register(r'tenant-members', TenantMemberViewSet)
-saas_router.register(r'orders', OrderViewSet)
-saas_router.register(r'invoices', InvoiceViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),

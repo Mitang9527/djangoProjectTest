@@ -14,27 +14,27 @@ class Plan(models.Model):
     套餐表
     """
     class Status(models.TextChoices):
-        ACTIVE = 'active', _('Active')
-        INACTIVE = 'inactive', _('Inactive')
+        ACTIVE = 'active', _('启用')
+        INACTIVE = 'inactive', _('禁用')
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(_('Name'), max_length=100)
-    slug = models.SlugField(_('Slug'), unique=True, max_length=100)
-    description = models.TextField(_('Description'), blank=True)
-    price = models.DecimalField(_('Monthly Price'), max_digits=10, decimal_places=2)
-    price_yearly = models.DecimalField(_('Yearly Price'), max_digits=10, decimal_places=2, null=True, blank=True)
-    currency = models.CharField(_('Currency'), max_length=10, default='CNY')
-    max_users = models.IntegerField(_('Max Users'), default=10)
-    max_storage_mb = models.IntegerField(_('Max Storage (MB)'), default=1024)
-    is_active = models.BooleanField(_('Is Active'), default=True)
-    is_featured = models.BooleanField(_('Is Featured'), default=False)
-    sort_order = models.IntegerField(_('Sort Order'), default=0)
-    created_at = models.DateTimeField(_('Created At'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Updated At'), auto_now=True)
+    name = models.CharField(_('名称'), max_length=100)
+    slug = models.SlugField(_('标识'), unique=True, max_length=100)
+    description = models.TextField(_('描述'), blank=True)
+    price = models.DecimalField(_('月价格'), max_digits=10, decimal_places=2)
+    price_yearly = models.DecimalField(_('年价格'), max_digits=10, decimal_places=2, null=True, blank=True)
+    currency = models.CharField(_('货币'), max_length=10, default='CNY')
+    max_users = models.IntegerField(_('最大用户数'), default=10)
+    max_storage_mb = models.IntegerField(_('最大存储(MB)'), default=1024)
+    is_active = models.BooleanField(_('是否启用'), default=True)
+    is_featured = models.BooleanField(_('是否推荐'), default=False)
+    sort_order = models.IntegerField(_('排序'), default=0)
+    created_at = models.DateTimeField(_('创建时间'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('更新时间'), auto_now=True)
 
     class Meta:
-        verbose_name = _('Plan')
-        verbose_name_plural = _('Plans')
+        verbose_name = _('套餐')
+        verbose_name_plural = _('套餐')
         ordering = ['sort_order', 'created_at']
 
     def __str__(self):
@@ -46,17 +46,17 @@ class PlanFeature(models.Model):
     套餐功能表
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    plan = models.ForeignKey(Plan, on_delete=models.CASCADE, related_name='features')
-    feature_code = models.CharField(_('Feature Code'), max_length=100)
-    feature_name = models.CharField(_('Feature Name'), max_length=100)
-    description = models.TextField(_('Description'), blank=True)
-    value = models.CharField(_('Value'), max_length=255, blank=True)
-    is_enabled = models.BooleanField(_('Is Enabled'), default=True)
-    created_at = models.DateTimeField(_('Created At'), auto_now_add=True)
+    plan = models.ForeignKey(Plan, on_delete=models.CASCADE, related_name='features', verbose_name=_('套餐'))
+    feature_code = models.CharField(_('功能代码'), max_length=100)
+    feature_name = models.CharField(_('功能名称'), max_length=100)
+    description = models.TextField(_('描述'), blank=True)
+    value = models.CharField(_('值'), max_length=255, blank=True)
+    is_enabled = models.BooleanField(_('是否启用'), default=True)
+    created_at = models.DateTimeField(_('创建时间'), auto_now_add=True)
 
     class Meta:
-        verbose_name = _('Plan Feature')
-        verbose_name_plural = _('Plan Features')
+        verbose_name = _('套餐功能')
+        verbose_name_plural = _('套餐功能')
         ordering = ['feature_code']
         unique_together = ['plan', 'feature_code']
 
@@ -69,28 +69,28 @@ class Tenant(models.Model):
     租户表
     """
     class Status(models.TextChoices):
-        ACTIVE = 'active', _('Active')
-        SUSPENDED = 'suspended', _('Suspended')
-        CANCELLED = 'cancelled', _('Cancelled')
-        PENDING = 'pending', _('Pending')
+        ACTIVE = 'active', _('活跃')
+        SUSPENDED = 'suspended', _('已暂停')
+        CANCELLED = 'cancelled', _('已取消')
+        PENDING = 'pending', _('待开通')
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(_('Tenant Name'), max_length=100)
-    slug = models.SlugField(_('Slug'), unique=True, max_length=100)
-    domain = models.CharField(_('Domain'), max_length=255, blank=True)
+    name = models.CharField(_('名称'), max_length=100)
+    slug = models.SlugField(_('标识'), unique=True, max_length=100)
+    domain = models.CharField(_('域名'), max_length=255, blank=True)
     logo = models.ImageField(_('Logo'), upload_to='tenant_logos/', blank=True, null=True)
-    description = models.TextField(_('Description'), blank=True)
-    status = models.CharField(_('Status'), max_length=20, choices=Status.choices, default=Status.ACTIVE)
-    plan = models.ForeignKey(Plan, on_delete=models.SET_NULL, null=True, related_name='tenants')
-    billing_date = models.DateField(_('Billing Date'), null=True, blank=True)
-    stripe_customer_id = models.CharField(_('Stripe Customer ID'), max_length=255, blank=True)
-    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='created_tenants')
-    created_at = models.DateTimeField(_('Created At'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Updated At'), auto_now=True)
+    description = models.TextField(_('描述'), blank=True)
+    status = models.CharField(_('状态'), max_length=20, choices=Status.choices, default=Status.ACTIVE)
+    plan = models.ForeignKey(Plan, on_delete=models.SET_NULL, null=True, related_name='tenants', verbose_name=_('套餐'))
+    billing_date = models.DateField(_('账单日期'), null=True, blank=True)
+    stripe_customer_id = models.CharField(_('Stripe 客户 ID'), max_length=255, blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='created_tenants', verbose_name=_('创建者'))
+    created_at = models.DateTimeField(_('创建时间'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('更新时间'), auto_now=True)
 
     class Meta:
-        verbose_name = _('Tenant')
-        verbose_name_plural = _('Tenants')
+        verbose_name = _('租户')
+        verbose_name_plural = _('租户')
         ordering = ['-created_at']
 
     def __str__(self):
@@ -102,25 +102,25 @@ class TenantSubscription(models.Model):
     租户订阅表
     """
     class Status(models.TextChoices):
-        ACTIVE = 'active', _('Active')
-        CANCELLED = 'cancelled', _('Cancelled')
-        PAST_DUE = 'past_due', _('Past Due')
-        TRIAL = 'trial', _('Trial')
+        ACTIVE = 'active', _('活跃')
+        CANCELLED = 'cancelled', _('已取消')
+        PAST_DUE = 'past_due', _('已逾期')
+        TRIAL = 'trial', _('试用中')
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='subscriptions')
-    plan = models.ForeignKey(Plan, on_delete=models.CASCADE, related_name='subscriptions')
-    status = models.CharField(_('Status'), max_length=20, choices=Status.choices, default=Status.TRIAL)
-    start_date = models.DateTimeField(_('Start Date'), default=timezone.now)
-    end_date = models.DateTimeField(_('End Date'), null=True, blank=True)
-    auto_renew = models.BooleanField(_('Auto Renew'), default=True)
-    stripe_subscription_id = models.CharField(_('Stripe Subscription ID'), max_length=255, blank=True)
-    created_at = models.DateTimeField(_('Created At'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Updated At'), auto_now=True)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='subscriptions', verbose_name=_('租户'))
+    plan = models.ForeignKey(Plan, on_delete=models.CASCADE, related_name='subscriptions', verbose_name=_('套餐'))
+    status = models.CharField(_('状态'), max_length=20, choices=Status.choices, default=Status.TRIAL)
+    start_date = models.DateTimeField(_('开始日期'), default=timezone.now)
+    end_date = models.DateTimeField(_('结束日期'), null=True, blank=True)
+    auto_renew = models.BooleanField(_('自动续费'), default=True)
+    stripe_subscription_id = models.CharField(_('Stripe 订阅 ID'), max_length=255, blank=True)
+    created_at = models.DateTimeField(_('创建时间'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('更新时间'), auto_now=True)
 
     class Meta:
-        verbose_name = _('Tenant Subscription')
-        verbose_name_plural = _('Tenant Subscriptions')
+        verbose_name = _('租户订阅')
+        verbose_name_plural = _('租户订阅')
         ordering = ['-created_at']
 
     def __str__(self):
@@ -132,23 +132,23 @@ class TenantConfig(models.Model):
     租户配置表
     """
     class Category(models.TextChoices):
-        GENERAL = 'general', _('General')
-        BRANDING = 'branding', _('Branding')
-        SECURITY = 'security', _('Security')
-        INTEGRATION = 'integration', _('Integration')
+        GENERAL = 'general', _('通用')
+        BRANDING = 'branding', _('品牌')
+        SECURITY = 'security', _('安全')
+        INTEGRATION = 'integration', _('集成')
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='configs')
-    key = models.CharField(_('Config Key'), max_length=100)
-    value = models.TextField(_('Config Value'))
-    category = models.CharField(_('Category'), max_length=50, choices=Category.choices, default=Category.GENERAL)
-    description = models.TextField(_('Description'), blank=True)
-    created_at = models.DateTimeField(_('Created At'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Updated At'), auto_now=True)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='configs', verbose_name=_('租户'))
+    key = models.CharField(_('配置键'), max_length=100)
+    value = models.TextField(_('配置值'))
+    category = models.CharField(_('分类'), max_length=50, choices=Category.choices, default=Category.GENERAL)
+    description = models.TextField(_('描述'), blank=True)
+    created_at = models.DateTimeField(_('创建时间'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('更新时间'), auto_now=True)
 
     class Meta:
-        verbose_name = _('Tenant Config')
-        verbose_name_plural = _('Tenant Configs')
+        verbose_name = _('租户配置')
+        verbose_name_plural = _('租户配置')
         unique_together = ['tenant', 'key']
         ordering = ['category', 'key']
 
@@ -161,23 +161,23 @@ class Permission(models.Model):
     权限表
     """
     class Module(models.TextChoices):
-        TENANT = 'tenant', _('Tenant')
-        USER = 'user', _('User')
-        BILLING = 'billing', _('Billing')
-        ANALYTICS = 'analytics', _('Analytics')
-        SYSTEM = 'system', _('System')
+        TENANT = 'tenant', _('租户')
+        USER = 'user', _('用户')
+        BILLING = 'billing', _('计费')
+        ANALYTICS = 'analytics', _('分析')
+        SYSTEM = 'system', _('系统')
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(_('Permission Name'), max_length=100)
-    slug = models.SlugField(_('Slug'), unique=True, max_length=100)
-    description = models.TextField(_('Description'), blank=True)
-    module = models.CharField(_('Module'), max_length=50, choices=Module.choices)
-    is_active = models.BooleanField(_('Is Active'), default=True)
-    created_at = models.DateTimeField(_('Created At'), auto_now_add=True)
+    name = models.CharField(_('名称'), max_length=100)
+    slug = models.SlugField(_('标识'), unique=True, max_length=100)
+    description = models.TextField(_('描述'), blank=True)
+    module = models.CharField(_('模块'), max_length=50, choices=Module.choices)
+    is_active = models.BooleanField(_('是否启用'), default=True)
+    created_at = models.DateTimeField(_('创建时间'), auto_now_add=True)
 
     class Meta:
-        verbose_name = _('Permission')
-        verbose_name_plural = _('Permissions')
+        verbose_name = _('权限')
+        verbose_name_plural = _('权限')
         ordering = ['module', 'slug']
 
     def __str__(self):
@@ -189,22 +189,23 @@ class Role(models.Model):
     角色表
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='roles', null=True, blank=True)
-    name = models.CharField(_('Role Name'), max_length=100)
-    slug = models.SlugField(_('Slug'), max_length=100)
-    description = models.TextField(_('Description'), blank=True)
-    is_system = models.BooleanField(_('Is System Role'), default=False)
-    is_active = models.BooleanField(_('Is Active'), default=True)
-    permissions = models.ManyToManyField(Permission, related_name='roles', blank=True)
-    created_at = models.DateTimeField(_('Created At'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Updated At'), auto_now=True)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='roles', null=True, blank=True, verbose_name=_('租户'))
+    name = models.CharField(_('名称'), max_length=100)
+    slug = models.SlugField(_('标识'), max_length=100)
+    description = models.TextField(_('描述'), blank=True)
+    is_system = models.BooleanField(_('是否系统角色'), default=False)
+    is_active = models.BooleanField(_('是否启用'), default=True)
+    permissions = models.ManyToManyField(Permission, related_name='roles', blank=True, verbose_name=_('权限'))
+    created_at = models.DateTimeField(_('创建时间'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('更新时间'), auto_now=True)
 
     class Meta:
-        verbose_name = _('Role')
-        verbose_name_plural = _('Roles')
+        verbose_name = _('角色')
+        verbose_name_plural = _('角色')
         ordering = ['-created_at']
         constraints = [
             models.UniqueConstraint(fields=['tenant', 'slug'], name='unique_role_slug'),
+            models.UniqueConstraint(fields=['tenant', 'name'], name='unique_role_name'),
         ]
 
     def __str__(self):
@@ -216,16 +217,16 @@ class TenantMember(models.Model):
     租户成员表
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='members')
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='tenant_memberships')
-    role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True, related_name='members')
-    is_active = models.BooleanField(_('Is Active'), default=True)
-    joined_at = models.DateTimeField(_('Joined At'), auto_now_add=True)
-    invited_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='invited_members')
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='members', verbose_name=_('租户'))
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='tenant_memberships', verbose_name=_('用户'))
+    role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True, related_name='members', verbose_name=_('角色'))
+    is_active = models.BooleanField(_('是否启用'), default=True)
+    joined_at = models.DateTimeField(_('加入时间'), auto_now_add=True)
+    invited_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='invited_members', verbose_name=_('邀请者'))
 
     class Meta:
-        verbose_name = _('Tenant Member')
-        verbose_name_plural = _('Tenant Members')
+        verbose_name = _('租户成员')
+        verbose_name_plural = _('租户成员')
         unique_together = ['tenant', 'user']
         ordering = ['-joined_at']
 
@@ -238,35 +239,35 @@ class Order(models.Model):
     订单表
     """
     class Status(models.TextChoices):
-        PENDING = 'pending', _('Pending')
-        PAID = 'paid', _('Paid')
-        CANCELLED = 'cancelled', _('Cancelled')
-        REFUNDED = 'refunded', _('Refunded')
+        PENDING = 'pending', _('待支付')
+        PAID = 'paid', _('已支付')
+        CANCELLED = 'cancelled', _('已取消')
+        REFUNDED = 'refunded', _('已退款')
 
     class PaymentMethod(models.TextChoices):
         STRIPE = 'stripe', _('Stripe')
-        ALIPAY = 'alipay', _('Alipay')
-        WECHAT = 'wechat', _('WeChat')
-        BANK_TRANSFER = 'bank_transfer', _('Bank Transfer')
+        ALIPAY = 'alipay', _('支付宝')
+        WECHAT = 'wechat', _('微信支付')
+        BANK_TRANSFER = 'bank_transfer', _('银行转账')
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    order_number = models.CharField(_('Order Number'), unique=True, max_length=100)
-    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='orders')
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='orders')
-    plan = models.ForeignKey(Plan, on_delete=models.CASCADE, related_name='orders')
-    amount = models.DecimalField(_('Amount'), max_digits=10, decimal_places=2)
-    currency = models.CharField(_('Currency'), max_length=10, default='CNY')
-    status = models.CharField(_('Status'), max_length=20, choices=Status.choices, default=Status.PENDING)
-    payment_method = models.CharField(_('Payment Method'), max_length=50, choices=PaymentMethod.choices, blank=True)
-    payment_date = models.DateTimeField(_('Payment Date'), null=True, blank=True)
-    stripe_payment_id = models.CharField(_('Stripe Payment ID'), max_length=255, blank=True)
-    notes = models.TextField(_('Notes'), blank=True)
-    created_at = models.DateTimeField(_('Created At'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Updated At'), auto_now=True)
+    order_number = models.CharField(_('订单号'), unique=True, max_length=100)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='orders', verbose_name=_('租户'))
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='orders', verbose_name=_('用户'))
+    plan = models.ForeignKey(Plan, on_delete=models.CASCADE, related_name='orders', verbose_name=_('套餐'))
+    amount = models.DecimalField(_('金额'), max_digits=10, decimal_places=2)
+    currency = models.CharField(_('货币'), max_length=10, default='CNY')
+    status = models.CharField(_('状态'), max_length=20, choices=Status.choices, default=Status.PENDING)
+    payment_method = models.CharField(_('支付方式'), max_length=50, choices=PaymentMethod.choices, blank=True)
+    payment_date = models.DateTimeField(_('支付日期'), null=True, blank=True)
+    stripe_payment_id = models.CharField(_('Stripe 支付 ID'), max_length=255, blank=True)
+    notes = models.TextField(_('备注'), blank=True)
+    created_at = models.DateTimeField(_('创建时间'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('更新时间'), auto_now=True)
 
     class Meta:
-        verbose_name = _('Order')
-        verbose_name_plural = _('Orders')
+        verbose_name = _('订单')
+        verbose_name_plural = _('订单')
         ordering = ['-created_at']
 
     def __str__(self):
@@ -283,27 +284,27 @@ class Invoice(models.Model):
     发票表
     """
     class Status(models.TextChoices):
-        PENDING = 'pending', _('Pending')
-        PAID = 'paid', _('Paid')
-        OVERDUE = 'overdue', _('Overdue')
+        PENDING = 'pending', _('待支付')
+        PAID = 'paid', _('已支付')
+        OVERDUE = 'overdue', _('已逾期')
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    invoice_number = models.CharField(_('Invoice Number'), unique=True, max_length=100)
-    order = models.OneToOneField(Order, on_delete=models.CASCADE, related_name='invoice')
-    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='invoices')
-    amount = models.DecimalField(_('Amount'), max_digits=10, decimal_places=2)
-    currency = models.CharField(_('Currency'), max_length=10, default='CNY')
-    status = models.CharField(_('Status'), max_length=20, choices=Status.choices, default=Status.PENDING)
-    due_date = models.DateField(_('Due Date'))
-    paid_date = models.DateField(_('Paid Date'), null=True, blank=True)
-    pdf_file = models.FileField(_('PDF File'), upload_to='invoices/', blank=True, null=True)
-    sent_at = models.DateTimeField(_('Sent At'), null=True, blank=True)
-    created_at = models.DateTimeField(_('Created At'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Updated At'), auto_now=True)
+    invoice_number = models.CharField(_('发票号'), unique=True, max_length=100)
+    order = models.OneToOneField(Order, on_delete=models.CASCADE, related_name='invoice', verbose_name=_('订单'))
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='invoices', verbose_name=_('租户'))
+    amount = models.DecimalField(_('金额'), max_digits=10, decimal_places=2)
+    currency = models.CharField(_('货币'), max_length=10, default='CNY')
+    status = models.CharField(_('状态'), max_length=20, choices=Status.choices, default=Status.PENDING)
+    due_date = models.DateField(_('到期日'))
+    paid_date = models.DateField(_('支付日期'), null=True, blank=True)
+    pdf_file = models.FileField(_('PDF 文件'), upload_to='invoices/', blank=True, null=True)
+    sent_at = models.DateTimeField(_('发送时间'), null=True, blank=True)
+    created_at = models.DateTimeField(_('创建时间'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('更新时间'), auto_now=True)
 
     class Meta:
-        verbose_name = _('Invoice')
-        verbose_name_plural = _('Invoices')
+        verbose_name = _('发票')
+        verbose_name_plural = _('发票')
         ordering = ['-created_at']
 
     def __str__(self):

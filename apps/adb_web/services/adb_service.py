@@ -11,8 +11,12 @@ from typing import Any
 from django.conf import settings
 from loguru import logger
 
-from adbutils import adb
-from adbutils.errors import AdbError as LibAdbError
+try:
+    from adbutils import adb
+    from adbutils.errors import AdbError as LibAdbError
+except ImportError:
+    adb = None  # type: ignore[assignment]
+    LibAdbError = Exception  # type: ignore[assignment,misc]
 
 from ..exceptions import AdbDeviceNotFound, AdbOperationError
 
@@ -45,15 +49,24 @@ class AdbService:
             raise AdbDeviceNotFound(f"设备 {serial} 不可用: {exc}") from exc
 
     def list_devices(self) -> list[dict[str, Any]]:
+        """一次 shell 批量拿所有 prop，避免每台设备多次往返。"""
         devices = []
         for device in adb.device_list():
             try:
+                # 一条 shell 拿三个 prop，用 \n 分隔，只建立一次连接
+                raw = device.shell(
+                    "getprop ro.product.model; getprop ro.build.version.release; getprop ro.product.brand",
+                    timeout=5,
+                )
+                lines = raw.splitlines()
+                model   = lines[0].strip() if len(lines) > 0 else ""
+                version = lines[1].strip() if len(lines) > 1 else ""
                 devices.append(
                     {
                         "serial": device.serial,
-                        "model": device.getprop("ro.product.model") or "",
-                        "android_version": device.getprop("ro.build.version.release") or "",
-                        "state": device.get_state(),
+                        "model": model,
+                        "android_version": version,
+                        "state": "device",  # iter_device 已过滤 state != device
                     }
                 )
             except LibAdbError as exc:
@@ -63,13 +76,26 @@ class AdbService:
 
     def get_device_info(self, serial: str) -> dict[str, Any]:
         device = self._resolve_device(serial)
+        try:
+            raw = device.shell(
+                "getprop ro.product.model; getprop ro.build.version.release; "
+                "getprop ro.product.brand; getprop ro.build.version.sdk",
+                timeout=5,
+            )
+            lines = raw.splitlines()
+            model   = lines[0].strip() if len(lines) > 0 else ""
+            version = lines[1].strip() if len(lines) > 1 else ""
+            brand   = lines[2].strip() if len(lines) > 2 else ""
+            sdk     = lines[3].strip() if len(lines) > 3 else ""
+        except LibAdbError as exc:
+            raise AdbOperationError(f"获取设备信息失败: {exc}") from exc
         return {
             "serial": device.serial,
-            "model": device.getprop("ro.product.model") or "",
-            "android_version": device.getprop("ro.build.version.release") or "",
-            "state": device.get_state(),
-            "brand": device.getprop("ro.product.brand") or "",
-            "sdk_version": device.getprop("ro.build.version.sdk") or "",
+            "model": model,
+            "android_version": version,
+            "state": "device",
+            "brand": brand,
+            "sdk_version": sdk,
         }
 
     def list_packages(self, serial: str, third_party: bool = True) -> list[str]:
@@ -93,13 +119,70 @@ class AdbService:
         media_url = f"{settings.MEDIA_URL}adb/screenshots/{filename}"
         return {"filename": filename, "path": str(filepath), "url": media_url}
 
-    def run_shell(self, serial: str, command: str) -> dict[str, str]:
+    def run_shell(self, serial: str, command: str, cwd: str | None = None) -> dict[str, str]:
+        """
+        执行 shell 命令。
+        - timeout=30 防止阻塞命令永久挂起。
+        - cwd 不为空时自动前缀 cd <cwd> && ，实现有状态的目录跳转。
+        - output 为 None 时返回空字符串，避免前端渲染 "null"。
+        """
         device = self._resolve_device(serial)
+        full_cmd = f"cd {shlex.quote(cwd)} && {command}" if cwd else command
         try:
-            output = device.shell(command)
+            output = device.shell(full_cmd, timeout=30) or ""
         except LibAdbError as exc:
             raise AdbOperationError(f"Shell 命令执行失败: {exc}") from exc
-        return {"command": command, "output": output}
+        return {"command": command, "output": output, "cwd": cwd or "/"}
+
+    def tab_complete(self, serial: str, prefix: str, cwd: str | None = None) -> dict[str, Any]:
+        """
+        利用 Android shell 的 compgen 或 ls 来返回路径补全候选列表。
+
+        策略：
+        1. 先尝试 `compgen -f <prefix>`（部分 Android shell 支持）
+        2. 若不可用，fallback 到手动 ls + 过滤（通用，兼容所有 Android）
+        """
+        device = self._resolve_device(serial)
+
+        # 分离目录部分和文件前缀部分
+        # prefix = "/sdcard/DC" → dir_part="/sdcard/", file_part="DC"
+        # prefix = "data" → dir_part=".", file_part="data"
+        if "/" in prefix:
+            dir_part, file_part = prefix.rsplit("/", 1)
+            dir_part = dir_part if dir_part else "/"
+        else:
+            dir_part = cwd or "/"
+            file_part = prefix
+
+        try:
+            # 先尝试 compgen（速度快）
+            test_cmd = f"compgen -f {shlex.quote(prefix)} 2>/dev/null | head -50"
+            cd_prefix = f"cd {shlex.quote(cwd)} && " if cwd and not prefix.startswith("/") else ""
+            output = device.shell(f"{cd_prefix}{test_cmd}", timeout=5) or ""
+            candidates = [line.strip() for line in output.splitlines() if line.strip()]
+
+            # 如果 compgen 没结果（Android shell 不支持），fallback 到 ls
+            if not candidates:
+                ls_dir = dir_part if dir_part else (cwd or "/")
+                ls_cmd = f"ls -1 -p {shlex.quote(ls_dir)} 2>/dev/null | head -100"
+                ls_out = device.shell(ls_cmd, timeout=5) or ""
+                all_entries = [e.strip() for e in ls_out.splitlines() if e.strip()]
+                # 过滤出匹配前缀的条目
+                candidates_raw = [e for e in all_entries if e.lower().startswith(file_part.lower())]
+                # 重新拼回完整路径
+                if dir_part and dir_part != ".":
+                    sep = "" if dir_part.endswith("/") else "/"
+                    candidates = [dir_part + sep + e for e in candidates_raw]
+                else:
+                    candidates = candidates_raw
+        except LibAdbError as exc:
+            raise AdbOperationError(f"Tab 补全失败: {exc}") from exc
+
+        return {
+            "candidates": candidates,
+            "prefix": prefix,
+            "count": len(candidates),
+        }
 
     def clear_app_data(self, serial: str, package_name: str) -> dict[str, str]:
         device = self._resolve_device(serial)
@@ -120,18 +203,35 @@ class AdbService:
         return {"package_name": package_name, "message": f"已结束 {package_name} 的进程"}
 
     def start_app(self, serial: str, package_name: str, activity: str | None = None) -> dict[str, str]:
+        """
+        启动应用，使用 am start 不带 -W 标志，避免阻塞等待 Activity 完全启动。
+        指定 activity 时直接 am start -n；否则查询 launcher activity 后发起。
+        两种方式均在后台运行（shell 指令加 &），shell 调用立即返回。
+        """
         device = self._resolve_device(serial)
         try:
             if activity:
-                output = device.shell(f"am start -n {activity}")
+                output = device.shell(f"am start -n {activity}", timeout=5) or ""
             else:
-                device.app_start(package_name)
-                output = f"{package_name} 启动成功"
+                # 先查 launcher activity（快速，不需等待 app 启动）
+                resolve_out = device.shell(
+                    f"cmd package resolve-activity --brief -a android.intent.action.MAIN "
+                    f"-c android.intent.category.LAUNCHER {package_name}",
+                    timeout=5,
+                ) or ""
+                # resolve-activity 最后一行是 component name，如 com.xxx/.MainActivity
+                component = resolve_out.strip().splitlines()[-1].strip() if resolve_out.strip() else ""
+                if component and "/" in component and not component.startswith("No activity"):
+                    output = device.shell(f"am start -n {component}", timeout=5) or ""
+                else:
+                    # fallback：直接用 monkey（兼容旧设备）
+                    output = device.shell(
+                        f"monkey -p {package_name} -c android.intent.category.LAUNCHER 1",
+                        timeout=10,
+                    ) or ""
         except LibAdbError as exc:
             raise AdbOperationError(f"启动应用失败: {exc}") from exc
-        if "Error" in output:
-            raise AdbOperationError(f"启动应用失败: {output.strip()}")
-        return {"package_name": package_name, "message": output.strip() or f"{package_name} 启动成功"}
+        return {"package_name": package_name, "message": f"{package_name} 已发送启动指令"}
 
     def uninstall_app(self, serial: str, package_name: str) -> dict[str, str]:
         device = self._resolve_device(serial)
@@ -149,30 +249,15 @@ class AdbService:
         if not apk_path.exists():
             raise AdbOperationError(f"APK 文件不存在: {apk_path}")
 
-        before = set(self.list_packages(serial))
         try:
             device.install(str(apk_path))
-            result = "Success"
         except LibAdbError as exc:
             raise AdbOperationError(f"安装失败: {exc}") from exc
 
-        after = set(self.list_packages(serial))
-        new_packages = sorted(after - before)
-        message = "安装成功"
-        started = None
-        if new_packages:
-            started = new_packages[0]
-            try:
-                device.app_start(started)
-                message = f"安装成功并已启动 {started}"
-            except LibAdbError:
-                message = f"安装成功，新包名: {started}（自动启动失败）"
-
+        # 安装完成后不再自动启动、不做两次全量包扫描，由前端决定是否启动
         return {
-            "result": result,
-            "message": message,
-            "new_package": started,
-            "new_packages": new_packages,
+            "result": "Success",
+            "message": "安装成功",
         }
 
     def export_apk(self, serial: str, package_name: str) -> dict[str, str]:

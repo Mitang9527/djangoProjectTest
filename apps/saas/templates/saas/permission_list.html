@@ -1,0 +1,126 @@
+{% extends 'saas/base_saas.html' %}
+{% load i18n %}
+
+{% block saas_content %}
+<div x-data="permissionManager" x-init="fetchList()">
+    <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+            <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100">{{ title }}</h3>
+            <span class="text-xs text-slate-400 dark:text-slate-500">{% trans "权限点由系统命令 init_permissions 同步，此页面用于查看和启停" %}</span>
+        </div>
+
+        <!-- 模块筛选 -->
+        <div class="px-6 py-3 border-b border-slate-100 dark:border-slate-800 flex gap-2 flex-wrap">
+            <button @click="filterModule=''" class="px-3 py-1 text-xs rounded-full transition-colors"
+                    :class="filterModule==='' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 hover:bg-slate-200'">{% trans "全部" %}</button>
+            <template x-for="m in modules" :key="m">
+                <button @click="filterModule = m" class="px-3 py-1 text-xs rounded-full transition-colors"
+                        :class="filterModule===m ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 hover:bg-slate-200'"
+                        x-text="{'system':'{% trans "系统" %}','tenant':'{% trans "租户" %}','user':'{% trans "用户" %}','billing':'{% trans "计费" %}','analytics':'{% trans "分析" %}'}[m] || m"></button>
+            </template>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-slate-50 dark:bg-slate-950/60">
+                    <tr>
+                        <th class="px-6 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-left">{% trans "名称" %}</th>
+                        <th class="px-6 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-left">{% trans "标识" %}</th>
+                        <th class="px-6 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-left">{% trans "模块" %}</th>
+                        <th class="px-6 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-left">{% trans "描述" %}</th>
+                        <th class="px-6 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-center">{% trans "状态" %}</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                    <tr x-show="loading" class="h-64">
+                        <td colspan="5" class="px-6 py-4 text-center">
+                            <svg class="animate-spin h-6 w-6 text-blue-500 mx-auto" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                            </svg>
+                        </td>
+                    </tr>
+                    <template x-for="item in filteredItems" :key="item.id">
+                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
+                            <td class="px-6 py-4 text-sm font-medium text-slate-900 dark:text-slate-100" x-text="item.name"></td>
+                            <td class="px-6 py-4 text-sm text-slate-500 dark:text-slate-400 font-mono text-xs" x-text="item.slug"></td>
+                            <td class="px-6 py-4 text-sm">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                      x-text="{'system':'{% trans "系统" %}','tenant':'{% trans "租户" %}','user':'{% trans "用户" %}','billing':'{% trans "计费" %}','analytics':'{% trans "分析" %}'}[item.module] || item.module"></span>
+                            </td>
+                            <td class="px-6 py-4 text-sm text-slate-400 dark:text-slate-500" x-text="item.description || '---'"></td>
+                            <td class="px-6 py-4 text-center">
+                                <button @click="toggleActive(item)" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors cursor-pointer"
+                                        :class="item.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 hover:bg-green-200' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 hover:bg-red-200'"
+                                        x-text="item.is_active ? '{% trans "启用" %}' : '{% trans "禁用" %}'"></button>
+                            </td>
+                        </tr>
+                    </template>
+                    <tr x-show="!loading && filteredItems.length === 0">
+                        <td colspan="5" class="px-6 py-12 text-center text-slate-400 dark:text-slate-500">{% trans "暂无数据" %}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div x-show="toast.show" x-transition class="fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-sm font-medium"
+         :class="toast.type==='success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'">
+        <span x-text="toast.type==='success'?'✓':'✗'"></span>
+        <span x-text="toast.msg"></span>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('permissionManager', () => ({
+        items: [],
+        loading: true,
+        filterModule: '',
+        toast: { show: false, msg: '', type: 'success' },
+
+        get modules() {
+            return [...new Set(this.items.map(i => i.module))].sort();
+        },
+
+        get filteredItems() {
+            if (!this.filterModule) return this.items;
+            return this.items.filter(i => i.module === this.filterModule);
+        },
+
+        async fetchList() {
+            this.loading = true;
+            try {
+                const data = await (await saasFetch('/saas/api/permissions/?page_size=200')).json();
+                const payload = data.data || data;
+                this.items = Array.isArray(payload) ? payload : (payload.results || []);
+            } catch (e) {
+                this.toastMsg('{% trans "加载失败" %}', 'error');
+            } finally { this.loading = false; }
+        },
+
+        async toggleActive(item) {
+            try {
+                const r = await saasFetch(`/saas/api/permissions/${item.id}/`, {
+                    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ is_active: !item.is_active })
+                });
+                if (r.ok) {
+                    item.is_active = !item.is_active;
+                    this.toastMsg(item.is_active ? '{% trans "已启用" %}' : '{% trans "已禁用" %}', 'success');
+                }
+            } catch (e) {
+                this.toastMsg('{% trans "操作失败" %}', 'error');
+            }
+        },
+
+        toastMsg(msg, type) {
+            this.toast = { show: true, msg, type };
+            setTimeout(() => { this.toast.show = false; }, 3000);
+        }
+    }));
+});
+</script>
+{% endblock %}

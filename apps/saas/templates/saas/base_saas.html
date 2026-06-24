@@ -8,7 +8,7 @@
 
 {% block content %}
 <!-- 管理后台布局 -->
-<div class="flex h-[calc(100vh-6rem)] bg-slate-100 dark:bg-slate-950" x-data="{ sidebarOpen: true, openMenu: '{% if request.resolver_match.url_name == 'tenant-list' or request.resolver_match.url_name == 'member-list' or request.resolver_match.url_name == 'role-list' or request.resolver_match.url_name == 'permission-list' %}system{% elif request.resolver_match.url_name == 'plan-list' or request.resolver_match.url_name == 'subscription-list' %}plan{% elif request.resolver_match.url_name == 'order-list' or request.resolver_match.url_name == 'invoice-list' %}order{% endif %}' }">
+<div class="flex h-[calc(100vh-6rem)] bg-slate-100 dark:bg-slate-950" x-data="saasLayout()" x-init="init()">
     
     <!-- 移动端遮罩层 -->
     <div 
@@ -59,7 +59,7 @@
                 </a>
                 
                 <!-- 系统管理 - 带折叠 -->
-                <div class="space-y-1">
+                <div class="space-y-1" x-show="can('system.view') || can('tenant.view') || can('user.view') || can('role.view')">
                     <button @click="openMenu = openMenu === 'system' ? '' : 'system'" class="flex items-center justify-between w-full px-4 py-3 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition-colors">
                         <div class="flex items-center">
                             <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -74,23 +74,26 @@
                     </button>
                     
                     <div x-show="openMenu === 'system'" x-transition class="pl-10 space-y-1">
-                        <a href="{% url 'saas:tenant-list' %}" class="block px-4 py-2.5 text-sm {% if request.resolver_match.url_name == 'tenant-list' %}text-white bg-slate-800{% else %}text-slate-400 hover:bg-slate-800 hover:text-white{% endif %} rounded-lg transition-colors">
+                        <a x-show="can('tenant.view')" href="{% url 'saas:tenant-page' %}" class="block px-4 py-2.5 text-sm {% if request.resolver_match.url_name == 'tenant-page' %}text-white bg-slate-800{% else %}text-slate-400 hover:bg-slate-800 hover:text-white{% endif %} rounded-lg transition-colors">
                             {% trans "租户管理" %}
                         </a>
-                        <a href="{% url 'saas:member-list' %}" class="block px-4 py-2.5 text-sm {% if request.resolver_match.url_name == 'member-list' %}text-white bg-slate-800{% else %}text-slate-400 hover:bg-slate-800 hover:text-white{% endif %} rounded-lg transition-colors">
-                            {% trans "用户管理" %}
+                        <a x-show="can('user.view')" href="{% url 'saas:system-user-page' %}" class="block px-4 py-2.5 text-sm {% if request.resolver_match.url_name == 'system-user-page' %}text-white bg-slate-800{% else %}text-slate-400 hover:bg-slate-800 hover:text-white{% endif %} rounded-lg transition-colors">
+                            {% trans "系统用户" %}
                         </a>
-                        <a href="{% url 'saas:role-list' %}" class="block px-4 py-2.5 text-sm {% if request.resolver_match.url_name == 'role-list' %}text-white bg-slate-800{% else %}text-slate-400 hover:bg-slate-800 hover:text-white{% endif %} rounded-lg transition-colors">
+                        <a x-show="can('user.view')" href="{% url 'saas:member-page' %}" class="block px-4 py-2.5 text-sm {% if request.resolver_match.url_name == 'member-page' %}text-white bg-slate-800{% else %}text-slate-400 hover:bg-slate-800 hover:text-white{% endif %} rounded-lg transition-colors">
+                            {% trans "成员管理" %}
+                        </a>
+                        <a x-show="can('role.view')" href="{% url 'saas:role-page' %}" class="block px-4 py-2.5 text-sm {% if request.resolver_match.url_name == 'role-page' %}text-white bg-slate-800{% else %}text-slate-400 hover:bg-slate-800 hover:text-white{% endif %} rounded-lg transition-colors">
                             {% trans "角色管理" %}
                         </a>
-                        <a href="{% url 'saas:permission-list' %}" class="block px-4 py-2.5 text-sm {% if request.resolver_match.url_name == 'permission-list' %}text-white bg-slate-800{% else %}text-slate-400 hover:bg-slate-800 hover:text-white{% endif %} rounded-lg transition-colors">
+                        <a x-show="can('role.view')" href="{% url 'saas:permission-page' %}" class="block px-4 py-2.5 text-sm {% if request.resolver_match.url_name == 'permission-page' %}text-white bg-slate-800{% else %}text-slate-400 hover:bg-slate-800 hover:text-white{% endif %} rounded-lg transition-colors">
                             {% trans "权限管理" %}
                         </a>
                     </div>
                 </div>
                 
                 <!-- 套餐管理 -->
-                <div class="space-y-1">
+                <div class="space-y-1" x-show="can('billing.plan.view') || can('billing.subscription.view')">
                     <button @click="openMenu = openMenu === 'plan' ? '' : 'plan'" class="flex items-center justify-between w-full px-4 py-3 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition-colors">
                         <div class="flex items-center">
                             <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -104,17 +107,17 @@
                     </button>
                     
                     <div x-show="openMenu === 'plan'" x-transition class="pl-10 space-y-1">
-                        <a href="{% url 'saas:plan-list' %}" class="block px-4 py-2.5 text-sm {% if request.resolver_match.url_name == 'plan-list' %}text-white bg-slate-800{% else %}text-slate-400 hover:bg-slate-800 hover:text-white{% endif %} rounded-lg transition-colors">
+                        <a x-show="can('billing.plan.view')" href="{% url 'saas:plan-page' %}" class="block px-4 py-2.5 text-sm {% if request.resolver_match.url_name == 'plan-page' %}text-white bg-slate-800{% else %}text-slate-400 hover:bg-slate-800 hover:text-white{% endif %} rounded-lg transition-colors">
                             {% trans "套餐列表" %}
                         </a>
-                        <a href="{% url 'saas:subscription-list' %}" class="block px-4 py-2.5 text-sm {% if request.resolver_match.url_name == 'subscription-list' %}text-white bg-slate-800{% else %}text-slate-400 hover:bg-slate-800 hover:text-white{% endif %} rounded-lg transition-colors">
+                        <a x-show="can('billing.subscription.view')" href="{% url 'saas:subscription-page' %}" class="block px-4 py-2.5 text-sm {% if request.resolver_match.url_name == 'subscription-page' %}text-white bg-slate-800{% else %}text-slate-400 hover:bg-slate-800 hover:text-white{% endif %} rounded-lg transition-colors">
                             {% trans "订阅管理" %}
                         </a>
                     </div>
                 </div>
                 
                 <!-- 订单管理 -->
-                <div class="space-y-1">
+                <div class="space-y-1" x-show="can('billing.order.view') || can('billing.invoice.view')">
                     <button @click="openMenu = openMenu === 'order' ? '' : 'order'" class="flex items-center justify-between w-full px-4 py-3 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition-colors">
                         <div class="flex items-center">
                             <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -128,11 +131,32 @@
                     </button>
                     
                     <div x-show="openMenu === 'order'" x-transition class="pl-10 space-y-1">
-                        <a href="{% url 'saas:order-list' %}" class="block px-4 py-2.5 text-sm {% if request.resolver_match.url_name == 'order-list' %}text-white bg-slate-800{% else %}text-slate-400 hover:bg-slate-800 hover:text-white{% endif %} rounded-lg transition-colors">
+                        <a x-show="can('billing.order.view')" href="{% url 'saas:order-page' %}" class="block px-4 py-2.5 text-sm {% if request.resolver_match.url_name == 'order-page' %}text-white bg-slate-800{% else %}text-slate-400 hover:bg-slate-800 hover:text-white{% endif %} rounded-lg transition-colors">
                             {% trans "订单列表" %}
                         </a>
-                        <a href="{% url 'saas:invoice-list' %}" class="block px-4 py-2.5 text-sm {% if request.resolver_match.url_name == 'invoice-list' %}text-white bg-slate-800{% else %}text-slate-400 hover:bg-slate-800 hover:text-white{% endif %} rounded-lg transition-colors">
+                        <a x-show="can('billing.invoice.view')" href="{% url 'saas:invoice-page' %}" class="block px-4 py-2.5 text-sm {% if request.resolver_match.url_name == 'invoice-page' %}text-white bg-slate-800{% else %}text-slate-400 hover:bg-slate-800 hover:text-white{% endif %} rounded-lg transition-colors">
                             {% trans "发票管理" %}
+                        </a>
+                    </div>
+                </div>
+
+                <!-- ADB 设备管理 -->
+                <div class="space-y-1" x-show="can('adb.view')">
+                    <button @click="openMenu = openMenu === 'adb' ? '' : 'adb'" class="flex items-center justify-between w-full px-4 py-3 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition-colors">
+                        <div class="flex items-center">
+                            <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                            </svg>
+                            {% trans "终端 设备管理" %}
+                        </div>
+                        <svg class="w-4 h-4 transition-transform" :class="openMenu === 'adb' ? 'rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                        </svg>
+                    </button>
+
+                    <div x-show="openMenu === 'adb'" x-transition class="pl-10 space-y-1">
+                        <a href="{% url 'adb-dashboard' %}" class="block px-4 py-2.5 text-sm {% if request.resolver_match.url_name == 'adb-dashboard' %}text-white bg-slate-800{% else %}text-slate-400 hover:bg-slate-800 hover:text-white{% endif %} rounded-lg transition-colors">
+                            {% trans "控制台" %}
                         </a>
                     </div>
                 </div>
@@ -140,8 +164,8 @@
             </div>
         </nav>
 
-        <div class="px-3 pb-3">
-            <a href="{% url 'saas:config-list' %}" class="flex items-center px-4 py-3 text-sm font-medium {% if request.resolver_match.url_name == 'config-list' %}bg-blue-600 text-white{% else %}text-slate-300 hover:bg-slate-800 hover:text-white{% endif %} rounded-lg transition-colors">
+        <div class="px-3 pb-3" x-show="can('config.view')">
+            <a href="{% url 'saas:config-page' %}" class="flex items-center px-4 py-3 text-sm font-medium {% if request.resolver_match.url_name == 'config-page' %}bg-blue-600 text-white{% else %}text-slate-300 hover:bg-slate-800 hover:text-white{% endif %} rounded-lg transition-colors">
                 <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.572-1.065z"/>
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
@@ -186,7 +210,38 @@
             </div>
             
             <!-- 右侧用户操作 -->
-            <div class="flex items-center space-x-3 md:space-x-4" x-data="{ userMenu: false }">
+            <div class="flex items-center space-x-3 md:space-x-4">
+                <!-- 租户切换器 + 当前租户标签 -->
+                <div x-data="tenantSwitcherData()" x-init="loadTenants()" class="flex items-center gap-2">
+                    <div class="relative" x-show="tenants.length > 1">
+                        <button @click="tenantSwitcher = !tenantSwitcher" @click.away="tenantSwitcher = false"
+                                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                                :class="currentTenant ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' : 'text-slate-500 dark:text-slate-400'">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m-1 4h1m4-4h1m-1 4h1m-1 4h1m-1-4h1m-1-4h1"/></svg>
+                            <span x-text="currentTenant ? currentTenant.name : '{% trans "全部租户" %}'"></span>
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <div x-show="tenantSwitcher" x-cloak x-transition
+                             class="absolute right-0 mt-2 w-56 bg-white dark:bg-slate-900 rounded-lg shadow-lg border border-slate-200 dark:border-slate-800 py-1 z-50">
+                            <button @click="switchTenant(null); tenantSwitcher=false"
+                                    class="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                                    :class="!currentTenant ? 'text-blue-600 bg-blue-50 dark:bg-blue-900/20' : 'text-slate-700 dark:text-slate-200'">
+                                {% trans "全部租户（管理员视图）" %}
+                            </button>
+                            <div class="border-t border-slate-100 dark:border-slate-800 my-1"></div>
+                            <template x-for="t in tenants" :key="t.id">
+                                <button @click="switchTenant(t); tenantSwitcher=false"
+                                        class="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                                        :class="currentTenant && currentTenant.id === t.id ? 'text-blue-600 bg-blue-50 dark:bg-blue-900/20' : 'text-slate-700 dark:text-slate-200'">
+                                    <span x-text="t.name"></span>
+                                    <span class="text-xs text-slate-400 ml-2" x-text="t.slug"></span>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+                    <span x-show="currentTenant" x-text="'当前: ' + currentTenant.name"
+                          class="inline-flex items-center px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 text-xs font-medium hidden md:flex"></span>
+                </div>
                 <div class="hidden md:flex items-center gap-2 text-xs">
                     <span class="inline-flex items-center px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                         {% if request.LANGUAGE_CODE == 'en' %}{% trans "English" %}{% else %}{% trans "简体中文" %}{% endif %}
@@ -195,8 +250,8 @@
                         {% if request.COOKIES.theme == 'dark' %}{% trans "夜晚模式" %}{% elif request.COOKIES.theme == 'system' %}{% trans "跟随系统" %}{% else %}{% trans "白天模式" %}{% endif %}
                     </span>
                 </div>
-                <!-- 用户下拉菜单 (同 dashboard.html) -->
-                <div class="relative">
+                <!-- 用户下拉菜单 -->
+                <div class="relative" x-data="{ userMenu: false }">
                     <button @click="userMenu = !userMenu" @click.away="userMenu = false" class="flex items-center space-x-2 md:space-x-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg px-2 md:px-3 py-2 transition-colors">
                         <div class="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center text-white font-bold">
                             {{ user.username|slice:":1"|upper }}
@@ -226,4 +281,192 @@
         </main>
     </div>
 </div>
+
+{# ===== 核心脚本：放在 content block 内部（Django 才会渲染） ===== #}
+<script>
+/**
+ * CSRF Token 获取
+ */
+function getCookie(name) {
+    const match = document.cookie.match(new RegExp('(^|;\\s*)' + name + '=([^;]*)'));
+    return match ? decodeURIComponent(match[2]) : '';
+}
+const CSRF_TOKEN = getCookie('csrftoken');
+
+/**
+ * 封装 fetch，自动附加 CSRF 头和 JSON Content-Type
+ */
+async function saasFetch(url, options = {}) {
+    const method = (options.method || 'GET').toUpperCase();
+    const isRead = ['GET', 'HEAD', 'OPTIONS'].includes(method);
+    const headers = { ...options.headers };
+    if (!isRead) {
+        headers['Content-Type'] = 'application/json';
+        if (CSRF_TOKEN) headers['X-CSRFToken'] = CSRF_TOKEN;
+    }
+    return fetch(url, { ...options, headers });
+}
+
+/**
+ * 格式化 API 错误响应：{code, msg, data: {field: [errors]}}
+ *
+ * 后端 serializer 已对所有唯一字段做 validate，返回带值的标准消息如 "标识：test当前已存在"。
+ * 这里只兜底 Django 原生唯一性消息（无值版本，正常情况下不会触发）。
+ */
+function normalizeError(msg) {
+    if (!msg) return msg;
+    const LABEL = {
+        slug: '标识', name: '名称', domain: '域名', status: '状态',
+        plan: '套餐', description: '描述', is_active: '启用状态',
+        tenant: '租户', user: '用户', role: '角色', permissions: '权限',
+        email: '邮箱', phone: '手机号', password: '密码',
+        feature_code: '功能代码', key: '配置键',
+    };
+    // 匹配 "具有 XXX 的 YYY 已存在。" → "XXX已存在"（兜底，无值）
+    const re = /具有\s+(.+?)\s+的\s+(.+?)\s*已存在[。.]?/i;
+    const m = msg.match(re);
+    if (m) {
+        const field = LABEL[m[1]] || m[1];
+        return `${field}已存在`;   // 无值可展示，只提示字段名
+    }
+    return msg;
+}
+
+function formatApiError(body, fallback) {
+    fallback = fallback || '操作失败';
+    const errData = body.data || body;
+    const parts = [];
+    if (body.msg) parts.push(body.msg);
+    if (errData && typeof errData === 'object' && !Array.isArray(errData)) {
+        for (const [key, val] of Object.entries(errData)) {
+            if (key === 'code' || key === 'msg' || key === 'detail') continue;
+            const raw = Array.isArray(val) ? val.join('; ') : String(val);
+            parts.push(normalizeError(raw));
+        }
+    }
+    return parts.join('；') || fallback;
+}
+
+/**
+ * SaaS 后台布局 Alpine 组件
+ * 负责：侧边栏状态、菜单展开状态、权限拉取与判断
+ */
+function saasLayout() {
+    return {
+        sidebarOpen: true,
+        openMenu: '{% if request.resolver_match.url_name == "tenant-page" or request.resolver_match.url_name == "system-user-page" or request.resolver_match.url_name == "member-page" or request.resolver_match.url_name == "role-page" or request.resolver_match.url_name == "permission-page" %}system{% elif request.resolver_match.url_name == "plan-page" or request.resolver_match.url_name == "subscription-page" %}plan{% elif request.resolver_match.url_name == "order-page" or request.resolver_match.url_name == "invoice-page" %}order{% elif request.resolver_match.url_name == "adb-dashboard" %}adb{% endif %}',
+
+        // 权限状态（服务器端渲染初始值，零等待）
+        isSuperAdmin: {% if request.user.is_superuser or request.user.role == 'admin' %}true{% else %}false{% endif %},
+        permSet: new Set(),       // 用户拥有的 slug 集合
+        permLoaded: false,        // 权限已加载标记（防止菜单闪烁）
+
+        async init() {
+            // 非超管才需要异步拉取细粒度权限
+            if (!this.isSuperAdmin) {
+                await this.loadPermissions();
+            } else {
+                this.permLoaded = true;
+            }
+        },
+
+        /** 拉取当前用户权限，结果缓存在 sessionStorage（10 分钟有效） */
+        async loadPermissions() {
+            const CACHE_KEY = 'saas_user_perms';
+            const cached = sessionStorage.getItem(CACHE_KEY);
+            if (cached) {
+                try {
+                    const data = JSON.parse(cached);
+                    this.isSuperAdmin = data.is_super_admin;
+                    this.permSet = new Set(data.permissions);
+                    this.permLoaded = true;
+                    return;
+                } catch (_) {}
+            }
+
+            try {
+                const resp = await fetch('/saas/api/me/permissions/', {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin',
+                });
+                if (!resp.ok) throw new Error('fetch failed');
+                const data = await resp.json();
+                this.isSuperAdmin = data.is_super_admin;
+                this.permSet = new Set(data.permissions);
+                // 缓存 10 分钟（用户登出/角色变更后页面刷新自然失效）
+                sessionStorage.setItem(CACHE_KEY, JSON.stringify(data));
+            } catch (e) {
+                // 拉取失败：用 Django 模板渲染值兜底（与 isSuperAdmin 初始化逻辑一致）
+                console.warn('[SaaS] 权限加载失败，降级处理', e);
+                this.isSuperAdmin = {% if request.user.is_superuser or request.user.role == 'admin' %}true{% else %}false{% endif %};
+                if (this.isSuperAdmin) {
+                    this.permSet = new Set(['system.view','tenant.view','user.view','role.view',
+                        'billing.plan.view','billing.subscription.view',
+                        'billing.order.view','billing.invoice.view',
+                        'adb.view','config.view']);
+                }
+            } finally {
+                this.permLoaded = true;
+            }
+        },
+
+        /**
+         * 权限判断
+         * - 权限未加载完成前返回 true（避免菜单先消失再出现的闪烁）
+         * - 超管直接放行
+         * - 其他检查 permSet
+         */
+        can(slug) {
+            if (!this.permLoaded) return true;
+            if (this.isSuperAdmin) return true;
+            return this.permSet.has(slug);
+        },
+    };
+}
+
+/**
+ * 租户切换 Alpine 组件（用于 header）
+ */
+function tenantSwitcherData() {
+    return {
+        tenants: [],
+        currentTenant: null,
+        tenantLoaded: false,
+
+        async loadTenants() {
+            try {
+                const resp = await saasFetch('/saas/api/me/tenants/');
+                const data = await resp.json();
+                const payload = data.data || data;
+                this.tenants = payload.tenants || [];
+                const currentId = payload.current_tenant_id;
+                if (currentId) {
+                    this.currentTenant = this.tenants.find(t => t.id === currentId) || null;
+                }
+            } catch (e) {
+                console.warn('[Tenant] 加载租户列表失败', e);
+            } finally {
+                this.tenantLoaded = true;
+            }
+        },
+
+        async switchTenant(tenant) {
+            try {
+                const resp = await saasFetch('/saas/api/me/switch-tenant/', {
+                    method: 'POST',
+                    body: JSON.stringify({ tenant_id: tenant ? tenant.id : null })
+                });
+                if (resp.ok) {
+                    this.currentTenant = tenant;
+                    location.reload();
+                }
+            } catch (e) {
+                console.error('[Tenant] 切换租户失败', e);
+            }
+        }
+    };
+}
+</script>
 {% endblock %}
+
+{% block extra_js %}{{ block.super }}{% endblock %}

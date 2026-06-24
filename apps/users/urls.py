@@ -1,12 +1,18 @@
-from django.urls import path
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
 from django.contrib.auth import views as auth_views
 from .views import (
     UserRegisterView, UserLoginView, UserLogoutView, UserInfoView, UserListView,
     UserProfileTemplateView, TestApiView,
-    CustomTokenObtainPairView, CustomTokenRefreshView, JWTLogoutView, VerifyTokenView
+    CustomTokenObtainPairView, CustomTokenRefreshView, JWTLogoutView, VerifyTokenView,
+    UserManageViewSet,
 )
 
 app_name = 'users'
+
+# 用户管理 API Router
+user_router = DefaultRouter()
+user_router.register(r'manage', UserManageViewSet, basename='user-manage')
 
 urlpatterns = [
     # 测试接口
@@ -44,4 +50,7 @@ urlpatterns = [
     path('api/jwt/refresh/', CustomTokenRefreshView.as_view(), name='jwt-refresh'),
     path('api/jwt/logout/', JWTLogoutView.as_view(), name='jwt-logout'),
     path('api/jwt/verify/', VerifyTokenView.as_view(), name='jwt-verify'),
+    
+    # 用户管理 API（供 SaaS 后台使用）
+    path('api/', include(user_router.urls)),
 ]

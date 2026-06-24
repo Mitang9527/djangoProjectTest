@@ -19,11 +19,19 @@ from .serializers import (
     FlowMonitorSerializer,
     MonkeySerializer,
     InstallApkSerializer,
+    TabCompleteSerializer,
 )
 
 
+_adb_service: AdbService | None = None
+
+
 def _service() -> AdbService:
-    return AdbService()
+    """返回模块级单例，避免每次请求重新创建（含 4 次 mkdir 开销）。"""
+    global _adb_service
+    if _adb_service is None:
+        _adb_service = AdbService()
+    return _adb_service
 
 
 @extend_schema_view(
@@ -78,7 +86,8 @@ class AdbDeviceViewSet(viewsets.ViewSet):
     def run_shell(self, request, pk=None):
         serializer = ShellCommandSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        return Response(_service().run_shell(pk, serializer.validated_data["command"]))
+        cwd = serializer.validated_data.get("cwd") or None
+        return Response(_service().run_shell(pk, serializer.validated_data["command"], cwd=cwd))
 
     @extend_schema(summary="清除应用数据", tags=["adb_web"], request=PackageActionSerializer)
     @action(detail=True, methods=["post"], url_path="app/clear")
@@ -191,6 +200,20 @@ class AdbDeviceViewSet(viewsets.ViewSet):
         serializer = MonkeySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         return Response(_service().run_monkey(pk, **serializer.validated_data))
+
+    @extend_schema(
+        summary="Shell Tab 补全候选",
+        tags=["adb_web"],
+        request=TabCompleteSerializer,
+    )
+    @action(detail=True, methods=["post"], url_path="tab-complete")
+    def tab_complete(self, request, pk=None):
+        serializer = TabCompleteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        return Response(
+            _service().tab_complete(pk, data.get("prefix", ""), data.get("cwd") or None)
+        )
 
 
 class EnvPresetSerializer(serializers.Serializer):
