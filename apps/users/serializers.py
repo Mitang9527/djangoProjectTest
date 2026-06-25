@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.apps import apps
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework.validators import UniqueValidator
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -94,18 +95,42 @@ class RefreshTokenSerializer(serializers.Serializer):
     refresh = serializers.CharField(required=True, help_text="刷新 Token")
 
 class UserManageSerializer(serializers.ModelSerializer):
-    """管理员操作用户的序列化器（创建/编辑/删除）"""
+    """管理员操作用户的序列化器（创建/编辑/删除）
+
+    创建时可选 initial_tenant_id + initial_role_id 一步完成用户创建和角色分配。
+    """
     password = serializers.CharField(write_only=True, min_length=6, required=False, label="密码")
+    tenant_memberships = serializers.SerializerMethodField(label="租户角色")
+
+    # —— 创建用户时一步分配租户角色 ——
+    initial_tenant_id = serializers.UUIDField(write_only=True, required=False, allow_null=True, label="初始租户")
+    initial_role_id = serializers.UUIDField(write_only=True, required=False, allow_null=True, label="初始角色")
 
     class Meta:
         model = User
-        fields = ('id', 'username', 'password', 'email', 'nickname', 'mobile', 'role', 'is_active', 'date_joined')
-        read_only_fields = ('id', 'date_joined')
+        fields = ('id', 'username', 'password', 'email', 'nickname', 'mobile', 'role',
+                  'is_active', 'date_joined', 'tenant_memberships',
+                  'initial_tenant_id', 'initial_role_id')
+        read_only_fields = ('id', 'date_joined', 'tenant_memberships')
         extra_kwargs = {
             'username': {'validators': [UniqueValidator(queryset=User.objects.all(), message="用户名已存在")]},
             'email': {'required': True, 'validators': [UniqueValidator(queryset=User.objects.all(), message="该邮箱已被注册")]},
             'mobile': {'required': False, 'allow_blank': True, 'validators': [UniqueValidator(queryset=User.objects.all(), message="该手机号已被注册")]},
         }
+
+    def get_tenant_memberships(self, obj):
+        """返回用户在各租户中的角色信息"""
+        memberships = obj.tenant_memberships.select_related('tenant', 'role').all()
+        return [
+            {
+                'tenant_id': str(m.tenant_id),
+                'tenant_name': m.tenant.name,
+                'role_id': str(m.role_id) if m.role_id else None,
+                'role_name': m.role.name if m.role else '---',
+                'role_slug': m.role.slug if m.role else '',
+            }
+            for m in memberships
+        ]
 
     def validate_username(self, value):
         qs = User.objects.filter(username=value)
@@ -133,14 +158,59 @@ class UserManageSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(f'手机号：{value}当前已存在')
         return value
 
+    def validate(self, data):
+        """创建用户时角色必选；若提供了租户则需与角色匹配"""
+        if self.instance is None:  # 仅创建时校验
+            role_id = data.get('initial_role_id')
+            tenant_id = data.get('initial_tenant_id')
+            if not role_id:
+                raise serializers.ValidationError({'initial_role_id': '角色为必选项'})
+            if tenant_id and role_id:
+                # 验证角色属于该租户
+                Role = apps.get_model('saas', 'Role')
+                if not Role.objects.filter(id=role_id, tenant_id=tenant_id, is_active=True).exists():
+                    raise serializers.ValidationError({'initial_role_id': '所选角色不属于该租户'})
+        return data
+
     def create(self, validated_data):
         password = validated_data.pop('password', None)
+        tenant_id = validated_data.pop('initial_tenant_id', None)
+        role_id = validated_data.pop('initial_role_id', None)
+
         if not validated_data.get('mobile'):
             validated_data['mobile'] = None
+
         user = User.objects.create_user(**validated_data)
         if password:
             user.set_password(password)
             user.save(update_fields=['password'])
+
+        # 创建用户时一步分配租户角色
+        if role_id:
+            Tenant = apps.get_model('saas', 'Tenant')
+            Role = apps.get_model('saas', 'Role')
+            TenantMember = apps.get_model('saas', 'TenantMember')
+            try:
+                role = Role.objects.select_related('tenant').get(id=role_id, is_active=True)
+
+                # 确定租户：明确指定 > 从角色推断
+                if tenant_id:
+                    tenant = Tenant.objects.get(id=tenant_id, status='active')
+                elif role.tenant_id:
+                    tenant = role.tenant
+                else:
+                    # 角色没有绑定租户（全局角色），无法创建 TenantMember，跳过
+                    tenant = None
+
+                if tenant:
+                    TenantMember.objects.create(
+                        tenant=tenant, user=user, role=role,
+                        invited_by=self.context['request'].user if 'request' in self.context else None
+                    )
+                # 角色无租户绑定（全局系统角色）→ 跳过 TenantMember 创建，仅记录系统角色
+            except (Tenant.DoesNotExist, Role.DoesNotExist):
+                pass  # 静默跳过无效的租户/角色，不影响用户创建
+
         return user
 
     def update(self, instance, validated_data):

@@ -1,6 +1,7 @@
 """
 SaaS 后台管理系统 - 视图函数
 """
+import json
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -317,9 +318,10 @@ class PermissionViewSet(viewsets.ModelViewSet):
     destroy=extend_schema(summary='Delete a role', tags=['SaaS']),
 )
 class RoleViewSet(TenantQuerysetMixin, viewsets.ModelViewSet):
-    queryset = Role.objects.all()
+    queryset = Role.objects.prefetch_related('permissions').all()
     serializer_class = RoleSerializer
     permission_classes = [permissions.IsAuthenticated, ReadWriteTenantPermission.for_module("role")]
+    filterset_fields = ['tenant', 'is_active']
 
 
 @extend_schema_view(
@@ -423,14 +425,34 @@ def me_permissions(request):
 # ===============================================
 # 系统用户管理页面视图
 # ===============================================
-
 class SystemUserListView(View):
-    """系统用户管理页面"""
+    """系统用户管理页面 — 展示用户列表及其租户角色关系"""
 
     def get(self, request):
-        return render(request, 'saas/user_list.html', {
-            'title': '系统用户',
-        })
+        tenant = getattr(request, 'tenant', None)
+        is_super = request.user.is_superuser or getattr(request.user, 'role', 'user') == 'admin'
+
+        context = {
+            'title': _('系统用户'),
+            'current_tenant_id': str(tenant.id) if tenant else '',
+            'current_tenant_name': tenant.name if tenant else _('全部租户'),
+            'all_tenants_json': '[]',
+            'tenant_roles_json': '[]',
+        }
+
+        if is_super:
+            context['all_tenants_json'] = json.dumps([
+                {'id': str(t['id']), 'name': t['name'], 'slug': t['slug']}
+                for t in Tenant.objects.filter(status='active').values('id', 'name', 'slug')
+            ])
+
+        if tenant:
+            context['tenant_roles_json'] = json.dumps([
+                {'id': str(r['id']), 'name': r['name'], 'slug': r['slug']}
+                for r in Role.objects.filter(tenant=tenant, is_active=True).values('id', 'name', 'slug')
+            ])
+
+        return render(request, 'saas/user_list.html', context)
 
 
 # ===============================================

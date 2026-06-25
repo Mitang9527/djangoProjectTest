@@ -137,6 +137,13 @@ class PermissionSerializer(serializers.ModelSerializer):
         return value
 
 
+class PermissionBriefSerializer(serializers.ModelSerializer):
+    """权限摘要序列化器（嵌套在 Role 中返回，含名称/标识/模块）"""
+    class Meta:
+        model = Permission
+        fields = ('id', 'name', 'slug', 'module')
+
+
 class RoleSerializer(serializers.ModelSerializer):
     permission_count = serializers.IntegerField(source='permissions.count', read_only=True)
 
@@ -145,6 +152,14 @@ class RoleSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id', 'created_at', 'updated_at']
         validators = []  # 移除自动 UniqueTogetherValidator，由 validate() 统一处理
+
+    def to_representation(self, instance):
+        """输出时将 permissions 从 UUID 列表替换为嵌套权限对象"""
+        data = super().to_representation(instance)
+        data['permissions'] = PermissionBriefSerializer(
+            instance.permissions.all(), many=True
+        ).data
+        return data
 
     def validate(self, attrs):
         tenant = attrs.get('tenant', self.instance.tenant if self.instance else None)

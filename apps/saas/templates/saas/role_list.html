@@ -2,7 +2,7 @@
 {% load i18n %}
 
 {% block saas_content %}
-<div x-data="roleManager" x-init="init()">
+<div x-data="roleManager" x-init="init()" data-tenant-id="{{ request.tenant_id|default:'' }}">
     <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
         <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
             <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100">{{ title }}</h3>
@@ -159,6 +159,7 @@ document.addEventListener('alpine:init', () => {
     Alpine.data('roleManager', () => ({
         items: [],
         allPermissions: [],
+        currentTenantId: null,
         loading: true,
         modalOpen: false,
         deleteModal: false,
@@ -169,6 +170,9 @@ document.addEventListener('alpine:init', () => {
         toast: { show: false, msg: '', type: 'success' },
 
         async init() {
+            // 从 data 属性读取当前租户 ID（由服务端注入）
+            const el = this.$el || document.querySelector('[x-data="roleManager"]');
+            this.currentTenantId = el?.dataset?.tenantId || null;
             await Promise.all([this.fetchList(), this.fetchPermissions()]);
         },
 
@@ -178,7 +182,9 @@ document.addEventListener('alpine:init', () => {
                 const data = await (await saasFetch('/saas/api/roles/?page_size=200')).json();
                 const payload = data.data || data;
                 this.items = Array.isArray(payload) ? payload : (payload.results || []);
+                console.log('[role] fetchList loaded', this.items.length, 'roles');
             } catch (e) {
+                console.error('[role] fetchList error:', e);
                 this.toastMsg('{% trans "加载失败" %}', 'error');
             } finally { this.loading = false; }
         },
@@ -187,7 +193,10 @@ document.addEventListener('alpine:init', () => {
             try {
                 const data = await (await saasFetch('/saas/api/permissions/?page_size=200')).json();
                 const payload = data.data || data;
-                this.allPermissions = Array.isArray(payload) ? payload : (payload.results || []);
+                const raw = Array.isArray(payload) ? payload : (payload.results || []);
+                // 统一把 id 转字符串，确保 checkbox :value 与 x-model 数组类型一致
+                this.allPermissions = raw.map(p => ({ ...p, id: String(p.id) }));
+                console.log('[role] fetchPermissions loaded', this.allPermissions.length, 'permissions');
             } catch (e) { console.error('[role] fetchPermissions error:', e); }
         },
 
@@ -203,28 +212,28 @@ document.addEventListener('alpine:init', () => {
 
         openEdit(item) {
             this.editing = item;
-            // 取已有权限的 ID 列表
-            const permIds = item.permissions ? (Array.isArray(item.permissions)
-                ? item.permissions.map(p => typeof p === 'object' ? p.id : p)
-                : []) : [];
+            // permissions 现在是嵌套对象 [{id, name, slug, module}, ...]
+            const permIds = (item.permissions || []).map(p => String(p.id));
             this.form = {
-                name: item.name,
-                slug: item.slug,
+                name: item.name || '',
+                slug: item.slug || '',
                 description: item.description || '',
                 permissions: permIds
             };
+            console.log('[role] openEdit - item:', item.id, 'name:', item.name, 'perms:', permIds);
             this.clearErrors();
             this.modalOpen = true;
         },
 
         async save() {
-            const perms = this.form.permissions;  // ID 数组
+            // 权限 ID 是 UUID 字符串，不需要 parseInt
+            const perms = [...this.form.permissions];
             const payload = {
                 name: this.form.name,
                 slug: this.form.slug,
                 description: this.form.description,
                 permissions: perms,
-                tenant: this.editing ? this.editing.tenant : null,
+                tenant: this.editing ? this.editing.tenant : (this.currentTenantId || null),
                 is_system: this.editing ? this.editing.is_system : false,
                 is_active: this.editing ? this.editing.is_active : true,
             };
@@ -247,6 +256,7 @@ document.addEventListener('alpine:init', () => {
                     await this.fetchList();
                 } else {
                     const body = await r.json();
+                    console.error('[role] save failed:', r.status, body);
                     this.errors = {};
                     const errData = body.data || {};
                     if (typeof errData === 'object' && !Array.isArray(errData)) {
