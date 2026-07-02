@@ -1,0 +1,79 @@
+# ================================================================
+# .dockerignore — 排除不需要进入镜像的文件
+# ================================================================
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+pip-wheel-metadata/
+
+# 虚拟环境
+.venv/
+venv/
+env/
+ENV/
+
+# 测试
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# 数据库文件（容器使用 PostgreSQL，不需要 sqlite3）
+*.sqlite3
+db.sqlite3
+
+# 日志（容器运行时动态生成）
+logs/
+*.log
+
+# 媒体文件（应挂载外部卷）
+media/
+
+# 静态文件（collectstatic 在构建时生成）
+static_root/
+
+# 本地备份
+backups/
+
+# 环境变量文件（通过 docker-compose 或 k8s secret 注入）
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Docker 自身
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# 文档
+docs/
+*.md
+README*
+
+# 开发工具配置
+pyproject.toml
+uv.lock
+tasks.py

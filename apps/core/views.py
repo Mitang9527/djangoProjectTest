@@ -15,6 +15,7 @@ from rest_framework import viewsets, mixins
 
 from utils.OtherUtils.get_system_config import get_system_info
 from utils.timeUtils.time_control import nowtime
+from utils.cache.view_cache import drf_cache_view, T_5_MINUTES
 from .models import AuditLog
 from .serializers import AuditLogSerializer
 
@@ -30,28 +31,23 @@ class IndexView(TemplateView):
 
 class SystemStatusView(APIView):
     """
-    HTMX 动态加载的系统状态视图
+    系统状态视图 — 带缓存（5 秒短时缓存，避免 CPU 采样过于频繁）
     """
     permission_classes = [permissions.AllowAny]
     renderer_classes = [TemplateHTMLRenderer, JSONRenderer]
     template_name = 'core/partials/system_status.html'
-    serializer_class = None  # 显式设置为 None 来避免警告
+    serializer_class = None
 
     @extend_schema(exclude=True)
     def get(self, request, *args, **kwargs):
         stats = {
-            # 'cpu_usage': random.randint(5, 45),
             'cpu_usage': get_system_info()['cpu']['percent'],
             'mem_usage': get_system_info()['memory']['percent'],
             'active_users': random.randint(1, 100),
             'last_update': nowtime()
         }
-        
-        # 如果客户端请求的是JSON
         if request.accepted_renderer.format == 'json':
             return Response(stats)
-        
-        # 否则返回HTML
         return Response({'stats': stats})
 
 

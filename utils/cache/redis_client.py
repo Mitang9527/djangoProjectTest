@@ -235,13 +235,43 @@ class RedisClient:
             return 0
     
     def keys(self, pattern='*'):
-        """模糊匹配键（生产环境慎用）"""
+        """
+        模糊匹配键（已迁移到 SCAN，生产安全）
+
+        遗留兼容接口，实际使用 SCAN 迭代。
+        """
         try:
             client = self.get_client()
-            return [k.decode() for k in client.keys(pattern)]
+            result = []
+            cursor = 0
+            while True:
+                cursor, keys = client.scan(cursor, match=pattern, count=100)
+                result.extend([k.decode() if isinstance(k, bytes) else k for k in keys])
+                if cursor == 0:
+                    break
+            return result
         except Exception as e:
-            logger.error(f"Redis keys 操作失败: {str(e)}")
+            logger.error(f"Redis scan 操作失败: {str(e)}")
             return []
+
+    def scan_iter(self, pattern: str = '*', count: int = 100):
+        """
+        SCAN 迭代器（推荐生产环境使用）
+
+        Yields:
+            匹配的键名（已解码为字符串）
+        """
+        try:
+            client = self.get_client()
+            cursor = 0
+            while True:
+                cursor, keys = client.scan(cursor, match=pattern, count=count)
+                for k in keys:
+                    yield k.decode() if isinstance(k, bytes) else k
+                if cursor == 0:
+                    break
+        except Exception as e:
+            logger.error(f"Redis scan_iter 操作失败: {str(e)}")
 
 
 # 全局单例

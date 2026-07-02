@@ -27,6 +27,7 @@ else:
     default_settings = "djangoProjectTest.settings.dev"
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", default_settings)
+os.environ.setdefault("WORKER_TYPE", "asgi")
 
 from django.core.asgi import get_asgi_application
 from channels.routing import ProtocolTypeRouter, URLRouter

@@ -23,10 +23,60 @@ BUILTIN_PERMISSIONS = [
         "desc": "可以查看系统管理相关页面和数据",
     },
     {
-        "slug": "system.manage",
-        "name": "管理系统设置",
+        "slug": "system.dashboard",
+        "name": "查看系统仪表板",
         "module": "system",
-        "desc": "可以修改系统配置、管理系统级资源",
+        "desc": "可以查看系统概览和统计数据",
+    },
+    {
+        "slug": "system.logs.view",
+        "name": "查看系统日志",
+        "module": "system",
+        "desc": "可以查看系统操作日志和错误日志",
+    },
+    {
+        "slug": "system.logs.manage",
+        "name": "管理系统日志",
+        "module": "system",
+        "desc": "可以导出和清理系统日志",
+    },
+
+    # ── 系统设置 ──────────────────────────────────────────────
+    {
+        "slug": "system.settings.view",
+        "name": "查看系统设置",
+        "module": "system",
+        "desc": "可以查看系统基础配置信息",
+    },
+    {
+        "slug": "system.settings.basic",
+        "name": "基本设置管理",
+        "module": "system",
+        "desc": "可以修改系统名称、描述等基本信息",
+    },
+    {
+        "slug": "system.settings.security",
+        "name": "安全设置管理",
+        "module": "system",
+        "desc": "可以配置密码策略、登录限制等安全选项",
+    },
+    {
+        "slug": "system.settings.notification",
+        "name": "通知设置管理",
+        "module": "system",
+        "desc": "可以配置邮件、短信等通知服务",
+    },
+    {
+        "slug": "system.settings.integration",
+        "name": "集成设置管理",
+        "module": "system",
+        "desc": "可以配置第三方服务集成",
+    },
+    {
+        "slug": "system.settings.backup",
+        "name": "备份恢复管理",
+        "module": "system",
+        "desc": "可以执行数据备份和恢复操作",
     },
 
     # ── 租户管理 ──────────────────────────────────────────────
@@ -141,18 +191,32 @@ BUILTIN_PERMISSIONS = [
         "desc": "可以执行截图、Shell 命令、安装应用等操作",
     },
 
-    # ── 系统配置 ──────────────────────────────────────────────
+    # ── API 网关管理 ──────────────────────────────────────────
+    {
+        "slug": "gateway.view",
+        "name": "查看网关配置",
+        "module": "system",
+        "desc": "可以查看 API 网关仪表盘和限流规则列表",
+    },
+    {
+        "slug": "gateway.manage",
+        "name": "管理网关配置",
+        "module": "system",
+        "desc": "可以创建、编辑、删除 API 限流规则",
+    },
+
+    # ── 系统配置（保留原有配置用于兼容性）──────────────────────
     {
         "slug": "config.view",
         "name": "查看系统配置",
         "module": "system",
-        "desc": "可以查看系统设置页面",
+        "desc": "可以查看系统设置页面（兼容旧版）",
     },
     {
         "slug": "config.manage",
         "name": "管理系统配置",
         "module": "system",
-        "desc": "可以修改语言、主题等系统设置",
+        "desc": "可以修改语言、主题等系统设置（兼容旧版）",
     },
 ]
 
@@ -175,13 +239,43 @@ BUILTIN_ROLES = [
         "permissions": ALL_PERMISSION_SLUGS,   # 关联全部
     },
     {
+        "name": "系统管理员",
+        "slug": "system-admin",
+        "desc": "负责系统管理和设置，但不涉及租户和用户管理",
+        "is_system": True,
+        "permissions": [
+            "system.view",
+            "system.dashboard",
+            "system.logs.view",
+            "system.logs.manage",
+            "system.settings.view",
+            "system.settings.basic",
+            "system.settings.security",
+            "system.settings.notification",
+            "system.settings.integration",
+            "system.settings.backup",
+            "role.view",
+            "role.manage",
+            "adb.view",
+            "adb.operate",
+            "config.view",
+            "config.manage",
+            "gateway.view",
+            "gateway.manage",
+        ],
+    },
+    {
         "name": "普通成员",
         "slug": "member",
         "desc": "只读权限，仅可查看，不可修改",
         "is_system": True,
         "permissions": [
+            "system.view",
+            "system.dashboard",
+            "system.settings.view",
             "tenant.view",
             "user.view",
+            "role.view",
             "billing.plan.view",
             "billing.order.view",
             "adb.view",
@@ -194,6 +288,8 @@ BUILTIN_ROLES = [
         "desc": "负责订单、发票和订阅管理",
         "is_system": True,
         "permissions": [
+            "system.view",
+            "system.dashboard",
             "billing.plan.view",
             "billing.subscription.view",
             "billing.subscription.manage",
@@ -201,6 +297,7 @@ BUILTIN_ROLES = [
             "billing.order.manage",
             "billing.invoice.view",
             "billing.invoice.manage",
+            "config.view",
         ],
     },
     {
@@ -209,6 +306,7 @@ BUILTIN_ROLES = [
         "desc": "专注 ADB 设备管理，无业务数据访问权",
         "is_system": True,
         "permissions": [
+            "system.view",
             "adb.view",
             "adb.operate",
         ],

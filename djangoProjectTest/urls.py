@@ -9,7 +9,24 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.http import JsonResponse
+from django.db import connection
 from loguru import logger
+
+
+def health_check(request):
+    """Docker 健康检查端点，检查数据库连通性"""
+    try:
+        connection.ensure_connection()
+        db_ok = True
+    except Exception:
+        db_ok = False
+
+    status = 200 if db_ok else 503
+    return JsonResponse({
+        "status": "ok" if db_ok else "degraded",
+        "db": "ok" if db_ok else "error",
+    }, status=status)
 
 
 def discover_app_urls():
@@ -66,6 +83,9 @@ class AdminOnlySpectacularRedocView(AdminRequiredMixin, SpectacularRedocView):
     pass
 
 urlpatterns = [
+    # 健康检查（Docker / 负载均衡器使用，无需认证）
+    path('api/health/', health_check, name='health-check'),
+
     path('admin/', admin.site.urls),
     # DRF auth urls
     path('api-auth/', include('rest_framework.urls')),

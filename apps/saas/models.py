@@ -1,6 +1,7 @@
 """
 SaaS 后台管理系统 - 数据库模型
 """
+import re
 import uuid
 from django.db import models
 from django.conf import settings
@@ -33,6 +34,7 @@ class Plan(models.Model):
     updated_at = models.DateTimeField(_('更新时间'), auto_now=True)
 
     class Meta:
+        app_label = 'saas'
         verbose_name = _('套餐')
         verbose_name_plural = _('套餐')
         ordering = ['sort_order', 'created_at']
@@ -55,6 +57,7 @@ class PlanFeature(models.Model):
     created_at = models.DateTimeField(_('创建时间'), auto_now_add=True)
 
     class Meta:
+        app_label = 'saas'
         verbose_name = _('套餐功能')
         verbose_name_plural = _('套餐功能')
         ordering = ['feature_code']
@@ -89,6 +92,7 @@ class Tenant(models.Model):
     updated_at = models.DateTimeField(_('更新时间'), auto_now=True)
 
     class Meta:
+        app_label = 'saas'
         verbose_name = _('租户')
         verbose_name_plural = _('租户')
         ordering = ['-created_at']
@@ -119,6 +123,7 @@ class TenantSubscription(models.Model):
     updated_at = models.DateTimeField(_('更新时间'), auto_now=True)
 
     class Meta:
+        app_label = 'saas'
         verbose_name = _('租户订阅')
         verbose_name_plural = _('租户订阅')
         ordering = ['-created_at']
@@ -147,6 +152,7 @@ class TenantConfig(models.Model):
     updated_at = models.DateTimeField(_('更新时间'), auto_now=True)
 
     class Meta:
+        app_label = 'saas'
         verbose_name = _('租户配置')
         verbose_name_plural = _('租户配置')
         unique_together = ['tenant', 'key']
@@ -176,6 +182,7 @@ class Permission(models.Model):
     created_at = models.DateTimeField(_('创建时间'), auto_now_add=True)
 
     class Meta:
+        app_label = 'saas'
         verbose_name = _('权限')
         verbose_name_plural = _('权限')
         ordering = ['module', 'slug']
@@ -200,6 +207,7 @@ class Role(models.Model):
     updated_at = models.DateTimeField(_('更新时间'), auto_now=True)
 
     class Meta:
+        app_label = 'saas'
         verbose_name = _('角色')
         verbose_name_plural = _('角色')
         ordering = ['-created_at']
@@ -225,6 +233,7 @@ class TenantMember(models.Model):
     invited_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='invited_members', verbose_name=_('邀请者'))
 
     class Meta:
+        app_label = 'saas'
         verbose_name = _('租户成员')
         verbose_name_plural = _('租户成员')
         unique_together = ['tenant', 'user']
@@ -232,6 +241,95 @@ class TenantMember(models.Model):
 
     def __str__(self):
         return f"{self.user.username} @ {self.tenant.name}"
+
+
+class APILimitRule(models.Model):
+    """
+    API 限流规则表（路由级精细化控制）
+
+    用于定义特定 API 路由的限流策略，优先级高于套餐和租户级配置。
+
+    示例：
+      - 限制 /api/export/ 每 IP 每小时 10 次
+      - 限制 /saas/api/tenants/ 每用户每分钟 30 次
+    """
+    class RuleType(models.TextChoices):
+        IP = 'ip', 'IP 限流'
+        USER = 'user', '用户限流'
+        TENANT = 'tenant', '租户限流'
+        ENDPOINT = 'endpoint', '端点限流'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(_('规则名称'), max_length=100)
+    url_pattern = models.CharField(
+        _('URL 模式'),
+        max_length=500,
+        help_text='支持通配符匹配，如 /api/export/* 或正则 ^/saas/api/tenants/'
+    )
+    throttle_type = models.CharField(
+        _('限流类型'),
+        max_length=20,
+        choices=RuleType.choices,
+        default=RuleType.IP,
+    )
+    rate = models.CharField(
+        _('速率限制'),
+        max_length=50,
+        default='100/h',
+        help_text='格式: 次数/周期，如 100/h(每小时100次), 10/m(每分钟10次), 1000/d(每天1000次)'
+    )
+    is_active = models.BooleanField(_('是否启用'), default=True)
+    use_regex = models.BooleanField(
+        _('使用正则匹配'),
+        default=False,
+        help_text='启用后 url_pattern 将作为正则表达式解析',
+    )
+    priority = models.IntegerField(
+        _('优先级'),
+        default=0,
+        help_text='数值越小优先级越高，用于多规则匹配时选择最优规则',
+    )
+    description = models.TextField(_('描述'), blank=True)
+    created_at = models.DateTimeField(_('创建时间'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('更新时间'), auto_now=True)
+
+    class Meta:
+        app_label = 'saas'
+        verbose_name = _('API 限流规则')
+        verbose_name_plural = _('API 限流规则')
+        ordering = ['priority', '-created_at']
+
+    def __str__(self):
+        return f"{self.name} [{self.get_throttle_type_display()}] → {self.rate}"
+
+    def matches(self, path: str) -> bool:
+        """
+        检查请求路径是否匹配此规则。
+
+        Args:
+            path: 请求路径，如 /saas/api/tenants/
+
+        Returns:
+            True 如果路径匹配
+        """
+        if self.use_regex:
+            try:
+                return bool(re.match(self.url_pattern, path))
+            except re.error:
+                return False
+
+        # 通配符匹配：将 * 转换为匹配任意字符（不含 /）
+        pattern = self.url_pattern
+        if '*' in pattern:
+            # 转义正则特殊字符，再替换 * 为 .*
+            escaped = re.escape(pattern).replace(r'\*', '.*')
+            try:
+                return bool(re.match(f"^{escaped}$", path))
+            except re.error:
+                return False
+
+        # 精确前缀匹配
+        return path.startswith(pattern)
 
 
 class Order(models.Model):
@@ -266,6 +364,7 @@ class Order(models.Model):
     updated_at = models.DateTimeField(_('更新时间'), auto_now=True)
 
     class Meta:
+        app_label = 'saas'
         verbose_name = _('订单')
         verbose_name_plural = _('订单')
         ordering = ['-created_at']
@@ -303,6 +402,7 @@ class Invoice(models.Model):
     updated_at = models.DateTimeField(_('更新时间'), auto_now=True)
 
     class Meta:
+        app_label = 'saas'
         verbose_name = _('发票')
         verbose_name_plural = _('发票')
         ordering = ['-created_at']

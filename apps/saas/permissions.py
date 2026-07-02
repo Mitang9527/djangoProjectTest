@@ -3,12 +3,14 @@ SaaS RBAC 权限体系
 ==================
 
 层级：
-  User (is_superuser)  →  直通所有权限
-  User (role='admin')  →  直通所有权限（兼容旧字段）
-  TenantMember.role    →  由 Role.permissions 集合决定
+  User.is_superuser     →  Django 原生超管，直通所有权限
+  User.role (FK→Role)   →  用户直接持有的系统角色
+  TenantMember.role     →  租户成员绑定的 RBAC 角色
+
+三者共同决定用户的实际权限集合。超级管理员（role.slug='super-admin'）直通所有权限。
 
 权限粒度：
-  Permission.slug 是唯一权限标识，格式建议 "<module>.<action>"
+  Permission.slug 是唯一权限标识，格式 "<module>.<action>"
   例: "system.view" / "system.manage" / "billing.view" / "adb.operate"
 
 用法示例：
@@ -71,6 +73,25 @@ class PermissionSlug:
     CONFIG_VIEW   = "config.view"
     CONFIG_MANAGE = "config.manage"
 
+    # 系统仪表盘
+    SYSTEM_DASHBOARD = "system.dashboard"
+
+    # 系统日志
+    SYSTEM_LOGS_VIEW   = "system.logs.view"
+    SYSTEM_LOGS_MANAGE  = "system.logs.manage"
+
+    # API 网关
+    GATEWAY_VIEW   = "gateway.view"
+    GATEWAY_MANAGE = "gateway.manage"
+
+    # 系统设置（细粒度）
+    SYSTEM_SETTINGS_VIEW         = "system.settings.view"
+    SYSTEM_SETTINGS_BASIC        = "system.settings.basic"
+    SYSTEM_SETTINGS_SECURITY     = "system.settings.security"
+    SYSTEM_SETTINGS_NOTIFICATION = "system.settings.notification"
+    SYSTEM_SETTINGS_INTEGRATION  = "system.settings.integration"
+    SYSTEM_SETTINGS_BACKUP       = "system.settings.backup"
+
 
 # ---------------------------------------------------------------------------
 # 辅助：判断用户是否为"超级管理员"
@@ -79,14 +100,16 @@ def _is_super_admin(user) -> bool:
     """
     以下任一条件满足即视为超级管理员，直通所有权限：
     1. is_superuser = True（Django 原生超管）
-    2. role = 'admin'（项目自定义 User.role 字段）
+    2. user.role 的 slug 为 'super-admin'（由 init_permissions 命令创建的系统角色）
     """
     if not user or not user.is_authenticated:
         return False
     if user.is_superuser:
         return True
-    if getattr(user, "role", None) == "admin":
-        return True
+    user_role = getattr(user, "role", None)
+    if user_role and user_role.is_active:
+        if user_role.slug == "super-admin":
+            return True
     return False
 
 
@@ -138,12 +161,16 @@ class HasTenantPermission(BasePermission):
     @staticmethod
     def _user_has_slug(user, slug: str) -> bool:
         """
-        遍历用户在所有租户的成员记录，只要有任意一条满足即返回 True。
-        如果项目后续支持"当前租户"上下文（从 JWT claims / subdomain 识别），
-        可在此处传入 tenant 参数做精确匹配。
+        遍历用户在所有租户的成员记录 + 用户直接关联的系统角色，只要有任意一条满足即返回 True。
+        管理员（role.is_system / is_superuser）直接放行。
         """
+        # 0) 管理员 → 拥有所有权限，直接放行
+        if _is_super_admin(user):
+            return True
+
         from .models import TenantMember  # 避免循环 import
 
+        # 1) 检查租户成员关系：TenantMember → Role → Permission
         members = (
             TenantMember.objects
             .filter(user=user, is_active=True)
@@ -156,6 +183,18 @@ class HasTenantPermission(BasePermission):
                 continue
             if role.permissions.filter(slug=slug, is_active=True).exists():
                 return True
+
+        # 2) 检查用户直接关联的系统角色（role，无租户绑定的系统角色）
+        user_role = getattr(user, 'role', None)
+        if user_role and user_role.is_active:
+            # 需要确保已加载 permissions；若未预取则再查一次
+            if hasattr(user_role, '_prefetched_objects_cache') and 'permissions' in user_role._prefetched_objects_cache:
+                for perm in user_role.permissions.all():
+                    if perm.slug == slug and perm.is_active:
+                        return True
+            elif user_role.permissions.filter(slug=slug, is_active=True).exists():
+                return True
+
         return False
 
 
@@ -233,6 +272,30 @@ class ConfigViewPermission(HasTenantPermission):
 
 class ConfigManagePermission(HasTenantPermission):
     required_slug = PermissionSlug.CONFIG_MANAGE
+
+class SystemDashboardPermission(HasTenantPermission):
+    required_slug = PermissionSlug.SYSTEM_DASHBOARD
+
+class SystemLogsViewPermission(HasTenantPermission):
+    required_slug = PermissionSlug.SYSTEM_LOGS_VIEW
+
+class SystemLogsManagePermission(HasTenantPermission):
+    required_slug = PermissionSlug.SYSTEM_LOGS_MANAGE
+
+class SystemSettingsViewPermission(HasTenantPermission):
+    required_slug = PermissionSlug.SYSTEM_SETTINGS_VIEW
+
+class SystemSettingsBasicPermission(HasTenantPermission):
+    required_slug = PermissionSlug.SYSTEM_SETTINGS_BASIC
+
+class SystemSettingsBackupPermission(HasTenantPermission):
+    required_slug = PermissionSlug.SYSTEM_SETTINGS_BACKUP
+
+class GatewayViewPermission(HasTenantPermission):
+    required_slug = PermissionSlug.GATEWAY_VIEW
+
+class GatewayManagePermission(HasTenantPermission):
+    required_slug = PermissionSlug.GATEWAY_MANAGE
 
 
 # ---------------------------------------------------------------------------

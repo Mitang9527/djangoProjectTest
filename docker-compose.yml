@@ -1,0 +1,122 @@
+# ================================================================
+# Docker Compose —— 开发环境
+# 服务：Django (Daphne) + PostgreSQL + Redis + Celery Worker + Beat
+# 使用: docker compose up -d
+# ================================================================
+
+name: djangosaas-dev
+
+x-django-common: &django-common
+  build:
+    context: .
+    dockerfile: Dockerfile
+    target: runtime
+  env_file: .env.docker
+  environment:
+    DJANGO_SETTINGS_MODULE: djangoProjectTest.settings.prod
+  volumes:
+    - .:/app                         # 开发模式挂载源码，热重载
+    - django_media:/app/media
+    - django_logs:/app/logs
+    - django_static:/app/static_root
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  networks:
+    - backend
+
+services:
+
+  # ---- Django Web 服务 ----
+  web:
+    <<: *django-common
+    container_name: saas_web
+    command: daphne
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ---- Celery Worker ----
+  celery-worker:
+    <<: *django-common
+    container_name: saas_celery_worker
+    command: celery-worker
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "celery", "-A", "djangoProjectTest", "inspect", "ping"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 30s
+
+  # ---- Celery Beat 定时任务 ----
+  celery-beat:
+    <<: *django-common
+    container_name: saas_celery_beat
+    command: celery-beat
+    restart: unless-stopped
+
+  # ---- PostgreSQL ----
+  postgres:
+    image: postgres:16-alpine
+    container_name: saas_postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME:-saas_db}
+      POSTGRES_USER: ${DB_USER:-saas_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-saas_pass}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"                  # 开发环境暴露端口，方便本地工具连接
+    networks:
+      - backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-saas_user} -d ${DB_NAME:-saas_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ---- Redis ----
+  redis:
+    image: redis:7-alpine
+    container_name: saas_redis
+    command: >
+      redis-server
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --save 60 1
+      --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"                  # 开发环境暴露端口
+    networks:
+      - backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
+  django_media:
+  django_logs:
+  django_static:
+
+networks:
+  backend:
+    driver: bridge

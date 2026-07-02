@@ -1,6 +1,7 @@
 {% extends 'core/base.html' %}
 {% load i18n %}
 {% load static %}
+{% load cache %}
 
 {% block title %}{% trans "SaaS 后台管理系统" %} - {{ title }}{% endblock %}
 
@@ -74,6 +75,12 @@
                     </button>
                     
                     <div x-show="openMenu === 'system'" x-transition class="pl-10 space-y-1">
+                        <a x-show="can('system.dashboard')" href="{% url 'saas:system-dashboard' %}" class="block px-4 py-2.5 text-sm {% if request.resolver_match.url_name == 'system-dashboard' %}text-white bg-slate-800{% else %}text-slate-400 hover:bg-slate-800 hover:text-white{% endif %} rounded-lg transition-colors">
+                            {% trans "仪表盘" %}
+                        </a>
+                        <a x-show="can('system.logs.view')" href="{% url 'saas:system-logs' %}" class="block px-4 py-2.5 text-sm {% if request.resolver_match.url_name == 'system-logs' %}text-white bg-slate-800{% else %}text-slate-400 hover:bg-slate-800 hover:text-white{% endif %} rounded-lg transition-colors">
+                            {% trans "系统日志" %}
+                        </a>
                         <a x-show="can('tenant.view')" href="{% url 'saas:tenant-page' %}" class="block px-4 py-2.5 text-sm {% if request.resolver_match.url_name == 'tenant-page' %}text-white bg-slate-800{% else %}text-slate-400 hover:bg-slate-800 hover:text-white{% endif %} rounded-lg transition-colors">
                             {% trans "租户管理" %}
                         </a>
@@ -88,6 +95,9 @@
                         </a>
                         <a x-show="can('role.view')" href="{% url 'saas:permission-page' %}" class="block px-4 py-2.5 text-sm {% if request.resolver_match.url_name == 'permission-page' %}text-white bg-slate-800{% else %}text-slate-400 hover:bg-slate-800 hover:text-white{% endif %} rounded-lg transition-colors">
                             {% trans "权限管理" %}
+                        </a>
+                        <a x-show="can('gateway.view')" href="{% url 'saas:gateway-dashboard' %}" class="block px-4 py-2.5 text-sm {% if request.resolver_match.url_name == 'gateway-dashboard' %}text-white bg-slate-800{% else %}text-slate-400 hover:bg-slate-800 hover:text-white{% endif %} rounded-lg transition-colors">
+                            {% trans "API 网关" %}
                         </a>
                     </div>
                 </div>
@@ -164,15 +174,39 @@
             </div>
         </nav>
 
-        <div class="px-3 pb-3" x-show="can('config.view')">
-            <a href="{% url 'saas:config-page' %}" class="flex items-center px-4 py-3 text-sm font-medium {% if request.resolver_match.url_name == 'config-page' %}bg-blue-600 text-white{% else %}text-slate-300 hover:bg-slate-800 hover:text-white{% endif %} rounded-lg transition-colors">
-                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <circle cx="12" cy="12" r="3"/>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
-                </svg>
-                {% trans "系统设置" %}
-            </a>
-        </div>
+                <!-- 系统设置 -->
+                <div class="space-y-1 px-3 pb-1" x-show="can('system.settings.view')">
+                    <button @click="openMenu = openMenu === 'settings' ? '' : 'settings'" class="flex items-center justify-between w-full px-4 py-3 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition-colors">
+                        <div class="flex items-center">
+                            <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <circle cx="12" cy="12" r="3"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+                            </svg>
+                            {% trans "系统设置" %}
+                        </div>
+                        <svg class="w-4 h-4 transition-transform" :class="openMenu === 'settings' ? 'rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                        </svg>
+                    </button>
+
+                    <div x-show="openMenu === 'settings'" x-transition class="pl-10 space-y-1">
+                        <a x-show="can('system.settings.basic')" href="{% url 'saas:system-settings' %}" class="block px-4 py-2.5 text-sm {% if request.resolver_match.url_name == 'system-settings' %}text-white bg-slate-800{% else %}text-slate-400 hover:bg-slate-800 hover:text-white{% endif %} rounded-lg transition-colors">
+                            {% trans "基本设置" %}
+                        </a>
+                        <a x-show="can('system.settings.security')" href="{% url 'saas:system-settings' %}" class="block px-4 py-2.5 text-sm text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg transition-colors">
+                            {% trans "安全设置" %}
+                        </a>
+                        <a x-show="can('system.settings.notification')" href="{% url 'saas:system-settings' %}" class="block px-4 py-2.5 text-sm text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg transition-colors">
+                            {% trans "通知设置" %}
+                        </a>
+                        <a x-show="can('system.settings.integration')" href="{% url 'saas:system-settings' %}" class="block px-4 py-2.5 text-sm text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg transition-colors">
+                            {% trans "集成设置" %}
+                        </a>
+                        <a x-show="can('system.settings.backup')" href="{% url 'saas:system-settings' %}" class="block px-4 py-2.5 text-sm text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg transition-colors">
+                            {% trans "备份恢复" %}
+                        </a>
+                    </div>
+                </div>
         
         <!-- 底部版本信息 -->
         <div class="p-4 border-t border-slate-700 text-xs text-slate-400 text-center">
@@ -357,7 +391,7 @@ function saasLayout() {
         openMenu: '{% if request.resolver_match.url_name == "tenant-page" or request.resolver_match.url_name == "system-user-page" or request.resolver_match.url_name == "member-page" or request.resolver_match.url_name == "role-page" or request.resolver_match.url_name == "permission-page" %}system{% elif request.resolver_match.url_name == "plan-page" or request.resolver_match.url_name == "subscription-page" %}plan{% elif request.resolver_match.url_name == "order-page" or request.resolver_match.url_name == "invoice-page" %}order{% elif request.resolver_match.url_name == "adb-dashboard" %}adb{% endif %}',
 
         // 权限状态（服务器端渲染初始值，零等待）
-        isSuperAdmin: {% if request.user.is_superuser or request.user.role == 'admin' %}true{% else %}false{% endif %},
+        isSuperAdmin: {% if is_super_admin %}true{% else %}false{% endif %},
         permSet: new Set(),       // 用户拥有的 slug 集合
         permLoaded: false,        // 权限已加载标记（防止菜单闪烁）
 
@@ -370,18 +404,28 @@ function saasLayout() {
             }
         },
 
-        /** 拉取当前用户权限，结果缓存在 sessionStorage（10 分钟有效） */
+        /** 拉取当前用户权限，结果缓存在 sessionStorage（版本号变更时自动作废旧缓存） */
         async loadPermissions() {
-            const CACHE_KEY = 'saas_user_perms';
+            // v2：修复了自定义渲染器解包逻辑，缓存 key 升版强制刷新
+            const CACHE_KEY = 'saas_user_perms_v2';
+            // 清理旧版本缓存，避免占用 sessionStorage 空间
+            sessionStorage.removeItem('saas_user_perms');
             const cached = sessionStorage.getItem(CACHE_KEY);
             if (cached) {
                 try {
                     const data = JSON.parse(cached);
-                    this.isSuperAdmin = data.is_super_admin;
-                    this.permSet = new Set(data.permissions);
-                    this.permLoaded = true;
-                    return;
-                } catch (_) {}
+                    // 校验缓存数据完整性：permissions 必须是数组
+                    if (Array.isArray(data.permissions)) {
+                        this.isSuperAdmin = !!data.is_super_admin;
+                        this.permSet = new Set(data.permissions);
+                        this.permLoaded = true;
+                        return;
+                    }
+                    // 数据不完整 → 删除并重新拉取
+                    sessionStorage.removeItem(CACHE_KEY);
+                } catch (_) {
+                    sessionStorage.removeItem(CACHE_KEY);
+                }
             }
 
             try {
@@ -390,20 +434,35 @@ function saasLayout() {
                     credentials: 'same-origin',
                 });
                 if (!resp.ok) throw new Error('fetch failed');
-                const data = await resp.json();
+                const raw = await resp.json();
+                // 自定义渲染器包装为 {code, msg, data: ...}，需解包
+                const data = raw.data || raw;
                 this.isSuperAdmin = data.is_super_admin;
-                this.permSet = new Set(data.permissions);
-                // 缓存 10 分钟（用户登出/角色变更后页面刷新自然失效）
+                this.permSet = new Set(data.permissions || []);
+                // 缓存解包后的纯净数据（10 分钟过期）
                 sessionStorage.setItem(CACHE_KEY, JSON.stringify(data));
             } catch (e) {
                 // 拉取失败：用 Django 模板渲染值兜底（与 isSuperAdmin 初始化逻辑一致）
                 console.warn('[SaaS] 权限加载失败，降级处理', e);
-                this.isSuperAdmin = {% if request.user.is_superuser or request.user.role == 'admin' %}true{% else %}false{% endif %};
+                this.isSuperAdmin = {% if is_super_admin %}true{% else %}false{% endif %};
                 if (this.isSuperAdmin) {
-                    this.permSet = new Set(['system.view','tenant.view','user.view','role.view',
-                        'billing.plan.view','billing.subscription.view',
-                        'billing.order.view','billing.invoice.view',
-                        'adb.view','config.view']);
+                    this.permSet = new Set([
+                        'system.view','system.manage','system.dashboard',
+                        'system.logs.view','system.logs.manage',
+                        'system.settings.view','system.settings.basic',
+                        'system.settings.security','system.settings.notification',
+                        'system.settings.integration','system.settings.backup',
+                        'tenant.view','tenant.manage',
+                        'user.view','user.manage',
+                        'role.view','role.manage',
+                        'billing.plan.view','billing.plan.manage',
+                        'billing.subscription.view','billing.subscription.manage',
+                        'billing.order.view','billing.order.manage',
+                        'billing.invoice.view','billing.invoice.manage',
+                        'adb.view','adb.operate',
+                        'config.view','config.manage',
+                        'gateway.view','gateway.manage',
+                    ]);
                 }
             } finally {
                 this.permLoaded = true;
@@ -466,6 +525,59 @@ document.addEventListener('alpine:init', () => {
                 console.error('[Tenant] 切换租户失败', e);
             }
         }
+    }));
+
+    /**
+     * 数据导出按钮 Alpine 组件
+     * 用法: <div x-data="exportButton('saas.Tenant')">
+     */
+    Alpine.data('exportButton', (modelLabel) => ({
+        open: false,
+        exporting: false,
+        msg: '',
+
+        async doExport(fmt) {
+            this.exporting = true;
+            this.msg = '';
+            try {
+                const resp = await saasFetch('/saas/api/export/', {
+                    method: 'POST',
+                    body: JSON.stringify({ model: modelLabel, format: fmt }),
+                });
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({}));
+                    throw new Error(err.error || `导出失败 (${resp.status})`);
+                }
+                // 检查是否是异步任务
+                const contentType = resp.headers.get('content-type') || '';
+                if (contentType.includes('application/json')) {
+                    const result = await resp.json();
+                    if (result.status === 'processing') {
+                        this.msg = result.msg || '已转为后台异步导出，完成后可下载';
+                        return;
+                    }
+                }
+                // 同步下载
+                const blob = await resp.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                // 从 Content-Disposition 取文件名
+                const disposition = resp.headers.get('content-disposition') || '';
+                const match = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                a.download = match ? match[1].replace(/['"]/g, '') : `export.${fmt}`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+                this.msg = '导出成功';
+                setTimeout(() => { this.msg = ''; }, 2500);
+            } catch (e) {
+                this.msg = e.message;
+            } finally {
+                this.exporting = false;
+            }
+        },
     }));
 });
 </script>

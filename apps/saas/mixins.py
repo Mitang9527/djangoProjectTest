@@ -20,8 +20,11 @@ class TenantQuerysetMixin:
         queryset = super().get_queryset()
         request = self.request
 
-        # 管理员 + 无租户上下文 → 全局视图
-        is_super = request.user.is_superuser or getattr(request.user, 'role', 'user') == 'admin'
+        # 管理员 / 拥有全局角色 / 无租户上下文 → 全局视图
+        user_role = getattr(request.user, 'role', None)
+        is_super = (request.user.is_superuser
+                    or (user_role and user_role.slug in ['super-admin', 'admin'])
+                    or getattr(request.user, 'global_role_id', None) is not None)
         if is_super and not getattr(request, 'tenant', None):
             return queryset
 

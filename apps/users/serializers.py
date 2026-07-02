@@ -7,6 +7,17 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 User = get_user_model()
 
+class RoleSerializer(serializers.ModelSerializer):
+    """角色序列化器"""
+    class Meta:
+        model = None
+        fields = ('id', 'name', 'slug', 'description', 'is_system', 'is_active')
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.Meta.model is None:
+            self.Meta.model = apps.get_model('saas', 'Role')
+
 class UserRegisterSerializer(serializers.ModelSerializer):
     """用户注册序列化器"""
     password = serializers.CharField(write_only=True, min_length=6, max_length=20, label="密码")
@@ -43,14 +54,40 @@ class UserRegisterSerializer(serializers.ModelSerializer):
             validated_data['mobile'] = None
             
         user = User.objects.create_user(**validated_data)
+        
+        # 为新用户自动分配默认的普通成员角色
+        try:
+            Role = apps.get_model('saas', 'Role')
+            default_role = Role.objects.filter(slug='member', tenant__isnull=True, is_active=True).first()
+            if default_role:
+                user.role = default_role
+                user.save(update_fields=['role'])
+        except Exception as e:
+            # 如果获取默认角色失败也不影响用户创建
+            pass
+            
         return user
 
 class UserDetailSerializer(serializers.ModelSerializer):
     """用户详情序列化器"""
+    role_info = serializers.SerializerMethodField()
+    
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'nickname', 'mobile', 'avatar', 'token', 'role', 'date_joined')
+        fields = ('id', 'username', 'email', 'nickname', 'mobile', 'avatar', 'token', 'role', 'role_info', 'date_joined')
         read_only_fields = ('id', 'username', 'token', 'date_joined')
+    
+    def get_role_info(self, obj):
+        if obj.role:
+            return {
+                'id': str(obj.role.id),
+                'name': obj.role.name,
+                'slug': obj.role.slug,
+                'description': obj.role.description,
+                'is_system': obj.role.is_system,
+                'is_active': obj.role.is_active
+            }
+        return None
 
 class UserLoginSerializer(serializers.Serializer):
     """用户登录序列化器：仅验证基础格式"""
@@ -71,7 +108,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         
         # 添加自定义声明
         token['username'] = user.username
-        token['role'] = getattr(user, 'role', 'user')
+        token['role_id'] = str(user.role.id) if user.role else None
         token['email'] = user.email
         
         return token
@@ -85,7 +122,8 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             'username': self.user.username,
             'email': self.user.email,
             'nickname': getattr(self.user, 'nickname', ''),
-            'role': getattr(self.user, 'role', 'user'),
+            'role_id': str(self.user.role.id) if self.user.role else None,
+            'role_name': self.user.role.name if self.user.role else None,
         }
         
         return data
@@ -95,42 +133,101 @@ class RefreshTokenSerializer(serializers.Serializer):
     refresh = serializers.CharField(required=True, help_text="刷新 Token")
 
 class UserManageSerializer(serializers.ModelSerializer):
-    """管理员操作用户的序列化器（创建/编辑/删除）
-
-    创建时可选 initial_tenant_id + initial_role_id 一步完成用户创建和角色分配。
-    """
+    """管理员操作用户的序列化器（创建/编辑/删除）"""
     password = serializers.CharField(write_only=True, min_length=6, required=False, label="密码")
-    tenant_memberships = serializers.SerializerMethodField(label="租户角色")
-
-    # —— 创建用户时一步分配租户角色 ——
-    initial_tenant_id = serializers.UUIDField(write_only=True, required=False, allow_null=True, label="初始租户")
-    initial_role_id = serializers.UUIDField(write_only=True, required=False, allow_null=True, label="初始角色")
+    role_info = serializers.SerializerMethodField()
+    role_id = serializers.CharField(required=False, allow_null=True, allow_blank=True, write_only=True)
 
     class Meta:
         model = User
-        fields = ('id', 'username', 'password', 'email', 'nickname', 'mobile', 'role',
-                  'is_active', 'date_joined', 'tenant_memberships',
-                  'initial_tenant_id', 'initial_role_id')
-        read_only_fields = ('id', 'date_joined', 'tenant_memberships')
+        fields = ('id', 'username', 'password', 'email', 'nickname', 'mobile', 'role', 'role_info', 'role_id', 'is_active', 'date_joined')
+        read_only_fields = ('id', 'date_joined', 'role')
         extra_kwargs = {
             'username': {'validators': [UniqueValidator(queryset=User.objects.all(), message="用户名已存在")]},
             'email': {'required': True, 'validators': [UniqueValidator(queryset=User.objects.all(), message="该邮箱已被注册")]},
             'mobile': {'required': False, 'allow_blank': True, 'validators': [UniqueValidator(queryset=User.objects.all(), message="该手机号已被注册")]},
         }
 
-    def get_tenant_memberships(self, obj):
-        """返回用户在各租户中的角色信息"""
-        memberships = obj.tenant_memberships.select_related('tenant', 'role').all()
-        return [
-            {
-                'tenant_id': str(m.tenant_id),
-                'tenant_name': m.tenant.name,
-                'role_id': str(m.role_id) if m.role_id else None,
-                'role_name': m.role.name if m.role else '---',
-                'role_slug': m.role.slug if m.role else '',
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['role'] = str(instance.role.id) if instance.role else None
+        return data
+
+    def to_internal_value(self, data):
+        # 兼容处理：如果提供了 role 字段，将其复制到 role_id
+        if 'role' in data and 'role_id' not in data:
+            data = data.copy()
+            data['role_id'] = data['role']
+        return super().to_internal_value(data)
+    
+    def validate_role_id(self, value):
+        if not value or value == '':
+            return None
+        try:
+            import uuid
+            uuid.UUID(str(value))
+        except (ValueError, TypeError):
+            raise serializers.ValidationError("角色ID必须是有效的UUID格式")
+        return value
+    
+    def create(self, validated_data):
+        role_id = validated_data.pop('role_id', None)
+        password = validated_data.pop('password', None)
+        if not validated_data.get('mobile'):
+            validated_data['mobile'] = None
+        user = User.objects.create_user(**validated_data)
+        
+        # 处理角色关联
+        if role_id:
+            Role = apps.get_model('saas', 'Role')
+            try:
+                role = Role.objects.get(id=role_id)
+                user.role = role
+                user.save(update_fields=['role'])
+            except Role.DoesNotExist:
+                pass
+        
+        if password:
+            user.set_password(password)
+            user.save(update_fields=['password'])
+        return user
+
+    def update(self, instance, validated_data):
+        role_id = validated_data.pop('role_id', None)
+        password = validated_data.pop('password', None)
+        if not validated_data.get('mobile', instance.mobile):
+            validated_data['mobile'] = None
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        
+        # 处理角色关联
+        if role_id is not None:  # 允许显式设置为 None
+            if role_id:
+                Role = apps.get_model('saas', 'Role')
+                try:
+                    role = Role.objects.get(id=role_id)
+                    instance.role = role
+                except Role.DoesNotExist:
+                    instance.role = None
+            else:
+                instance.role = None
+        
+        if password:
+            instance.set_password(password)
+        instance.save()
+        return instance
+    
+    def get_role_info(self, obj):
+        if obj.role:
+            return {
+                'id': str(obj.role.id),
+                'name': obj.role.name,
+                'slug': obj.role.slug,
+                'description': obj.role.description,
+                'is_system': obj.role.is_system,
+                'is_active': obj.role.is_active
             }
-            for m in memberships
-        ]
+        return None
 
     def validate_username(self, value):
         qs = User.objects.filter(username=value)
@@ -157,72 +254,6 @@ class UserManageSerializer(serializers.ModelSerializer):
         if qs.exists():
             raise serializers.ValidationError(f'手机号：{value}当前已存在')
         return value
-
-    def validate(self, data):
-        """创建用户时角色必选；若提供了租户则需与角色匹配"""
-        if self.instance is None:  # 仅创建时校验
-            role_id = data.get('initial_role_id')
-            tenant_id = data.get('initial_tenant_id')
-            if not role_id:
-                raise serializers.ValidationError({'initial_role_id': '角色为必选项'})
-            if tenant_id and role_id:
-                # 验证角色属于该租户
-                Role = apps.get_model('saas', 'Role')
-                if not Role.objects.filter(id=role_id, tenant_id=tenant_id, is_active=True).exists():
-                    raise serializers.ValidationError({'initial_role_id': '所选角色不属于该租户'})
-        return data
-
-    def create(self, validated_data):
-        password = validated_data.pop('password', None)
-        tenant_id = validated_data.pop('initial_tenant_id', None)
-        role_id = validated_data.pop('initial_role_id', None)
-
-        if not validated_data.get('mobile'):
-            validated_data['mobile'] = None
-
-        user = User.objects.create_user(**validated_data)
-        if password:
-            user.set_password(password)
-            user.save(update_fields=['password'])
-
-        # 创建用户时一步分配租户角色
-        if role_id:
-            Tenant = apps.get_model('saas', 'Tenant')
-            Role = apps.get_model('saas', 'Role')
-            TenantMember = apps.get_model('saas', 'TenantMember')
-            try:
-                role = Role.objects.select_related('tenant').get(id=role_id, is_active=True)
-
-                # 确定租户：明确指定 > 从角色推断
-                if tenant_id:
-                    tenant = Tenant.objects.get(id=tenant_id, status='active')
-                elif role.tenant_id:
-                    tenant = role.tenant
-                else:
-                    # 角色没有绑定租户（全局角色），无法创建 TenantMember，跳过
-                    tenant = None
-
-                if tenant:
-                    TenantMember.objects.create(
-                        tenant=tenant, user=user, role=role,
-                        invited_by=self.context['request'].user if 'request' in self.context else None
-                    )
-                # 角色无租户绑定（全局系统角色）→ 跳过 TenantMember 创建，仅记录系统角色
-            except (Tenant.DoesNotExist, Role.DoesNotExist):
-                pass  # 静默跳过无效的租户/角色，不影响用户创建
-
-        return user
-
-    def update(self, instance, validated_data):
-        password = validated_data.pop('password', None)
-        if not validated_data.get('mobile', instance.mobile):
-            validated_data['mobile'] = None
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        if password:
-            instance.set_password(password)
-        instance.save()
-        return instance
 
 
 class LogoutSerializer(serializers.Serializer):

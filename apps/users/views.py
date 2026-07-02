@@ -1,3 +1,4 @@
+from django.apps import apps
 from django.contrib.auth import authenticate, get_user_model
 from django.utils.translation import gettext_lazy as _
 from rest_framework import status, generics, permissions
@@ -311,6 +312,7 @@ class UserInfoView(generics.RetrieveUpdateAPIView):
 from rest_framework import filters
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.pagination import PageNumberPagination
+from rest_framework import viewsets
 
 class StandardResultsSetPagination(PageNumberPagination):
     page_size = 10
@@ -447,6 +449,58 @@ class JWTLogoutView(APIView):
             logger.error(f"JWT登出失败: {e}")
             return Response({'error': '登出失败'}, status=status.HTTP_400_BAD_REQUEST)
 
+class SystemRoleListView(APIView):
+    """
+    获取系统角色列表（tenant=null 的角色）
+    如果没有任何系统角色，会自动调用 init_permissions 命令初始化
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    
+    @extend_schema(
+        summary="获取系统角色列表",
+        description="获取所有 tenant=null 的系统角色",
+        tags=['用户管理']
+    )
+    def get(self, request):
+        Role = apps.get_model('saas', 'Role')
+        
+        # 如果没有系统角色，自动运行 init_permissions 初始化
+        if not Role.objects.filter(tenant__isnull=True).exists():
+            from django.core.management import call_command
+            try:
+                call_command('init_permissions')
+                logger.info('已自动运行 init_permissions 初始化系统角色')
+            except Exception as e:
+                logger.error(f'运行 init_permissions 失败: {e}')
+                # 终极兜底：创建一个空壳 super-admin 角色
+                from apps.saas.models import Permission as PermModel
+                admin_role = Role.objects.create(
+                    tenant=None,
+                    name='超级管理员',
+                    slug='super-admin',
+                    description='系统超级管理员，拥有所有权限（由系统自动创建）',
+                    is_system=True,
+                    is_active=True
+                )
+                # 赋予所有已存在的权限
+                all_perms = PermModel.objects.filter(is_active=True)
+                if all_perms.exists():
+                    admin_role.permissions.set(all_perms)
+        
+        roles = Role.objects.filter(tenant__isnull=True, is_active=True)
+        role_data = []
+        for role in roles:
+            role_data.append({
+                'id': str(role.id),
+                'name': role.name,
+                'slug': role.slug,
+                'description': role.description,
+                'is_system': role.is_system,
+                'is_active': role.is_active
+            })
+        return Response(role_data)
+
+
 class VerifyTokenView(APIView):
     """
     验证 Token 有效性
@@ -466,27 +520,28 @@ class VerifyTokenView(APIView):
                 'id': request.user.id,
                 'username': request.user.username,
                 'email': request.user.email,
-                'role': getattr(request.user, 'role', 'user'),
+                'role_id': str(request.user.role.id) if request.user.role else None,
+                'role_name': request.user.role.name if request.user.role else None,
             }
         })
 
 
 # =====================================================
-# 用户管理 ViewSet（供 SaaS 后台使用）
+# 用户管理 ViewSet
 # =====================================================
-from rest_framework import viewsets
-from rest_framework.decorators import action
 
 class UserManageViewSet(viewsets.ModelViewSet):
     """
     系统用户管理 ViewSet（CRUD）
     
-    租户联动：
-    - 有租户上下文时，仅显示该租户的成员
-    - 无租户上下文时，admin 看全部，普通用户看自己
-    - 支持 membership action 管理用户的租户归属和角色
+    管理员可以：
+    - 创建、查看、编辑、删除用户
+    - 管理用户的角色
+    
+    权限说明：
+    - 只有系统管理员可以访问此 ViewSet
     """
-    queryset = User.objects.all()
+    queryset = User.objects.select_related('role').all()
     serializer_class = UserManageSerializer
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = StandardResultsSetPagination
@@ -498,19 +553,14 @@ class UserManageViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        tenant = getattr(self.request, 'tenant', None)
-        is_super = user.is_superuser or getattr(user, 'role', 'user') == 'admin'
-
-        qs = User.objects.all()
-
-        if tenant:
-            # 租户上下文：仅显示该租户的成员
-            qs = qs.filter(tenant_memberships__tenant=tenant).distinct()
-        elif not is_super:
-            # 普通用户无租户上下文：只显示自己
-            qs = qs.filter(id=user.id)
-
-        return qs.prefetch_related('tenant_memberships__tenant', 'tenant_memberships__role')
+        from apps.saas.permissions import _is_super_admin
+        is_super = _is_super_admin(user)
+        
+        if not is_super:
+            # 普通用户只能查看自己
+            return User.objects.filter(id=user.id)
+        
+        return User.objects.select_related('role').all()
 
     def perform_destroy(self, instance):
         # 不能删除自己
@@ -519,84 +569,18 @@ class UserManageViewSet(viewsets.ModelViewSet):
             raise ValidationError("不能删除自己的账号")
         instance.delete()
 
-    # ============ 租户成员管理 actions ============
-
-    @action(detail=True, methods=['post', 'delete'], url_path='membership')
-    def membership(self, request, pk=None):
+    def get_permissions(self):
         """
-        管理用户的租户成员关系
-        POST   {tenant_id, role_id}  → 添加或更新成员关系
-        DELETE {tenant_id}           → 移除成员关系
+        SaaS RBAC 权限检查：
+        - 写入操作 (create/update/partial_update/destroy) 需要 user.manage 权限
+        - 读取操作 (list/retrieve) 需要 user.view 权限
+        - 超管（super-admin / is_superuser）自动放行
         """
-        from apps.saas.models import Tenant, Role, TenantMember
-
-        user = self.get_object()
-        is_super = request.user.is_superuser or getattr(request.user, 'role', 'user') == 'admin'
-        if not is_super:
-            return Response({'msg': '无权限操作'}, status=403)
-
-        if request.method == 'POST':
-            return self._add_membership(request, user)
-        elif request.method == 'DELETE':
-            return self._remove_membership(request, user)
-
-    def _add_membership(self, request, user):
-        from apps.saas.models import Tenant, Role, TenantMember
-
-        tenant_id = request.data.get('tenant_id')
-        role_id = request.data.get('role_id')
-
-        if not tenant_id:
-            return Response({'msg': '请选择租户'}, status=400)
-
-        try:
-            tenant = Tenant.objects.get(id=tenant_id, status='active')
-        except Tenant.DoesNotExist:
-            return Response({'msg': '租户不存在或已停用'}, status=400)
-
-        role = None
-        if role_id:
-            try:
-                role = Role.objects.get(id=role_id, tenant=tenant, is_active=True)
-            except Role.DoesNotExist:
-                return Response({'msg': '角色不存在或已停用'}, status=400)
-
-        membership, created = TenantMember.objects.update_or_create(
-            tenant=tenant,
-            user=user,
-            defaults={'role': role, 'invited_by': request.user}
-        )
-
-        logger.info(
-            f"用户 {request.user.username} {'添加' if created else '更新'}"
-            f"成员 {user.username} 到租户 {tenant.name}，角色: {role.name if role else '无'}"
-        )
-
-        return Response({
-            'msg': f'{"已添加" if created else "已更新"}成员关系',
-            'membership': {
-                'tenant_id': str(tenant.id),
-                'tenant_name': tenant.name,
-                'role_id': str(role.id) if role else None,
-                'role_name': role.name if role else '---',
-                'role_slug': role.slug if role else '',
-            }
-        })
-
-    def _remove_membership(self, request, user):
-        from apps.saas.models import TenantMember
-
-        tenant_id = request.data.get('tenant_id')
-        if not tenant_id:
-            return Response({'msg': '请指定租户'}, status=400)
-
-        deleted, _ = TenantMember.objects.filter(
-            tenant_id=tenant_id, user=user
-        ).delete()
-
-        if not deleted:
-            return Response({'msg': '该用户不是此租户的成员'}, status=400)
-
-        logger.info(f"用户 {request.user.username} 移除了 {user.username} 从租户 {tenant_id}")
-        return Response({'msg': '已移除成员关系'})
+        from apps.saas.permissions import UserManagePermission, UserViewPermission
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [permissions.IsAuthenticated(), UserManagePermission()]
+        if self.action == 'list':
+            return [permissions.IsAuthenticated(), UserViewPermission()]
+        # retrieve — 已登录即可（用户查看自己的详情通过其他端点）
+        return [permissions.IsAuthenticated()]
 

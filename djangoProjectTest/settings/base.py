@@ -71,6 +71,7 @@ THIRD_PARTY_APPS = [
     'drf_spectacular',  # Swagger 文档生成
     'django_extensions',  # Django 扩展工具
     'django_celery_beat',  # Celery 定时任务
+    'cachalot',  # ORM 查询自动缓存
 ]
 
 # 自定义用户模型
@@ -85,9 +86,11 @@ MIDDLEWARE = [
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.locale.LocaleMiddleware',
     'django.middleware.common.CommonMiddleware',
+    'django.middleware.http.ConditionalGetMiddleware',  # ETag / Last-Modified 条件请求
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'apps.saas.middleware.TenantMiddleware',  # SaaS 多租户上下文注入
+    'utils.gateway.middleware.GatewayMiddleware',  # API 网关（限流、请求日志）
+    'saas.middleware.TenantMiddleware',  # SaaS 多租户上下文注入
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -221,6 +224,14 @@ REST_FRAMEWORK = {
         'utils.renderers.custom_renderer.CustomRenderer',
         'rest_framework.renderers.BrowsableAPIRenderer',
     ),
+    'DEFAULT_THROTTLE_CLASSES': [
+        'utils.gateway.throttle.IPThrottle',
+        'utils.gateway.throttle.UserThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'user': '500/hour',
+        'anon': '60/minute',
+    },
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 
@@ -273,25 +284,37 @@ SPECTACULAR_SETTINGS = {
 # --- Redis 缓存配置 ---
 REDIS_CONFIG = global_config.redis.model_dump()
 
-# 缓存配置
+# 多级缓存配置
 if REDIS_CONFIG.get('enabled', False):
     try:
         import django_redis
+        _redis_host = REDIS_CONFIG["host"]
+        _redis_port = REDIS_CONFIG["port"]
+        _redis_db = REDIS_CONFIG["db"]
+        _redis_password = REDIS_CONFIG.get("password")
+        _redis_url = f'redis://{_redis_host}:{_redis_port}/{_redis_db}'
+        if _redis_password:
+            _redis_url = f'redis://:{_redis_password}@{_redis_host}:{_redis_port}/{_redis_db}'
+
         CACHES = {
             'default': {
                 'BACKEND': 'django_redis.cache.RedisCache',
-                'LOCATION': f'redis://{REDIS_CONFIG["host"]}:{REDIS_CONFIG["port"]}/{REDIS_CONFIG["db"]}',
+                'LOCATION': _redis_url,
                 'OPTIONS': {
                     'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-                    'PASSWORD': REDIS_CONFIG.get('password'),
+                    'PASSWORD': _redis_password,
                     'CONNECTION_POOL_KWARGS': {
                         'max_connections': REDIS_CONFIG['max_connections'],
                         'socket_timeout': REDIS_CONFIG['socket_timeout'],
                         'socket_connect_timeout': REDIS_CONFIG['socket_connect_timeout'],
                     },
+                    'COMPRESSOR': 'django_redis.compressors.zlib.ZlibCompressor',
+                    'SERIALIZER': 'django_redis.serializers.pickle.PickleSerializer',
                 },
                 'TIMEOUT': 60 * 30,  # 默认 30 分钟过期
-            }
+                'KEY_PREFIX': 'cache',
+                'KEY_FUNCTION': 'utils.cache.cache_manager.make_cache_key',
+            },
         }
     except ImportError:
         # django-redis 未安装，回退到内存缓存
@@ -299,6 +322,7 @@ if REDIS_CONFIG.get('enabled', False):
             'default': {
                 'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
                 'LOCATION': 'unique-snowflake',
+                'TIMEOUT': 60 * 5,
             }
         }
 else:
@@ -307,8 +331,33 @@ else:
         'default': {
             'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
             'LOCATION': 'unique-snowflake',
+            'TIMEOUT': 60 * 5,
         }
     }
+
+# =====================================================
+# Session 配置（Redis 后端）
+# =====================================================
+if REDIS_CONFIG.get('enabled', False):
+    SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+    SESSION_CACHE_ALIAS = 'default'
+    SESSION_COOKIE_AGE = 60 * 60 * 24 * 7  # 7 天
+    SESSION_SAVE_EVERY_REQUEST = False
+
+# =====================================================
+# django-cachalot ORM 查询缓存配置
+# =====================================================
+CACHALOT_ENABLED = True
+CACHALOT_TIMEOUT = 60 * 5  # ORM 缓存 5 分钟
+CACHALOT_CACHE = 'default'
+# 忽略高频写入表（Session、日志等）
+CACHALOT_UNCACHABLE_TABLES = frozenset([
+    'django_session',
+    'django_migrations',
+    'core_auditlog',
+    'django_celery_beat_solarschedule',
+    'django_celery_beat_clockedschedule',
+])
 
 # --- RabbitMQ 消息队列配置 ---
 RABBITMQ_CONFIG = global_config.rabbitmq.model_dump()
@@ -384,6 +433,17 @@ LOGGING = {
 }
 
 # =====================================================
+# API 网关限流配置
+# =====================================================
+GATEWAY_THROTTLE_RATES = {
+    "ip":       "1000/h",    # 每 IP 每小时 1000 次
+    "user":     "500/h",     # 每用户每小时 500 次
+    "tenant":   "10000/h",   # 每租户每小时 10000 次
+    "anon":     "60/m",      # 匿名用户每分钟 60 次
+    "endpoint": "100/h",     # 每端点默认每小时 100 次
+}
+
+# =====================================================
 # Celery 配置
 # =====================================================
 CELERY_BROKER_URL = None
@@ -395,7 +455,7 @@ if REDIS_CONFIG.get('enabled', False):
     redis_port = REDIS_CONFIG.get('port', 6379)
     redis_db = REDIS_CONFIG.get('db', 1)
     redis_password = REDIS_CONFIG.get('password')
-    
+
     if redis_password:
         CELERY_BROKER_URL = f'redis://:{redis_password}@{redis_host}:{redis_port}/{redis_db}'
         CELERY_RESULT_BACKEND = f'redis://:{redis_password}@{redis_host}:{redis_port}/{redis_db}'
@@ -408,6 +468,33 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'Asia/Shanghai'
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+
+# =====================================================
+# DB 连接池配置
+# =====================================================
+# 在 settings.DATABASES['default']['_pool']（顶层键，Django 不会透传给驱动）
+# 中可覆盖：
+#   "_pool": {
+#     "enabled": True,
+#     "min_size": 2,
+#     "max_size": 10,
+#     "timeout": 30,
+#     "max_idle": 600,
+#     "max_lifetime": 3600,
+#     "pre_ping": True
+#   }
+# ⚠️ 千万不要放进 OPTIONS['pool']，否则 OPTIONS 整盘 **conn_params
+#    展开后会把 pool 传给驱动 connect()，触发 TypeError。
+# 仅对 PostgreSQL / MySQL 生效；SQLite 自动走 CONN_MAX_AGE 长连接。
+DB_POOL_DEFAULT_OPTIONS = {
+    "enabled":   os.environ.get("DB_POOL_ENABLED", "true" if not DEBUG else "false").lower() == "true",
+    "min_size":  int(os.environ.get("DB_POOL_MIN_SIZE", "2")),
+    "max_size":  int(os.environ.get("DB_POOL_MAX_SIZE", "20")),
+    "timeout":   float(os.environ.get("DB_POOL_TIMEOUT", "30")),
+    "max_idle":  float(os.environ.get("DB_POOL_MAX_IDLE", "600")),
+    "max_lifetime": float(os.environ.get("DB_POOL_MAX_LIFETIME", "3600")),
+    "pre_ping":  os.environ.get("DB_POOL_PRE_PING", "true").lower() == "true",
+}
 
 # =====================================================
 # Whitenoise 静态文件配置

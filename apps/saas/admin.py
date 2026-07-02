@@ -12,7 +12,8 @@ from .models import (
     Role,
     TenantMember,
     Order,
-    Invoice
+    Invoice,
+    APILimitRule,
 )
 
 
@@ -104,3 +105,13 @@ class InvoiceAdmin(admin.ModelAdmin):
     list_filter = ['status']
     search_fields = ['invoice_number', 'order__order_number', 'tenant__name']
     readonly_fields = ['created_at', 'updated_at']
+
+
+@admin.register(APILimitRule)
+class APILimitRuleAdmin(admin.ModelAdmin):
+    list_display = ['name', 'url_pattern', 'throttle_type', 'rate', 'priority', 'is_active', 'created_at']
+    list_filter = ['is_active', 'throttle_type', 'use_regex']
+    search_fields = ['name', 'url_pattern', 'description']
+    list_editable = ['priority', 'is_active']
+    readonly_fields = ['created_at', 'updated_at']
+    ordering = ['priority', '-created_at']

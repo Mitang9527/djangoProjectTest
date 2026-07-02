@@ -24,7 +24,8 @@ class TenantMiddleware(MiddlewareMixin):
             try:
                 tenant = Tenant.objects.get(id=tenant_id)
                 # 验证用户是否是该租户的成员（管理员跳过）
-                is_super = request.user.is_superuser or getattr(request.user, 'role', 'user') == 'admin'
+                user_role = getattr(request.user, 'role', None)
+                is_super = request.user.is_superuser or (user_role and user_role.slug in ['super-admin', 'admin'])
                 if is_super or TenantMember.objects.filter(
                     tenant=tenant, user=request.user, is_active=True
                 ).exists():

@@ -9,22 +9,13 @@
         <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
             <div class="flex items-center gap-4">
                 <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100">{{ title }}</h3>
-                <!-- 租户上下文提示 -->
-                <span x-show="currentTenantId"
-                      class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-xs font-medium border border-blue-200 dark:border-blue-800">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m-1 4h1m4-4h1m-1 4h1m-1 4h1m-1-4h1m-1-4h1"/></svg>
-                    <span x-text="'{% trans "当前租户" %}: ' + currentTenantName"></span>
-                </span>
-                <span x-show="!currentTenantId"
-                      class="inline-flex items-center px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-xs font-medium border border-slate-200 dark:border-slate-700">
-                    {% trans "全局视图" %}
-                </span>
             </div>
             <button @click="openCreate()"
                     class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-1.5">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                 {% trans "新建用户" %}
             </button>
+            {% include 'saas/_export_button.html' with model='users.User' %}
         </div>
 
         <!-- 表格 -->
@@ -36,12 +27,7 @@
                         <th class="px-6 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-left">{% trans "邮箱" %}</th>
                         <th class="px-6 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-left">{% trans "昵称" %}</th>
                         <th class="px-6 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-left">{% trans "手机号" %}</th>
-                        <!-- 全局视图：系统角色 -->
-                        <th x-show="!currentTenantId" class="px-6 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-left">{% trans "系统角色" %}</th>
-                        <!-- 租户视图：当前角色（RBAC） -->
-                        <th x-show="currentTenantId" class="px-6 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-left">{% trans "当前角色" %}</th>
-                        <!-- 全局视图：所属租户 -->
-                        <th x-show="!currentTenantId" class="px-6 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-left">{% trans "所属租户" %}</th>
+                        <th class="px-6 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-left">{% trans "系统角色" %}</th>
                         <th class="px-6 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-left">{% trans "状态" %}</th>
                         <th class="px-6 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-left">{% trans "注册时间" %}</th>
                         <th class="px-6 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-right">{% trans "操作" %}</th>
@@ -49,7 +35,7 @@
                 </thead>
                 <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
                     <tr x-show="loading" class="h-64">
-                        <td :colspan="currentTenantId ? 8 : 9" class="px-6 py-4 text-center">
+                        <td :colspan="8" class="px-6 py-4 text-center">
                             <svg class="animate-spin h-6 w-6 text-blue-500 mx-auto" fill="none" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                             </svg>
@@ -61,31 +47,9 @@
                             <td class="px-6 py-4 text-sm text-slate-500 dark:text-slate-400" x-text="item.email || '---'"></td>
                             <td class="px-6 py-4 text-sm text-slate-500 dark:text-slate-400" x-text="item.nickname || '---'"></td>
                             <td class="px-6 py-4 text-sm text-slate-500 dark:text-slate-400" x-text="item.mobile || '---'"></td>
-                            <!-- 全局：系统角色 -->
-                            <td x-show="!currentTenantId" class="px-6 py-4 text-sm">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                                      :class="item.role === 'admin' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'"
-                                      x-text="item.role === 'admin' ? '{% trans "管理员" %}' : '{% trans "普通用户" %}'"></span>
-                            </td>
-                            <!-- 租户：当前 RBAC 角色 -->
-                            <td x-show="currentTenantId" class="px-6 py-4 text-sm">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                                      :class="getTenantRole(item) ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'"
-                                      x-text="getTenantRole(item)?.role_name || '{% trans "未分配角色" %}'"></span>
-                            </td>
-                            <!-- 全局：所属租户 -->
-                            <td x-show="!currentTenantId" class="px-6 py-4 text-sm">
-                                <div class="flex flex-wrap gap-1">
-                                    <template x-for="m in (item.tenant_memberships || [])" :key="m.tenant_id">
-                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                                            <span x-text="m.tenant_name"></span>
-                                            <span class="text-slate-400">·</span>
-                                            <span x-text="m.role_name"></span>
-                                        </span>
-                                    </template>
-                                    <span x-show="!(item.tenant_memberships && item.tenant_memberships.length)"
-                                          class="text-xs text-slate-400">---</span>
-                                </div>
+                            <td class="px-6 py-4 text-sm">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                      x-text="item.role_info ? item.role_info.name : '{% trans "未分配" %}'"></span>
                             </td>
                             <td class="px-6 py-4 text-sm">
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
@@ -100,7 +64,7 @@
                         </tr>
                     </template>
                     <tr x-show="!loading && items.length === 0">
-                        <td :colspan="currentTenantId ? 8 : 9" class="px-6 py-12 text-center text-slate-400 dark:text-slate-500">{% trans "暂无数据" %}</td>
+                        <td :colspan="8" class="px-6 py-12 text-center text-slate-400 dark:text-slate-500">{% trans "暂无数据" %}</td>
                     </tr>
                 </tbody>
             </table>
@@ -167,8 +131,10 @@
                                 @change="clearFieldError('role')"
                                 :class="errors.role ? 'border-red-500 focus:ring-red-500' : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500'"
                                 class="w-full px-3 py-2 border rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:border-transparent transition-colors">
-                            <option value="user">{% trans "普通用户" %}</option>
-                            <option value="admin">{% trans "管理员" %}</option>
+                            <option value="">{% trans "请选择角色" %}</option>
+                            <template x-for="roleOption in systemRoles" :key="roleOption.id">
+                                <option :value="roleOption.id" x-text="roleOption.name"></option>
+                            </template>
                         </select>
                         <p x-show="errors.role" x-text="errors.role" class="text-red-500 text-xs mt-1"></p>
                     </div>
@@ -182,73 +148,6 @@
                             <option :value="false">{% trans "禁用" %}</option>
                         </select>
                         <p x-show="errors.is_active" x-text="errors.is_active" class="text-red-500 text-xs mt-1"></p>
-                    </div>
-
-                    <!-- ===== 租户角色分配 ===== -->
-                    <div class="border-t border-slate-200 dark:border-slate-700 pt-4">
-                        <div class="flex items-center justify-between mb-3">
-                            <h5 class="text-sm font-semibold text-slate-700 dark:text-slate-300">{% trans "租户角色分配" %}</h5>
-                            <span class="text-xs text-slate-400" x-show="editing">{% trans "用户在各租户中的权限角色" %}</span>
-                            <span class="text-xs text-slate-400" x-show="!editing">{% trans "创建用户时分配初始租户和角色" %}</span>
-                        </div>
-
-                        <!-- ===== 编辑模式：当前成员关系列表 ===== -->
-                        <div x-show="editing" class="space-y-2 mb-3">
-                            <template x-for="(m, idx) in editMemberships" :key="m.tenant_id">
-                                <div class="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-                                    <div class="flex items-center gap-2">
-                                        <span class="text-sm font-medium text-slate-700 dark:text-slate-200" x-text="m.tenant_name"></span>
-                                        <span class="text-xs text-slate-400">—</span>
-                                        <span class="text-sm text-blue-600 dark:text-blue-400" x-text="m.role_name"></span>
-                                    </div>
-                                    <button type="button" @click="removeMembership(m.tenant_id)"
-                                            class="text-red-400 hover:text-red-600 text-xs font-medium px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                                        {% trans "移除" %}
-                                    </button>
-                                </div>
-                            </template>
-                            <p x-show="editMemberships.length === 0" class="text-xs text-slate-400">{% trans "该用户尚未分配至任何租户" %}</p>
-                        </div>
-
-                        <!-- ===== 创建模式：指示说明 ===== -->
-                        <p x-show="!editing" class="text-xs text-slate-400 mb-3">
-                            {% trans "可选：为新用户分配初始租户和角色，创建后用户即成为该租户成员。" %}
-                        </p>
-
-                        <!-- ===== 选择器（创建模式 + 编辑模式共用） ===== -->
-                        <div class="flex items-end gap-2">
-                            <!-- 租户选择：始终显示下拉（创建时预填但不锁定） -->
-                            <div class="flex-1">
-                                <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">{% trans "租户" %} <span class="text-slate-400 font-normal">({% trans "可选" %})</span></label>
-                                <select x-model="addMembership.tenant_id"
-                                        @change="onMembershipTenantChange()"
-                                        class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors">
-                                    <option value="">{% trans "不分配租户" %}</option>
-                                    <template x-for="t in availableTenants" :key="t.id">
-                                        <option :value="t.id" x-text="t.name"></option>
-                                    </template>
-                                </select>
-                            </div>
-                            <div class="flex-1">
-                                <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">{% trans "角色" %} <span class="text-red-500">*</span></label>
-                                <select x-model="addMembership.role_id"
-                                        :class="errors.initial_role_id ? 'border-red-500 focus:ring-red-500' : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500'"
-                                        class="w-full px-3 py-2 border rounded-lg bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:border-transparent transition-colors disabled:opacity-50">
-                                    <option value="" x-show="rolesLoading">{% trans "加载中..." %}</option>
-                                    <option value="" x-show="!rolesLoading">{% trans "请选择角色" %}</option>
-                                    <template x-for="r in membershipRoleOptions" :key="r.id">
-                                        <option :value="r.id" x-text="r.name + (r.slug ? ' (' + r.slug + ')' : '')"></option>
-                                    </template>
-                                </select>
-                                <p x-show="errors.initial_role_id" x-text="errors.initial_role_id" class="text-red-500 text-xs mt-1"></p>
-                            </div>
-                            <!-- 编辑模式：添加按钮 -->
-                            <button type="button" @click="addMembershipAction()" x-show="editing"
-                                    :disabled="!addMembership.tenant_id"
-                                    class="px-4 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
-                                {% trans "添加" %}
-                            </button>
-                        </div>
                     </div>
 
                     <div class="flex justify-end gap-3 pt-2">
@@ -291,29 +190,40 @@
 document.addEventListener('alpine:init', () => {
     Alpine.data('userManager', () => ({
         items: [],
+        systemRoles: [],
         loading: true,
         modalOpen: false,
         deleteModal: false,
         editing: null,
         deleteTarget: null,
-        form: { username: '', password: '', email: '', nickname: '', mobile: '', role: 'user', is_active: true },
+        form: { username: '', password: '', email: '', nickname: '', mobile: '', role: '', is_active: true },
         errors: {},
         toast: { show: false, msg: '', type: 'success' },
 
-        // 租户上下文
-        currentTenantId: '{{ current_tenant_id }}',
-        currentTenantName: '{{ current_tenant_name }}',
-        availableTenants: JSON.parse('{{ all_tenants_json|safe }}'),
-        tenantRoles: JSON.parse('{{ tenant_roles_json|safe }}'),
-
-        // 成员管理（编辑弹窗内）
-        editMemberships: [],
-        addMembership: { tenant_id: '', role_id: '' },
-        membershipRoleOptions: [],
-        rolesLoading: false,
-
         async init() {
-            await this.fetchList();
+            await Promise.all([this.fetchList(), this.fetchSystemRoles()]);
+        },
+
+        async fetchSystemRoles() {
+            try {
+                console.log('[user] 正在获取系统角色...');
+                const resp = await saasFetch('/api/users/system-roles/');
+                const data = await resp.json();
+                console.log('[user] 系统角色 API 响应:', data);
+                if (resp.ok) {
+                    // 检查 API 返回格式，可能是 {code:200, data: [...]} 也可能是直接数组
+                    let rolesData = data;
+                    if (data.code === 200 && data.data) {
+                        rolesData = data.data;
+                    }
+                    this.systemRoles = Array.isArray(rolesData) ? rolesData : [];
+                    console.log('[user] 系统角色已加载:', this.systemRoles);
+                } else {
+                    console.error('[user] 获取系统角色失败:', resp.status);
+                }
+            } catch (e) {
+                console.error('[user] 获取系统角色失败:', e);
+            }
         },
 
         // ---------- 列表 ----------
@@ -340,36 +250,12 @@ document.addEventListener('alpine:init', () => {
         clearErrors() { this.errors = {}; },
         clearFieldError(field) { delete this.errors[field]; },
 
-        /** 获取用户在指定租户下的成员关系 */
-        getTenantMembership(user, tenantId) {
-            return (user.tenant_memberships || []).find(m => m.tenant_id === tenantId) || null;
-        },
-
-        /** 获取当前租户下用户的角色 */
-        getTenantRole(user) {
-            return this.getTenantMembership(user, this.currentTenantId);
-        },
-
         // ---------- 创建/编辑 ----------
 
         openCreate() {
             this.editing = null;
-            this.form = { username: '', password: '', email: '', nickname: '', mobile: '', role: 'user', is_active: true };
-            this.editMemberships = [];
-            this.addMembership = { tenant_id: '', role_id: '' };
-            this.membershipRoleOptions = [];
-            this.rolesLoading = false;
+            this.form = { username: '', password: '', email: '', nickname: '', mobile: '', role: '', is_active: true };
             this.clearErrors();
-
-            // 租户上下文 → 自动预选租户
-            if (this.currentTenantId) {
-                this.addMembership.tenant_id = this.currentTenantId;
-            }
-            console.log('[user] openCreate currentTenantId=', this.currentTenantId, 'tenantRolesReady=', this.tenantRoles.length, 'availableTenants=', this.availableTenants.length);
-
-            // 始终加载角色选项（不依赖租户是否选中）
-            this.onMembershipTenantChange();
-
             this.modalOpen = true;
         },
 
@@ -381,45 +267,23 @@ document.addEventListener('alpine:init', () => {
                 email: item.email || '',
                 nickname: item.nickname || '',
                 mobile: item.mobile || '',
-                role: item.role || 'user',
+                role: item.role || '',
                 is_active: item.is_active
             };
-            // 初始化成员关系列表（深拷贝）
-            this.editMemberships = JSON.parse(JSON.stringify(item.tenant_memberships || []));
-            this.addMembership = { tenant_id: '', role_id: '' };
-            this.membershipRoleOptions = [];
             this.clearErrors();
-
-            // 租户上下文 → 自动预选租户并加载角色选项
-            if (this.currentTenantId) {
-                this.addMembership.tenant_id = this.currentTenantId;
-            }
-            this.onMembershipTenantChange();
-
             this.modalOpen = true;
         },
 
         async save() {
-            // 客户端校验：角色必选
-            if (!this.editing && !this.addMembership.role_id) {
-                this.errors.initial_role_id = '{% trans "请选择角色" %}';
-                return;
-            }
-
             const payload = {
                 username: this.form.username,
                 email: this.form.email,
                 nickname: this.form.nickname || '',
                 mobile: this.form.mobile || '',
-                role: this.form.role,
+                role: this.form.role || null,
             };
             if (!this.editing) {
                 payload.password = this.form.password;
-                // 角色必选 → 始终携带
-                payload.initial_role_id = this.addMembership.role_id;
-                if (this.addMembership.tenant_id) {
-                    payload.initial_tenant_id = this.addMembership.tenant_id;
-                }
             } else {
                 if (this.form.password) payload.password = this.form.password;
                 payload.is_active = this.form.is_active;
@@ -441,7 +305,6 @@ document.addEventListener('alpine:init', () => {
                     this.modalOpen = false;
                     const successMsg = this.editing ? '{% trans "更新成功" %}' : '{% trans "创建成功" %}';
                     this.toastMsg(successMsg, 'success');
-                    // 短暂延迟让 toast 先显示，再刷新列表
                     await new Promise(r => setTimeout(r, 300));
                     await this.fetchList();
                 } else {
@@ -481,115 +344,6 @@ document.addEventListener('alpine:init', () => {
                 } else {
                     const body = await r.json().catch(() => ({}));
                     this.toastMsg(body.msg || body.detail || '{% trans "删除失败" %}', 'error');
-                }
-            } catch (e) {
-                this.toastMsg('{% trans "网络错误" %}', 'error');
-            }
-        },
-
-        // ---------- 租户成员管理 ----------
-
-        /** 加载角色列表：选了租户则只加载该租户的角色，未选则加载全部活跃租户的角色 */
-        async onMembershipTenantChange() {
-            const tid = this.addMembership.tenant_id;
-            console.log('[user] onMembershipTenantChange tid=', tid, 'currentTenantId=', this.currentTenantId, 'tenantRoles.length=', this.tenantRoles.length);
-            this.membershipRoleOptions = [];
-            this.addMembership.role_id = '';
-            this.rolesLoading = true;
-
-            // 如果正好在当前租户上下文 + 页面初始数据有角色 → 直接用缓存，避免请求
-            if (tid && this.currentTenantId && tid === String(this.currentTenantId) && this.tenantRoles.length) {
-                console.log('[user] using cached tenantRoles, count:', this.tenantRoles.length);
-                this.membershipRoleOptions = this.tenantRoles;
-                this.rolesLoading = false;
-                return;
-            }
-
-            let url;
-            if (tid) {
-                url = `/saas/api/roles/?tenant=${tid}&is_active=true&page_size=200`;
-            } else {
-                // 未选租户 → 加载全部租户的角色
-                url = '/saas/api/roles/?is_active=true&page_size=200';
-            }
-            console.log('[user] fetch roles from:', url);
-
-            try {
-                const resp = await saasFetch(url);
-                console.log('[user] roles resp status:', resp.status, 'ok:', resp.ok);
-                const data = await resp.json();
-                console.log('[user] roles raw data keys:', Object.keys(data));
-
-                // 处理自定义渲染器包装 + DRF 分页
-                const results = (data.data || data).results || (data.data || data);
-                console.log('[user] roles results type:', Array.isArray(results) ? 'array(' + results.length + ')' : typeof results, results);
-
-                const roles = Array.isArray(results) ? results : [];
-                // 有租户上下文 → 过滤掉 tenant=null 的全局系统角色（不能分配给租户成员）
-                // 全局视图 → 不过滤，因为所有可用角色就是全局角色
-                if (this.currentTenantId) {
-                    this.membershipRoleOptions = roles.filter(r => r.tenant != null);
-                } else {
-                    this.membershipRoleOptions = roles;
-                }
-                console.log('[user] roles after tenant filter (currentTenantId=' + (this.currentTenantId || '(none)') + '):', this.membershipRoleOptions.length);
-            } catch (e) {
-                console.error('[user] loadRoles error:', e);
-                this.toastMsg('{% trans "加载角色失败" %}: ' + e.message, 'error');
-            } finally {
-                this.rolesLoading = false;
-            }
-        },
-
-        /** 添加成员关系 */
-        async addMembershipAction() {
-            if (!this.editing || !this.addMembership.tenant_id) return;
-
-            // 检查是否已存在
-            const exists = this.editMemberships.find(m => m.tenant_id === this.addMembership.tenant_id);
-            if (exists) {
-                this.toastMsg('{% trans "该用户已是此租户的成员，如需修改角色请先移除再添加" %}', 'error');
-                return;
-            }
-
-            try {
-                const r = await saasFetch(`/api/users/api/manage/${this.editing.id}/membership/`, {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        tenant_id: this.addMembership.tenant_id,
-                        role_id: this.addMembership.role_id || null,
-                    })
-                });
-                const body = await r.json();
-                if (r.ok) {
-                    this.editMemberships.push(body.membership);
-                    this.addMembership = { tenant_id: '', role_id: '' };
-                    this.membershipRoleOptions = [];
-                    this.toastMsg(body.msg || '{% trans "已添加" %}', 'success');
-                } else {
-                    this.toastMsg(body.msg || '{% trans "添加失败" %}', 'error');
-                }
-            } catch (e) {
-                this.toastMsg('{% trans "网络错误" %}: ' + e.message, 'error');
-            }
-        },
-
-        /** 移除成员关系 */
-        async removeMembership(tenantId) {
-            if (!this.editing) return;
-            if (!confirm('{% trans "确定要将该用户从此租户中移除？" %}')) return;
-
-            try {
-                const r = await saasFetch(`/api/users/api/manage/${this.editing.id}/membership/`, {
-                    method: 'DELETE',
-                    body: JSON.stringify({ tenant_id: tenantId })
-                });
-                const body = await r.json();
-                if (r.ok || r.status === 204) {
-                    this.editMemberships = this.editMemberships.filter(m => m.tenant_id !== tenantId);
-                    this.toastMsg('{% trans "已移除" %}', 'success');
-                } else {
-                    this.toastMsg(body.msg || '{% trans "移除失败" %}', 'error');
                 }
             } catch (e) {
                 this.toastMsg('{% trans "网络错误" %}', 'error');

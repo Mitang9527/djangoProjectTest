@@ -6,22 +6,19 @@ from django.contrib.auth.signals import user_logged_in
 from rest_framework.authtoken.models import Token
 
 class CustomUserManager(UserManager):
-    """自定义用户管理器，确保创建超级用户时角色为 admin"""
-    def create_superuser(self, username, email=None, password=None, **extra_fields):
-        extra_fields.setdefault('role', 'admin')
-        return super().create_superuser(username, email, password, **extra_fields)
+    """自定义用户管理器"""
+    pass
 
 class User(AbstractUser):
     """自定义用户模型"""
-    ROLE_CHOICES = (
-        ('admin', '管理员'),
-        ('user', '普通用户'),
-    )
     nickname = models.CharField(max_length=50, blank=True, verbose_name='昵称')
     mobile = models.CharField(max_length=11, unique=True, null=True, blank=True, verbose_name='手机号')
     avatar = models.ImageField(upload_to='avatars/', null=True, blank=True, verbose_name='头像')
     token = models.CharField(max_length=255, null=True, blank=True, verbose_name='Token')
-    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='user', verbose_name='角色')
+    role = models.ForeignKey(
+        'saas.Role', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='users', verbose_name='系统角色'
+    )
 
     objects = CustomUserManager()
 

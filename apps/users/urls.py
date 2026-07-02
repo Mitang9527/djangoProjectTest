@@ -5,7 +5,7 @@ from .views import (
     UserRegisterView, UserLoginView, UserLogoutView, UserInfoView, UserListView,
     UserProfileTemplateView, TestApiView,
     CustomTokenObtainPairView, CustomTokenRefreshView, JWTLogoutView, VerifyTokenView,
-    UserManageViewSet,
+    UserManageViewSet, SystemRoleListView,
 )
 
 app_name = 'users'
@@ -17,6 +17,9 @@ user_router.register(r'manage', UserManageViewSet, basename='user-manage')
 urlpatterns = [
     # 测试接口
     path('api/test/', TestApiView.as_view(), name='test-api'),
+    
+    # 系统角色 API
+    path('system-roles/', SystemRoleListView.as_view(), name='system-roles'),
     
     # 统一路由：支持 GET (页面) 和 POST (逻辑)
     path('register/', UserRegisterView.as_view(), name='register'),

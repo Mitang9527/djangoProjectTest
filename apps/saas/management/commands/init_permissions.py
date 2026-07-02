@@ -9,7 +9,7 @@ from django.apps import apps
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from apps.saas.permission_registry import BUILTIN_PERMISSIONS, BUILTIN_ROLES
+from saas.permission_registry import BUILTIN_PERMISSIONS, BUILTIN_ROLES
 
 
 class Command(BaseCommand):

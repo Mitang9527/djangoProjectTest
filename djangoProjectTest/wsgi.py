@@ -22,5 +22,6 @@ else:
     default_settings = "djangoProjectTest.settings.dev"
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", default_settings)
+os.environ.setdefault("WORKER_TYPE", "wsgi")
 
 application = get_wsgi_application()
