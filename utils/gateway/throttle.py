@@ -28,6 +28,7 @@ from functools import lru_cache
 from typing import Optional, Tuple
 
 from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
 from loguru import logger
 from rest_framework.throttling import BaseThrottle
 
@@ -35,14 +36,24 @@ from utils.cache.redis_client import get_redis
 
 
 # ─────────────────────────────────────────────────────────────
-# 全局默认限流值
+# 全局默认限流值（延迟读取，导入时若 Django 未就绪则使用默认值）
 # ─────────────────────────────────────────────────────────────
-DEFAULT_THROTTLE_RATES = getattr(settings, "GATEWAY_THROTTLE_RATES", {
-    "ip":       "1000/h",
-    "user":     "500/h",
-    "tenant":   "10000/h",
-    "anon":     "60/m",
-})
+try:
+    DEFAULT_THROTTLE_RATES = getattr(settings, "GATEWAY_THROTTLE_RATES", {
+        "ip":       "1000/h",
+        "user":     "500/h",
+        "tenant":   "10000/h",
+        "anon":     "60/m",
+    })
+except ImproperlyConfigured:
+    # Django 未完全初始化时导入本模块，使用默认值；
+    # 运行时通过 get_gateway_config 读取配置（此时 settings 已就绪）
+    DEFAULT_THROTTLE_RATES = {
+        "ip":       "1000/h",
+        "user":     "500/h",
+        "tenant":   "10000/h",
+        "anon":     "60/m",
+    }
 
 # 限流 Redis 键前缀
 REDIS_KEY_PREFIX = "ratelimit:gw:"

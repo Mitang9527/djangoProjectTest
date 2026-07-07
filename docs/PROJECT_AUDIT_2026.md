@@ -1,381 +1,372 @@
-# Django 企业级 SaaS 项目 - 全量审计报告
+# 项目设计问题审查报告
 
-**审计范围**：D:\Code\djangoProjectTest（79 个 Python 源文件 + 25 个模板 + 5 个 App）
-**审计维度**：9 大类 / 38 项检查
-**严重程度**：🔴 严重 🟡 警告 🟢 建议
+> 审查日期：2026-07-03 | 审查范围：全项目
 
 ---
 
-## 0. 总评
+## 一、安全问题 (P0 — 需紧急修复)
 
-| 维度 | 评分 | 说明 |
-|------|------|------|
-| 架构设计 | ⭐⭐⭐⭐⭐ | 多租户 + RBAC + 网关分层清晰，模块边界合理 |
-| 安全性 | ⭐⭐⭐½ | 主体合规，仍有 4 处关键风险 |
-| 性能 | ⭐⭐⭐⭐ | 缓存/限流齐备，DB 层缺连接池（本次补齐） |
-| 可维护性 | ⭐⭐⭐½ | 重复 import、模板加载 2 次，DRY 不足 |
-| 测试覆盖 | ⭐⭐ | 仅 adb_web 有 tests.py 骨架，业务核心零覆盖 |
-| 部署完备度 | ⭐⭐⭐⭐ | Docker + 健康检查 + 多阶段构建已就绪 |
+### 1.1 密码明文写入日志
 
----
+**文件**：`apps/users/views.py` 第 193 行
 
-## 1. 🔒 安全审计
-
-### 🔴 严重问题
-
-#### S-01 登录日志泄露密码 (`apps/users/views.py:193`)
 ```python
 logger.warning(f"登录失败: 密码错误 - [{username}--{password}]")
 ```
-密码以明文形式写入日志，违反最小化日志原则。任何日志被读取就泄露凭据。
-**修复**：删除 `--{password}`，仅记录 username。
 
-#### S-02 数据库密码/密钥可被导入到 settings (`djangoProjectTest/model.py:121`)
-`DB_PASSWORD` 没有任何占位/弱口令检查。如果生产 `.env` 配置了空密码，pydantic 不会拦截。
-**修复**：在 `DatabaseConfig` 中加 `password` 最小长度校验（生产环境 ≥8 位）。
+用户的登录密码被明文记录到日志文件中。这是严重的安全漏洞，违反了 OWASP Top 10 (A04:2021 - 不安全的日志记录)。
 
-#### S-03 DRF BrowsableAPIRenderer 在生产环境仍启用 (`settings/base.py:225`)
-```python
-'DEFAULT_RENDERER_CLASSES': (
-    'utils.renderers.custom_renderer.CustomRenderer',
-    'rest_framework.renderers.BrowsableAPIRenderer',  # ← 生产保留
-),
-```
-BrowsableAPIRenderer 会暴露 CSRF、表单结构，给攻击者做信息收集。生产应去掉。
-**修复**：`if not DEBUG: REST_FRAMEWORK['DEFAULT_RENDERER_CLASSES'] = (...) - 移除 BrowsableAPIRenderer`
-
-#### S-04 InsecurePrivateKey 类异常捕获吞错 (`apps/saas/middleware.py:40`)
-```python
-except (Tenant.DoesNotExist, Exception):
-```
-`Exception` 与 `Tenant.DoesNotExist` 写在一个元组里，逻辑上 `Exception` 永远能匹配到前者，捕得太宽。`request.session.pop(...)` 在任何异常下都执行，掩盖真正问题。
-**修复**：拆开两类异常或去掉外层 `Exception`。
-
-### 🟡 警告
-
-#### S-05 `User.token` 字段未在 JWT 方案下维护 (`apps/users/models.py:17`)
-字段已无业务使用但未删除，会持久化旧的 DRF Token 痕迹。
-**修复**：删除字段，做一次 makemigrations。
-
-#### S-06 JWT 黑名单的 table 缺失会引发 500
-`rest_framework_simplejwt.token_blacklist` 在 base 已加，但若忘记 migrate，黑名单功能失效、Token 撤销不生效，无任何提示。
-**修复**：部署脚本中加 `python manage.py migrate token_blacklist --check` 校验。
-
-#### S-07 DEBUG=True 时 `CORS_ALLOW_ALL_ORIGINS=True` (`settings/dev.py:15`)
-注释说"开发才放开"，但 prod 镜像里跑 `daphne`/`gunicorn` 时如果 `.env` 误设 `DEBUG=True`，会同时放开 CORS。
-**修复**：删除此行，强制使用 `CORS_ALLOWED_ORIGINS`。
-
-#### S-08 `UserLoginView` 走 HTML 渲染器时不校验 CSRF（`apps/users/views.py:173`）
-```python
-from django.contrib.auth import login
-login(request, user)  # 没有 CSRF 校验上下文
-```
-DRF 模板渲染流程不经过 CsrfViewMiddleware 的完整校验。
-**修复**：登录页 GET 渲染时通过 `{% csrf_token %}`，POST 接口强制 `@csrf_protect`。
-
-#### S-09 `dump-env` 仓库根 `.env` 存在被提交风险
-未在仓库看到 `.env.example` / `.gitignore` 的 `*.env` 规则。
-**修复**：补 `.gitignore` 至少覆盖 `.env`、`.env.local`、`.env.docker`。
-
----
-
-## 2. ⚙️ 配置审计
-
-### 🟡 警告
-
-#### C-01 自动发现 apps 正则脆弱 (`settings/base.py:30-57`)
-```python
-match = re.search(r'class\s+(\w+)\(AppConfig\):', content)
-```
-- 注释、多类继承、装饰器会破坏匹配。
-- 捕获的是字符串而非 AST，复杂 app 会失败。
-**修复**：用 `ast` 模块解析 `apps.py`，直接读 `AppConfig` 子类名。
-
-#### C-02 自动发现 URL 会把 `__pycache__` 当 app (`urls.py:46`)
-`os.listdir` 不过滤，理论上能枚举到非 app 目录。
-**修复**：仅在 `urls.py` + `apps.py` 都存在时纳入。
-
-#### C-03 缓存命中率为 0 时 `hit_rate` 字段缺失（`utils/cache/cache_manager.py`）
-`hit_rate` 在无任何命中时未提供默认值，会给前端报 N/A。
-**修复**：统一返回 `0.0`。
-
-#### C-04 `TEMPLATE_DIRS` 显式 + APP_DIRS 同时启用
-```python
-'DIRS': [BASE_DIR/templates, BASE_DIR/apps/core/templates],
-'APP_DIRS': True,
-```
-同名的 `core/templates/core/index.html` 可能与 `apps/core/templates/core/index.html` 冲突。
-**修复**：合并到一处或明确 namespace。
-
-#### C-05 `STATICFILES_STORAGE = CompressedManifestStaticFilesStorage` 在 DEBUG=True 也生效
-会导致模板里出现的额外静态文件未收集时整个页面 500。
-**修复**：在 dev.py 改回 `StaticFilesStorage`。
-
-#### C-06 `LOGIN_REDIRECT_URL='/'` 但 core 路由直接渲染 (`asgi.py` 渲染的是 ws 端)
-`/` 走 `core.urls` 而非 `users.urls`，登录后跳转目标未明确定义。
-**修复**：统一一个 `/dashboard/`。
-
-### 🟢 建议
-
-- `pydantic-settings` `model_config.extra="ignore"` 在生产配置漂移时不会报错，建议改为 `"forbid"`。
-- `EMAIL_PORT = 587` 硬编码，QQ 邮箱 SSL 走 465，TLS 走 587，应根据 `EMAIL_USE_TLS` 自动切。
-- `RedisConfig`/`RabbitMQConfig` 没有 `ssl`/`tls` 字段，生产连云 Redis 需自实现。
-
----
-
-## 3. 🚀 性能审计
-
-### 🟡 警告
-
-#### P-01 DB 连接池缺失（**本次任务已补齐**）
-- Django 原生 `CONN_MAX_AGE` 仅复用单进程连接。
-- 高并发（>20 QPS）时 `psycopg2.connect` 每次握手 ≈ 5-10ms。
-- PG 端 `max_connections` 默认 100，多 worker 容易爆。
-**方案**：`utils/db/pool.py`（psycopg3 优先，psycopg2 / mysql-connector / PyMySQL 兼容），透明替换 `DatabaseWrapper`。
-
-#### P-02 `django-cachalot` 与高写入场景冲突（`settings/base.py:350-360`）
-ORM 自动缓存 5 分钟，**任何写操作会失效全表**。
-- 订单、订单统计等高频写页面会反复穿透缓存。
 **修复**：
-- CACHALOT_TIMEOUT 改为 60s；或
-- 把 `saas_order` / `saas_invoice` 加入 `CACHALOT_UNCACHABLE_TABLES`。
-
-#### P-03 网关中间件对每个 API 请求都做 log.debug
 ```python
-logger.debug(f"[Gateway] {method} {path} | IP={ip} | User={user_id}")
+logger.warning(f"登录失败: 密码错误 - [{username}]")
 ```
-日志 sink 多时（如 file + logstash）会拖慢 0.5-2ms/请求。
-**修复**：仅在 path 命中 `/api/` 且 `settings.LOG_LEVEL == 'DEBUG'` 时记录。
 
-#### P-04 Channels 内存层 InMemoryChannelLayer 跨 worker 不通（`base.py:147`）
-开发环境多 worker 时通知/在线状态数据不一致。
-**修复**：本地启动脚本注释提示"开发用单 worker"；或强制要求 Redis 启用。
+### 1.2 用户名枚举漏洞
 
-#### P-05 Celery 与 Channels 共用 Redis DB 1 (`base.py:456`)
+**文件**：`apps/users/views.py` 第 148-153 行
+
+先检查账号是否存在（返回 `status=301`），再验证密码（返回 `status=501`）。攻击者可以通过不同响应码枚举有效用户名。应统一返回"用户名或密码错误"。
+
+### 1.3 ADB Shell 无权限控制
+
+**文件**：`apps/adb_web/views.py` 第 49 行
+
 ```python
-redis_db = REDIS_CONFIG.get('db', 1)
+class AdbDeviceViewSet(viewsets.ViewSet):
+    permission_classes = [permissions.IsAuthenticated]  # 仅需登录！
 ```
-Celery broker 与生产环境业务缓存（DB 0）隔离 OK，但与 Channels 共用 DB 1 会相互 flush 时影响。
-**修复**：Celery 用 DB 2，Channels 用 DB 1，缓存用 DB 0。
 
-### 🟢 建议
+任何已认证用户都能执行 shell 命令、安装/卸载应用、清理数据。项目中已定义 `AdbViewPermission` 和 `AdbOperatePermission`（`saas/permissions.py`），但未被使用。
 
-- `LIMIT 1000/h` 限流硬编码 base，未暴露给运行时配置。
-- `serializer_class` 大量重复声明 → 引入 `ViewSetSerializerMixin` 自动按 action 切换。
-- 分页大小 10 对仪表盘/列表过小，可加 `cursor_pagination`。
+### 1.4 SystemUserListView 无认证
 
----
+**文件**：`apps/saas/views.py` 第 539 行
 
-## 4. 🏗 架构审计
+`SystemUserListView` 缺少 `@login_required` 装饰器和任何权限检查，未认证用户可以直接访问。
 
-### 🟡 警告
+### 1.5 HTTP GET 请求执行管理命令
 
-#### A-01 `User.role` 字段同时承担"系统角色"与"租户角色"职责
+**文件**：`apps/users/views.py` 第 468-474 行
+
+`SystemRoleListView` 在 GET 请求中调用 `call_command('init_permissions')` 来初始化角色数据：
+- GET 请求不应有副作用
+- 可能被缓存/爬虫/预取触发
+- 数据库写入操作应在部署脚本中执行
+
+### 1.6 明文 Token 存储
+
+**文件**：`apps/users/models.py` 第 17 行
+
 ```python
-role = models.ForeignKey('saas.Role', on_delete=models.SET_NULL, null=True, blank=True, related_name='users')
+token = models.CharField(max_length=255, null=True, blank=True)
 ```
-- `Role.tenant=null` 时是系统角色，否则租户角色 → 字段语义不清晰。
-- 当前是 `null=True` 自由切换，未来必出问题。
-**修复**：拆为 `User.system_role` (FK→Role where tenant=NULL) 与现有 `TenantMember.role` 两套。
 
-#### A-02 `Tenant.id = UUIDField` 但 `Order.order_number` 用 `uuid.uuid4().hex[:8]`（碰撞概率 ≈ 0.4%）
-8 字符 hex = 32 bit，同日 10 万订单时生日碰撞概率明显。
-**修复**：用 12 字符 hex 或全 uuid。
+`User` 模型上保留了一个明文 Token 字段。注释表明已改用 JWT，但字段仍存在。数据库泄露会导致所有 Token 泄露。应删除此字段。
 
-#### A-03 三个 view 层机制混合（DRF ViewSet / DRF APIView / Django View）
-- 重复书写 `is_super_admin`、`login_required`。
-- 权限检查分散在 View 与 ViewSet。
-**修复**：所有需要鉴权的 HTML 视图统一继承 `BaseAdminTemplateView(login_required=True)`。
+### 1.7 硬编码凭证与内网 IP
 
-#### A-04 软删除缺失
-所有模型硬删除，订单/发票/用户删除后无法审计。
-**修复**：建抽象 `SoftDeleteModel` 基类，全局替换。
-
-#### A-05 没有审计日志中间件
-写操作（租户/角色/订单）无审计记录。
-**修复**：参考 `utils/mixins/audit_mixin.py` 但目前该文件为空 → 实际实现。
-
-### 🟢 建议
-
-- `apps/adb_web` 中 `adb_service.py` 与 `views.py` 调用关系未做端口层抽象，跨平台（macOS）适配困难。
-- `apps/soul` 是占位包但仍被 `discover_local_apps` 加载，建议标记 `is_placeholder=True` 跳过。
-- `apps/core` 中 `consumers.py` 把 ChatConsumer + NotificationConsumer + OnlineUsersConsumer 堆在一个文件，可拆分。
+| 位置 | 泄露内容 |
+|------|----------|
+| `utils/noticUtils/lark.py:75` | 内网 IP `192.168.xx.72:8080` |
+| `utils/noticUtils/lark.py:79` | 飞书 user_id |
+| `utils/noticUtils/lark.py:64` | 邮箱 `1123@qq.com` |
+| `utils/mq/rabbitmq_client.py:31-32` | 默认凭证 `guest/guest` |
+| `utils/noticUtils/sendmailControl.py:28` | 发件人姓名硬编码 `"Admin"` |
 
 ---
 
-## 5. 🧪 测试覆盖审计
+## 二、架构与设计问题
 
-### 🔴 严重问题
+### 2.1 命名风格严重不一致
 
-#### T-01 业务代码测试覆盖率 ≈ 0%
-- `apps/saas/tests.py` 为空文件
-- `apps/users/tests.py` 缺失
-- `apps/core/tests.py` 缺失
-- `pytest-django` 已装但 `pytest.ini` 未配
-**修复优先级**：
-1. `pytest.ini` 加 `DJANGO_SETTINGS_MODULE`
-2. 给 saas 权限解析（`_user_has_slug`）、订单并发、租户隔离写单元测试
-3. 用 `factory-boy` 建基础工厂类
+项目中大量模块使用了 CamelCase 命名，违反了 PEP 8 的 snake_case 规范：
 
-#### T-02 集成测试缺失
-- 多租户隔离、API 网关限流、缓存失效 均无端到端测试。
+| 当前名称 | 应为 |
+|----------|------|
+| `utils/noticUtils/` | `utils/notice_utils/` |
+| `utils/logUtils/` | `utils/log_utils/` |
+| `utils/readFilesUtils/` | `utils/read_files_utils/` |
+| `utils/subprocessUtils/` | `utils/subprocess_utils/` |
+| `utils/timeUtils/` | `utils/time_utils/` |
+| `utils/watchdogUtils/` | `utils/watchdog_utils/` |
+| `utils/zipUtils/` | `utils/zip_utils/` |
+| `utils/OtherUtils/` | `utils/other_utils/` |
+| `utils/ConnectServer/` | `utils/connect_server/` |
+| `utils/noticUtils/feishuControl.py` | `utils/notice_utils/feishu_control.py` |
+| `utils/noticUtils/dingtalkControl.py` | `utils/notice_utils/dingtalk_control.py` |
+| `utils/noticUtils/sendmailControl.py` | `utils/notice_utils/sendmail.py` |
+| `utils/logUtils/loguruControl.py` | `utils/log_utils/loguru_control.py` |
 
-### 🟡 警告
+这些是项目中唯一使用 CamelCase 命名的 Python 模块，与其余全部 snake_case 的文件形成鲜明对比。`djangoProjectTest/model.py`（配置模型）也是奇怪的命名——`model.py` 在 Django 惯例中暗示数据库模型，但这里实际是 Pydantic settings。
 
-#### T-03 `apps/adb_web/tests.py` 骨架未完善
-仅有 `from django.test import TestCase`，无任何测试方法。
+### 2.2 死代码和冗余
 
-#### T-04 没有 `conftest.py`
-pytest fixtures 散落，无统一管理。
+| 文件/代码 | 问题 |
+|-----------|------|
+| `apps/users/authentication.py` | `ExpiringTokenAuthentication` 已完全弃用（JWT 替代），但文件仍存在 |
+| `apps/users/models.py` 中 `token` 字段 | 已弃用字段未删除 |
+| `djangoProjectTest/routing.py` | 与 `asgi.py` 中的 WebSocket 路由完全重复，无任何代码引用 |
+| `utils/noticUtils/lark.py` | `feishuControl.py` 的有 bug 副本（飞书的国际版），功能重复 |
+| `tasks.py` 第 29 行和 318 行 | `get_repo()` 函数定义了两次 |
+| `tasks.py` 第 406 行 | `code` 和 `git_ns` 命名空间被注释掉（~100 行无效代码） |
+| `djangoProjectTest/settings/prod.py` 第 55 行 | `STATIC_ROOT` 和 `MEDIA_ROOT` 在 base.py 中已定义，prod.py 重复定义 |
+| `saas/views.py` 中 `_is_super_admin` | 延迟导入被调用 7 次，应提到顶部 |
+| `users/views.py` 中 `UserLoginView` 和 `CustomTokenObtainPairView` | 两个 JWT 登录入口功能重叠 |
 
----
+### 2.3 管理员判断逻辑分散且不一致
 
-## 6. 📦 依赖审计
+"用户是否是管理员"的判断逻辑散落在 5+ 个文件中，且实现各不相同：
 
-### 🟡 警告
+| 位置 | 实现 | 是否正确 |
+|------|------|----------|
+| `users/permissions.py:9` | `getattr(user, 'role', 'user') == 'admin'` | **Bug** — FK 对象与字符串比较永远 False |
+| `users/permissions.py:25` | `getattr(user, 'role', 'user') != 'admin'` | **Bug** — 同上 |
+| `saas/middleware.py:28` | `user_role.slug in ['super-admin', 'admin']` | 正确但硬编码 slug |
+| `saas/mixins.py:25-27` | 相同逻辑的重复 | 代码重复 |
+| `saas/permissions.py:99-113` | `_is_super_admin()` 函数 | **正确版本**，应统一使用 |
 
-#### D-01 `pyproject.toml` 与 `requirements.txt` 不同步
-- `requirements.txt` 缺少：`pytest-django`、`drf-spectacular`、`django-cachalot`、`whitenoise`、`pygments` 等
-- `pyproject.toml` 缺少：`channels-redis`、`djangorestframework-simplejwt`、`drf-spectacular`、`pygments` 等
-- 项目同时维护两套依赖易出错。
-**修复**：仅保留 `pyproject.toml`（uv/pip 都支持），删除 `requirements.txt` 或让 `requirements.txt` 转为 `pip install -r pyproject.toml` 形式。
+`IsAdminOrSelf` 和 `DataPermissionMixin` 由于此 bug 导致权限完全失效——这意味着需要这两种权限保护的 API 端点目前是门户大开的。
 
-#### D-02 关键依赖未锁版本上限
-- `channels>=4.0.0` 在 5.0 引入 breaking change
-- `drf-spectacular>=0.26.0` 0.27+ 改 schema 路径
-**修复**：改为 `channels>=4.0,<5`。
+### 2.4 响应格式三种并存
 
-#### D-03 开发依赖未分离
-`pytest`/`mypy`/`ruff`/`factory-boy` 应放进 `[project.optional-dependencies.dev]`，否则生产镜像也会带。
+项目中有 3 种不同的 API 响应格式：
 
-#### D-04 缺失 DB 驱动
-- 用 PostgreSQL 但未默认装 `psycopg[binary]`
-- 用 MySQL 但未默认装 `mysql-connector-python` 或 `PyMySQL`
-- Dockerfile 仅装 `psycopg2-binary`（已补）
-**修复**：在 `requirements.txt` 中显式声明所有可能的驱动。
+| 格式 | 示例 | 使用位置 |
+|------|------|----------|
+| DRF 标准 | `Response({'total_tenants': 5})` | 大部分 ViewSet |
+| `{code, msg, data}` | `{'code': 200, 'msg': 'success', 'data': {...}}` | 网关 CRUD、缓存管理 |
+| `{code, msg}` (错误) | `{'code': 400, 'msg': '验证失败'}` | 网关 CRUD 错误 |
 
-### 🟢 建议
+CustomRenderer 逻辑（`utils/renderers/custom_renderer.py` 第 25-33 行）判断"是否已包装"的条件是 `'code' in data and 'msg' in data`，这意味着业务数据中包含这两个键的响应会被**错误地跳过包装**。
 
-- 引入 `pip-audit` / `safety` 到 CI
-- 关键库加 `python_requires`
+### 2.5 URL 结构混乱
 
----
-
-## 7. 🚢 部署审计
-
-### 🟡 警告
-
-#### DP-01 Dockerfile 用 `daphne` 但 entrypoint 默认是 gunicorn
-```dockerfile
-ENTRYPOINT ["./scripts/entrypoint.sh"]
-CMD ["gunicorn"]
+**双重 `api/` 前缀**：
 ```
-`docker-compose.yml` 又用 `daphne`。两者都是 ASGI 服务器 OK，但 gunicorn 不支持 WebSocket。
-**修复**：删除 gunicorn 引用，全部 Daphne；或拆分 web/ws 两套镜像。
+/api/users/api/test/       ← test 在 api/ 下，users 也在 api/ 下
+/api/users/api/jwt/login/  ← 双重 api/
+/api/users/api/list/
+```
 
-#### DP-02 `collectstatic` 在 build 时执行，但 `STATIC_ROOT` 在 `static_root/` 而非容器外挂载
-- 容器重启后静态文件仍在（容器有写权限）— OK。
-- 但 `staticfiles_storage = CompressedManifestStaticFilesStorage` 需要全部静态文件存在，否则 collectstatic 失败。
-**修复**：构建时静态检查脚本。
+**页面路由与 API 路由混合**：
+```
+/api/users/register/   ← HTML 注册页面在 API 路径下
+/api/users/login/      ← HTML 登录页面在 API 路径下
+/api/users/profile/    ← HTML 个人资料页面在 API 路径下
+```
 
-#### DP-03 没有 DB migration 步骤
-Dockerfile 启动入口是 gunicorn/daphne，未跑 `migrate`。
-**修复**：在 `entrypoint.sh` 加 `python manage.py migrate --noinput`。
+**Saas 路由不一致**：
+```
+/saas/tenants/         ← 页面路由：无 api/ 前缀
+/saas/api/plans/       ← API 路由：通过内部 api/ 前缀
+/api/adb_web/devices/  ← 另一应用：api/ 在根级
+```
 
-#### DP-04 没有 WSGI/ASGI worker 调优
-Gunicorn 默认 1 worker，容器内 CPU 多核浪费。
-**修复**：gunicorn `-w $(nproc)` 或 daphne `-w 4`。
+### 2.6 非标准 HTTP 状态码
 
-#### DP-05 Celery worker 与 beat 共享一个容器
-`docker-compose.yml` 中 worker 与 beat 是两个独立 service（OK），但 base image 一致，部署友好。
+```python
+# users/views.py:153 — 301 是重定向状态码
+return Response({'error': '账号不存在'}, status=301)
 
-### 🟢 建议
+# users/views.py:196 — 501 是"未实现"
+return Response({'error': '密码错误'}, status=501)
+```
 
-- 加 `nginx` 反向代理 + 静态服务层
-- 加 `prometheus` exporter
-- 容器镜像换 distroless
+应使用 401（未授权）、400（错误请求）或 404（未找到）。
 
----
+### 2.7 `USE_TZ = False` — 反模式
 
-## 8. 📝 文档审计
+**文件**：`djangoProjectTest/settings/base.py` 第 178 行
 
-### 🟡 警告
-
-#### DOC-01 README 与实际项目脱节
-- 提到 `apps/soul/` 但 `apps/saas/` 才是主模块
-- "WebSocket 端点" 章节只列了 2 个，实际有 3 个
-- "API 网关" 章节未出现在 README
-
-#### DOC-02 缺少架构图
-租户/角色/权限关系建议出 ER 图（用 mermaid）。
-
-#### DOC-03 `docs/PROJECT_AUDIT.md` 旧版本未及时清理
-- 检查 `docs/` 目录的"项目审计报告"是否仍反映当前状态
-
-### 🟢 建议
-
-- 接入 Swagger UI 之后，README 中可加"快速试调"段落
-- 没有 CHANGELOG.md
+Django 官方强烈建议启用时区支持。在 SaaS 多租户场景中，禁用时区会导致跨时区用户的时间计算错误。
 
 ---
 
-## 9. 🧱 代码质量审计
+## 三、代码质量问题
 
-### 🟡 警告
+### 3.1 巨型文件
 
-#### Q-01 重复 import 5 处
-如 `apps/users/views.py` 中两次 `from django.urls import path, include`（urls.py 与 views.py 都出现 import），5 处模块被重复 import。
-**修复**：开启 ruff 规则 `F401/F811`。
+| 文件 | 行数 | 问题 |
+|------|------|------|
+| `apps/saas/views.py` | 1453 | 混合 7 类不同职责（页面视图、ViewSet、函数式 API、日志、网关、缓存、导出） |
+| `utils/decorators/__init__.py` | 294 | 所有装饰器塞在一个 `__init__.py` 中 |
 
-#### Q-02 `apps/saas/views.py` 单文件 1400+ 行
-- 视图类、API 视图、管理 API、缓存管理、网关管理混在一起。
-- 应按职责拆分：`views_admin.py` / `views_api.py` / `views_gateway.py` / `views_cache.py`。
+**建议**：
+- `saas/views.py` 拆分为 `page_views.py`, `api_views.py`, `gateway_views.py`, `infra_views.py`
+- `utils/decorators/` 拆分为独立的 `exception.py`, `timing.py`, `retry.py`, `cache.py` 等
 
-#### Q-03 硬编码字符串 50+ 处
-如 `'super-admin'`, `'admin'`, `'/api/users/login/'` 等魔法值散落。
-**修复**：在 `apps/saas/constants.py` 集中管理。
+### 3.2 重复的验证模式
 
-#### Q-04 没有 type hint
-- `drf_spectacular` 已装但没在 `SPECTACULAR_SETTINGS` 启用 `ENUM_NAME_OVERRIDES` / `COMPONENT_SPLIT_REQUEST`
-- `mypy + django-stubs` 已装未配 `.mypy.ini`
+`saas/serializers.py` 中 `PlanSerializer`、`TenantSerializer`、`PermissionSerializer` 都有几乎相同的 `validate_slug` 和 `validate_name` 方法（查询唯一性）。应提取为 Mixin。
 
-#### Q-05 异常日志 traceback 重复打印
-`utils/exceptions/handler.py` 捕获后 `traceback.format_exc()` 会与 loguru 的默认 traceback 双重输出。
+### 3.3 `fields = '__all__'` 过度暴露
 
-### 🟢 建议
+所有 `saas/serializers.py` 的 serializer 都使用 `fields = '__all__'`，这意味着模型新增字段时会自动暴露给 API，应显式声明字段列表。
 
-- `pylint`/`ruff` 配置未提交
-- pre-commit hook 缺失
+### 3.4 `RoleSerializer.Meta.model = None` 动态绑定
+
+**文件**：`apps/users/serializers.py` 第 93-99 行
+
+在 `__init__` 中修改类级 `Meta.model` 是反模式。应直接 import：
+
+```python
+from apps.saas.models import Role
+
+class RoleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Role  # 直接赋值，不用 None
+```
+
+### 3.5 `discover_local_apps()` — 脆弱的正则发现
+
+**文件**：`djangoProjectTest/settings/base.py` 第 30-57 行
+
+通过正则解析 `apps.py` 源码来发现 app，极其脆弱。多行类定义、装饰器等都会导致正则失败。Django 的 `apps.get_app_configs()` 或硬编码列表是更好的选择。
+
+### 3.6 `count_milliseconds` 函数逻辑完全错误
+
+**文件**：`utils/timeUtils/time_control.py` 第 7-15 行
+
+```python
+def count_milliseconds(access_start, access_end):
+    access_start = datetime.now()   # 忽略传入参数！
+    access_end = datetime.now()     # 忽略传入参数！
+    access_delta = (access_end - access_start).seconds * 1000
+    return access_delta  # 永远返回约 0
+```
+
+函数接收两个参数但立即用 `datetime.now()` 覆盖了它们，导致永远返回接近 0 的值。
+
+### 3.7 `TestApiView` 在生产路径
+
+**文件**：`apps/users/views.py` 第 20-61 行
+
+测试/演示视图通过 `/api/users/api/test/` 暴露，应在 `DEBUG=True` 时条件注册或完全移除。
+
+### 3.8 `tasks.py` 中 `pip freeze` vs `uv` 不一致
+
+项目使用 `uv` 管理依赖，但 `freeze` 任务使用 `pip freeze`，输出不匹配实际依赖。
 
 ---
 
-## 📋 待办优先级矩阵
+## 四、性能问题
 
-| 优先级 | 任务 | 预期工时 |
-|--------|------|----------|
-| P0 | S-01 修复登录密码明文日志 | 5min |
-| P0 | S-03 移除生产 BrowsableAPIRenderer | 5min |
-| P0 | T-01 配置 pytest + 写 saas 权限核心测试 | 4h |
-| P1 | P-01 DB 连接池（**本次已实现**） | ✅ |
-| P1 | S-02/S-04 修异常 / 密码强度校验 | 30min |
-| P1 | C-01 改 ast 解析 AppConfig | 1h |
-| P1 | A-01 拆 User.system_role / TenantMember.role | 4h |
-| P1 | DP-03 DB migrate 步骤 | 15min |
-| P2 | A-04 软删除基类 | 8h |
-| P2 | P-02 收缩 cachalot 超时 | 15min |
-| P2 | Q-02 拆 views.py | 4h |
-| P2 | DOC-01 更新 README | 1h |
-| P3 | D-01 依赖统一 | 1h |
-| P3 | Q-05 traceback 去重 | 10min |
+### 4.1 租户中间件每次请求查 DB
+
+**文件**：`apps/saas/middleware.py` 第 25 行
+
+每个请求都执行 `Tenant.objects.get(id=tenant_id)`，应使用 Redis 缓存。
+
+### 4.2 `_redis_available()` 每次调 `ping()`
+
+**文件**：`utils/gateway/throttle.py` 第 108-115 行
+
+每次限流检查都创建新连接并 ping，高并发下是灾难性性能瓶颈。
+
+### 4.3 限流 pipeline 非原子
+
+**文件**：`utils/gateway/throttle.py` 第 144-149 行
+
+`check_sliding_window` 使用 pipeline 做 `zremrangebyscore + zcard`，但在 executing pipeline 之后又单独调用 `client.zcard()`，废弃了 pipeline 的原子性保证。
+
+### 4.4 WebSocket 在线用户用进程内存
+
+**文件**：`apps/core/consumers.py` 第 14 行
+
+```python
+online_users = set()
+```
+
+在多 worker 部署中，每个 worker 拥有独立的 `online_users`，统计不一致。应使用 Redis 或 Channel Layer 共享。
+
+### 4.5 `SystemStatusView` 返回随机数据
+
+```python
+'active_users': random.randint(1, 100),  # 随机伪造！
+```
+
+完全无意义的假数据，应使用实际统计或明确标注。
+
+### 4.6 日志文件全量读入内存
+
+**文件**：`apps/saas/views.py` 第 719 行 `f.readlines()` 将整个日志文件读入内存，大文件会 OOM。
 
 ---
 
-## ✅ 已落地
+## 五、其他设计不合理之处
 
-- **DB 连接池（`utils/db/`）**：psycopg3 / psycopg2 / mysql-connector / PyMySQL 四驱动全适配
-- 池配置 Pydantic 模型，支持 `OPTIONS["pool"]` 透明配置
-- 池指标采集（命中率/等待/超时/错误）
-- 管理 API：`/saas/api/db-pool/stats/` `/reset-stats/` `/reinit/`
-- `requirements.txt` 加入所有驱动依赖
-- `settings/base.py` 加入 `DB_POOL_DEFAULT_OPTIONS` 环境变量
-- `settings/prod.py` 默认启用池，`settings/dev.py` 默认关闭
+### 5.1 `bootstrap4` 在白板 DRF 项目中
+
+`settings/base.py` 第 70 行安装了 `django-bootstrap4`，但这是一个前端 CSS 框架包。对于以 DRF REST API 为主的后端项目，这个依赖没有意义——除非前端模板（如 SaaS 管理后台）是用 Django 模板渲染的（实际也确实如此，有 15 个 HTML 模板）。但这说明项目是"API 后端 + 服务端渲染后台"的混合体，定位不够清晰。
+
+### 5.2 `infrastructure` 包是空壳门面
+
+`utils/infrastructure/__init__.py` 只是重新导出了 `utils/cache` 和 `utils/mq` 的内容，增加了无意义的间接层。`examples.py` 是教程文件，不应与生产代码混在一起。
+
+### 5.3 `db/` 连接池对测试项目过度工程
+
+`utils/db/` 实现了完整的企业级数据库连接池（~800 行），包括 Pydantic 配置、指标、monkey-patching Django 后端。对于一个"测试项目模板"可能过度设计。但如果定位是"企业级框架模板"，则是合理的。
+
+### 5.4 `GatewayConfigManager` 实例化但只使用静态方法
+
+```python
+get_gateway_config = GatewayConfigManager()  # throttle.py:283
+```
+
+所有方法都是 `@staticmethod`，实例化没有意义。
+
+### 5.5 30 个预定义权限子类过度工程
+
+`saas/permissions.py` 中定义了 30 个 `XxxViewPermission/XxxManagePermission` 类，但可以通过 `TenantPermission("xxx.view")` 动态创建。这些预定义类增加了维护负担而无实际收益。
+
+### 5.6 `Users.User.role` FK 与多租户 RBAC 设计矛盾
+
+`User.role`（FK → `saas.Role`）是全局单角色，但 SaaS 多租户场景中用户在不同租户下应有不同角色（通过 `TenantMember.role` 实现）。加上 `User.global_role`，同一用户有三条角色链路，设计混乱。
+
+### 5.7 `CacheBackend` 缓存装饰器内存泄漏
+
+`utils/decorators/__init__.py` 第 145-169 行的 `cache()` 装饰器使用闭包内的局部 dict 作为缓存，无大小限制，无清理机制，长期运行会内存泄漏。
+
+### 5.8 `singleton` 装饰器破坏 Python 类型系统
+
+`utils/decorators/__init__.py` 第 172-184 行的 `singleton` 装饰器将类变为函数调用，破坏 `isinstance()`、继承等 Python 基本机制。
+
+### 5.9 FeiShuConfig 与 LarkConfig 功能重叠
+
+`model.py` 中飞书（FeiShu）和 Lark 是同一产品（飞书）的国内版和国际版，拆成两个独立配置模型。应合并为一个并用 `region` 字段区分。
+
+### 5.10 邮件发送无 TLS
+
+`utils/noticUtils/sendmailControl.py` 使用 `smtplib.SMTP()` 纯文本发送邮件，无 TLS/SSL 加密。
+
+### 5.11 `Plan.is_active` 与 `Plan.Status` 双重控制
+
+`Plan` 模型同时有 `is_active` 布尔字段和 `Status` 枚举（`ACTIVE/INACTIVE`），两个机制表达同一概念但可能不一致。
+
+### 5.12 `Tenant.domain` 无唯一约束
+
+多租户的核心场景——子域名隔离，但 `domain` 字段没有 `unique=True`。
+
+### 5.13 `Role.tenant` null 与 UniqueConstraint 冲突
+
+`Role` 的 `tenant` 允许 null（表示系统角色），但 `UniqueConstraint(tenant, slug)` 在 SQL 中 NULL != NULL，允许多个系统角色使用相同 slug。应增加 `UniqueConstraint(condition=Q(tenant=None), fields=['slug'])`。
+
+---
+
+## 六、总结优先级
+
+| 优先级 | 数量 | 类别 |
+|--------|------|------|
+| P0 (紧急) | 7 | 安全漏洞：密码泄露、枚举、权限缺失、裸端点 |
+| P1 (高) | 8 | 架构问题：URL 混乱、响应不一致、管理员判断 bug |
+| P2 (中) | 12 | 代码质量：巨型文件、命名不一致、死代码、性能 |
+| P3 (低) | 8 | 优化项：过度工程、设计歧义、可维护性 |
+
+**建议修复顺序**：
+1. 修复安全漏洞（P0）— 密码日志、权限检查、Token 清理
+2. 修复 `IsAdminOrSelf` / `DataPermissionMixin` 的 FK vs 字符串比较 bug
+3. 统一管理员判断逻辑为 `_is_super_admin()`
+4. 删除死代码（`authentication.py`, `lark.py`, `routing.py`, `token` 字段）
+5. 整理 URL 结构（拆分页面路由与 API 路由）
+6. 拆分巨型文件
+7. 统一命名规范

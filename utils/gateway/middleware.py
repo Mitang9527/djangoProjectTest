@@ -19,6 +19,11 @@ API 网关中间件
 
 注意：需要放在 AuthenticationMiddleware 之后（需要 request.user），
            在 TenantMiddleware 之前（租户限流需要租户上下文，但也可降级）。
+
+延迟导入说明：
+  throttle 模块在顶层会触发 rest_framework 导入链（访问 django.conf.settings），
+  因此将 throttle 相关导入延迟到函数调用时，确保 GatewayMiddleware 类可以被
+  Django admin check 安全导入（不依赖 Django settings 完全就绪）。
 """
 
 import time
@@ -27,13 +32,6 @@ from typing import Callable
 
 from django.http import JsonResponse
 from loguru import logger
-
-from utils.gateway.throttle import (
-    _get_client_ip,
-    check_sliding_window,
-    get_gateway_config,
-    REDIS_KEY_PREFIX,
-)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -101,13 +99,18 @@ class GatewayMiddleware:
 
     def _log_request(self, request, path: str):
         """记录 API 请求日志"""
-        ip = _get_client_ip(request)
+        ip = self._get_client_ip(request)
         method = request.method if hasattr(request, 'method') else 'UNKNOWN'
         user = getattr(request, 'user', None)
         user_id = user.pk if user and user.is_authenticated else 'anonymous'
         logger.debug(
             f"[Gateway] {method} {path} | IP={ip} | User={user_id}"
         )
+
+    def _get_client_ip(self, request) -> str:
+        """从请求中提取真实客户端 IP（延迟导入 throttle 中的实现）"""
+        from utils.gateway.throttle import _get_client_ip as _get_ip
+        return _get_ip(request)
 
     def _check_ip_rate(self, request, path: str):
         """
@@ -117,7 +120,13 @@ class GatewayMiddleware:
         DRF throttle 由 throttle_classes 配置处理，
         这里提供更早的拦截点。
         """
-        ip = _get_client_ip(request)
+        from utils.gateway.throttle import (
+            check_sliding_window,
+            get_gateway_config,
+            REDIS_KEY_PREFIX,
+        )
+
+        ip = self._get_client_ip(request)
         limit, window = get_gateway_config.get_rate_for_request(request, "ip")
 
         key = f"{REDIS_KEY_PREFIX}mw:ip:{ip}"
