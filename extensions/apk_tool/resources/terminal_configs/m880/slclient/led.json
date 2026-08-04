@@ -1,0 +1,40 @@
+{
+    "control": {
+        "green_on": {
+            "intent": {
+				"extra":{"color":1010,"flicker":false,"delay_on":1000,"delay_off":500},
+                "action": "qmstar.ptt.led.set"
+            }
+        },
+        "green_off": {
+            "intent": {
+				"extra":{"color":1010,"flicker":true,"delay_on":1000,"delay_off":500},
+                "action": "qmstar.ptt.led.set"
+            }
+        },
+        "red_on": {
+            "intent": {
+				"extra":{"color":1001,"flicker":false,"delay_on":1000,"delay_off":500},
+                "action": "qmstar.ptt.led.set"
+            }
+        },
+        "red_off": {
+            "intent": {
+				"extra":{"color":1001,"flicker":true,"delay_on":1000,"delay_off":500},
+                "action": "qmstar.ptt.led.set"
+            }
+        }
+    },
+    "theme": {
+        "ON_STANDBY": [
+            "red_off"
+        ],
+        "WHEN_RECEIVING_VOICE": [
+            "green_on"
+        ],
+        "WHEN_SENDING_VOICE": [
+            "red_on"
+        ]
+    },
+    "enabled": true
+}

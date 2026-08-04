@@ -1,0 +1,241 @@
+{
+  "stdkey": {
+    "ptt_down": {
+      "key": -1,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up": {
+      "key": -1,
+      "event": "KEY_UP"
+    },
+    "many_ptt_down_hand_mic": {
+      "key": -11,
+      "event": "KEY_DOWN"
+    },
+    "many_ptt_up_hand_mic": {
+      "key": -11,
+      "event": "KEY_UP"
+    },
+    "ptt_down_hand_ear": {
+      "key": -13,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up_hand_ear": {
+      "key": -13,
+      "event": "KEY_UP"
+    },
+    "sos": {
+      "key": -2,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    },
+    "sos_short": {
+      "key": -2,
+      "event": "KEY_CLICK",
+      "time": 3000
+    },
+    "sos_down": {
+      "key": -2,
+      "event": "KEY_DOWN"
+    },
+    "sos_up": {
+      "key": -2,
+      "event": "KEY_UP"
+    },
+    "-3_KEY_DOWN": {
+      "event": "KEY_DOWN",
+      "key": -3
+    },
+    "-4_KEY_DOWN": {
+      "event": "KEY_DOWN",
+      "key": -4
+    },
+    "group_prev": {
+      "key": -5,
+      "event": "KEY_DOWN"
+    },
+    "group_next": {
+      "key": -6,
+      "event": "KEY_DOWN"
+    },
+    "map": {
+      "key": -7,
+      "event": "KEY_DOWN"
+    }
+  },
+  "intent": {
+    "ptt_down": {
+      "action": "android.intent.action.PTT.down"
+    },
+    "ptt_up": {
+      "action": "android.intent.action.PTT.up"
+    },
+    "many_ptt_down_hand_mic": {
+      "action": "com.oem.ptt.START_IN"
+    },
+    "many_ptt_up_hand_mic": {
+      "action": "com.oem.ptt.END_IN"
+    },
+    "ptt_down_hand_ear": {
+      "action": "com.android.KEYCODE_PTT_MIC_down"
+    },
+    "ptt_up_hand_ear": {
+      "action": "com.android.KEYCODE_PTT_MIC_up"
+    },
+    "sos_down": {
+      "as_key": true,
+      "action": "android.intent.action.SOS.down"
+    },
+    "sos_up": {
+      "as_key": true,
+      "action": "android.intent.action.SOS.up"
+    },
+    "group_prev": {
+      "action": "android.intent.action.P2.down"
+    },
+    "group_next": {
+      "action": "android.intent.action.P3.down"
+    },
+    "map": {
+      "action": "android.intent.action.MAP.down"
+    }
+  },
+  "custom": [
+    "new_call_in",
+    "join_next_group",
+    "join_prev_group",
+    "ui_map"
+  ],
+  "action": {
+    "ptt_down": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ],
+      "member": [],
+      "new_call_in": [
+        {
+          "command": {
+            "id": "ACCEPT_LAST_CALL_INVITE"
+          }
+        },
+        {
+          "command": {
+            "id": "LEAVE_CUSTOM_STATUS",
+            "name": "new_call_in"
+          }
+        }
+      ]
+    },
+    "ptt_up": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ],
+      "member": [],
+      "new_call_in": []
+    },
+    "many_ptt_down_hand_mic": {
+      "default": [
+      ],
+      "member": [],
+      "new_call_in": [
+        {
+          "command": {
+            "id": "ACCEPT_LAST_CALL_INVITE"
+          }
+        },
+        {
+          "command": {
+            "id": "LEAVE_CUSTOM_STATUS",
+            "name": "new_call_in"
+          }
+        }
+      ]
+    },
+    "many_ptt_up_hand_mic": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ],
+      "member": [],
+      "new_call_in": []
+    },
+    "ptt_down_hand_ear": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ],
+      "member": [],
+      "new_call_in": [
+        {
+          "command": {
+            "id": "ACCEPT_LAST_CALL_INVITE"
+          }
+        },
+        {
+          "command": {
+            "id": "LEAVE_CUSTOM_STATUS",
+            "name": "new_call_in"
+          }
+        }
+      ]
+    },
+    "ptt_up_hand_ear": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ],
+      "member": [],
+      "new_call_in": []
+    },
+    "group_prev": {
+      "normal": [
+        {
+          "command": {
+            "id": "ENTER_CUSTOM_STATUS",
+            "name": "join_prev_group",
+            "timeout": 30000
+          }
+        }
+      ]
+    },
+    "group_next": {
+      "normal": [
+        {
+          "command": {
+            "id": "ENTER_CUSTOM_STATUS",
+            "name": "join_next_group",
+            "timeout": 30000
+          }
+        }
+      ]
+    },
+    "map": {
+      "normal": [
+        {
+          "command": {
+            "id": "ENTER_CUSTOM_STATUS",
+            "name": "ui_map",
+            "timeout": 30000
+          }
+        }
+      ]
+    }
+  }
+}

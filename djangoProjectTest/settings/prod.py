@@ -7,11 +7,12 @@ ALLOWED_HOSTS = global_config.ALLOWED_HOSTS
 
 # =====================================================
 # 数据库配置（生产环境）
-# 启用 DB 连接池（utils.db）
+# 启用 DB 连接池（framework.db）
 # =====================================================
 DATABASES = {
     'default': {
-        'ENGINE': global_config.db.engine,
+        # 使用 django-prometheus 包装的引擎，自动采集 DB 指标
+        'ENGINE': 'django_prometheus.db.backends.' + global_config.db.engine.split('.')[-1],
         'NAME': global_config.db.name,
         'USER': global_config.db.user,
         'PASSWORD': global_config.db.password,
@@ -19,7 +20,7 @@ DATABASES = {
         'PORT': global_config.db.port,
         'CONN_MAX_AGE': DB_POOL_DEFAULT_OPTIONS['max_idle'],
         'CONN_HEALTH_CHECKS': True,
-        # ✅ utils.db 连接池配置：必须放在顶层（_pool），
+        # ✅ framework.db 连接池配置：必须放在顶层（_pool），
         # 绝不能放进 OPTIONS，否则 OPTIONS 会被 **conn_params 透传给驱动，
         # 触发 TypeError: 'pool' is an invalid keyword argument 崩溃
         '_pool': {
@@ -51,6 +52,5 @@ SECURE_HSTS_PRELOAD = True
 # Proxy settings (if behind Nginx/Apache)
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
-# Static and Media
-STATIC_ROOT = os.path.join(BASE_DIR, 'static_root')
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+# Static and Media (继承 base.py 配置)
+# STATIC_ROOT / MEDIA_ROOT 已在 base.py 中定义

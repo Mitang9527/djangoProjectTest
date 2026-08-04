@@ -1,0 +1,55 @@
+{
+  "stdkey": {
+    "ptt_down": {
+      "key": -1,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up": {
+      "key": -1,
+      "event": "KEY_UP"
+    },
+    "video_pass_back": {
+      "key": -3,
+      "event": "KEY_DOWN"
+    },
+    "dispatch_capture_image_media": {
+      "key": -4,
+      "event": "KEY_DOWN"
+    }
+  },
+  "intent": {
+    "ptt_down": {
+      "action": "android.intent.action.side_key.keydown.PTT"
+    },
+    "ptt_up": {
+      "action": "android.intent.action.side_key.keyup.PTT"
+    },
+    "video_pass_back": {
+      "action": "android.intent.action.side_key.keydown.SOS"
+    },
+    "dispatch_capture_image_media": {
+      "action": "android.intent.action.side_key.keydown.FN"
+    }
+  },
+
+  "action": {
+    "ptt_down": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    }
+  }
+}

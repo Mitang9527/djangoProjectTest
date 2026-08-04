@@ -1,0 +1,123 @@
+{
+  "stdkey": {
+    "many_ptt_down": {
+      "key": -1,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up": {
+      "key": -1,
+      "event": "KEY_UP"
+    },
+    "recorder_capture_image": {
+      "key": -2,
+      "event": "KEY_DOWN"
+    },
+    "recorder_capture_video": {
+      "key": -3,
+      "event": "KEY_DOWN"
+    },
+    "recorder_capture_audio": {
+      "key": -4,
+      "event": "KEY_DOWN"
+    },
+    "sos": {
+      "key": -5,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    },
+    "sos_short": {
+      "key": -5,
+      "event": "KEY_CLICK",
+      "time": 3000
+    },
+    "down_sos": {
+      "key": -5,
+      "event": "KEY_DOWN"
+    },
+    "up_sos": {
+      "key": -5,
+      "event": "KEY_UP"
+    },
+    "-6_group_down": {
+      "key": -6,
+      "event": "KEY_DOWN"
+    },
+    "-7_group_down": {
+      "key": -7,
+      "event": "KEY_DOWN"
+    }
+  },
+  "intent": {
+    "many_ptt_down": {
+      "action": "android.intent.action.PTT.down"
+    },
+    "ptt_up": {
+      "action": "android.intent.action.PTT.up"
+    },
+    "recorder_capture_image": {
+      "action": "android.intent.action.Snapshot.down"
+    },
+    "recorder_capture_video": {
+      "action": "android.intent.action.Video.down"
+    },
+    "recorder_capture_audio": {
+      "action": "android.intent.action.Audio.down"
+    },
+    "up_sos": {
+      "as_key": true,
+      "action": "android.intent.action.SOS.up"
+    },
+    "down_sos": {
+      "as_key": true,
+      "action": "android.intent.action.SOS.down"
+    },
+    "-6_group_down": {
+      "action": "android.intent.action.Channel.down"
+    },
+    "-7_group_down": {
+      "action": "android.intent.action.Channel.up"
+    }
+  },
+  "custom": [
+    "join_next_group",
+    "switch_group_name_tts",
+    "switch_group_click",
+    "join_prev_group"
+  ],
+  "action": {
+    "-6_group_down":{
+      "normal":[
+        {
+          "command":{
+            "name":"join_next_group",
+            "id":"ENTER_CUSTOM_STATUS",
+            "timeout":100
+          }
+        }
+      ]
+    },
+    "-7_group_down":{
+      "normal":[
+        {
+          "command":{
+            "name":"join_prev_group",
+            "id":"ENTER_CUSTOM_STATUS",
+            "timeout":100
+          }
+        }
+      ]
+    },
+    "many_ptt_down": {
+      "default": []
+    },
+    "ptt_up": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    }
+  }
+}

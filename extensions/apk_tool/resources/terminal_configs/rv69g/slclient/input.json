@@ -1,0 +1,75 @@
+{
+  "stdkey": {
+    "sos": {
+      "key": -5,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    },
+    "sos_short": {
+      "key": -5,
+      "event": "KEY_CLICK",
+      "time": 3000
+    },
+    "down_sos": {
+      "key": -5,
+      "event": "KEY_DOWN"
+    },
+    "up_sos": {
+      "key": -5,
+      "event": "KEY_UP"
+    },
+    "-3_KEY_DOWN": {
+      "key": -3,
+      "event": "KEY_DOWN"
+    },
+    "-4_KEY_DOWN": {
+      "key": -4,
+      "event": "KEY_DOWN"
+    }
+  },
+  "intent": {
+    "up_sos": {
+      "as_key": true,
+      "action": "android.intent.action.SOS.up"
+    },
+    "down_sos": {
+      "as_key": true,
+      "action": "android.intent.action.SOS.down"
+    },
+    "-3_KEY_DOWN" : {
+      "action" : "com.zello.intent.channelDown"
+    } ,
+    "-4_KEY_DOWN" : {
+      "action" : "com.zello.intent.channelUp"
+    }
+  },
+  "custom": [
+    "new_call_in",
+    "join_next_group",
+    "join_prev_group"
+  ],
+  "action": {
+    "-3_KEY_DOWN":{
+      "normal":[
+        {
+          "command":{
+            "name":"join_next_group",
+            "id":"ENTER_CUSTOM_STATUS",
+            "timeout":100
+          }
+        }
+      ]
+    },
+    "-4_KEY_DOWN":{
+      "normal":[
+        {
+          "command":{
+            "name":"join_prev_group",
+            "id":"ENTER_CUSTOM_STATUS",
+            "timeout":100
+          }
+        }
+      ]
+    }
+  }
+}

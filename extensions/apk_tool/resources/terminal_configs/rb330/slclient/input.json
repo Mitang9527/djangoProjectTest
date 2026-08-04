@@ -1,0 +1,260 @@
+{
+  "stdkey" : {
+    "ptt_down" : {
+      "key" : -1 ,
+      "event" : "KEY_DOWN"
+    } ,
+    "ptt_up" : {
+      "key" : -1 ,
+      "event" : "KEY_UP"
+    },
+    "-2_KEY_DOWN":{
+      "event":"KEY_DOWN",
+      "key":-2
+    },
+    "-2_KEY_UP":{
+      "event":"KEY_UP",
+      "key":-2
+    },
+    "sos":{
+      "time":3000,
+      "event":"KEY_LONG_PRESS",
+      "key":-2
+    },
+    "-3_KEY_DOWN": {
+      "key": -3,
+      "event": "KEY_DOWN"
+    },
+    "-4_KEY_DOWN": {
+      "key": -4,
+      "event": "KEY_DOWN"
+    },
+    "-6_KEY_DOWN": {
+      "key": -6,
+      "event": "KEY_DOWN"
+    },
+    "-7_KEY_DOWN": {
+      "key": -7,
+      "event": "KEY_DOWN"
+    },
+    "enter_member_list": {
+      "key": 137,
+      "event": "KEY_DOWN"
+    },
+    "enter_group_list": {
+      "key": 138,
+      "event": "KEY_DOWN"
+    },
+    "-5_KEY_DOWN": {
+      "key": 139,
+      "event": "KEY_DOWN"
+    },
+    "many_ptt_down_BM330" : {
+      "key" : -8 ,
+      "event" : "KEY_DOWN"
+    } ,
+    "ptt_up_BM330" : {
+      "key" : -8 ,
+      "event" : "KEY_UP"
+    },
+    "-9_KEY_DOWN":{
+      "event":"KEY_DOWN",
+      "key":-9
+    },
+    "-9_KEY_UP":{
+      "event":"KEY_UP",
+      "key":-9
+    },
+    "sos_BM330":{
+      "time":3000,
+      "event":"KEY_LONG_PRESS",
+      "key":-9
+    },
+    "-10_KEY_DOWN":{
+      "event":"KEY_DOWN",
+      "key":-10
+    },
+    "-10_KEY_UP":{
+      "event":"KEY_UP",
+      "key":-10
+    },
+    "local_capture_image":{
+      "time":500,
+      "event":"KEY_CLICK",
+      "key":-10
+    },
+    "local_capture_video":{
+      "time":3000,
+      "event":"KEY_LONG_PRESS",
+      "key":-10
+    }
+  } ,
+  "intent" : {
+    "ptt_down" : {
+      "action" : "android.intent.action.PTT.down"
+    } ,
+    "ptt_up" : {
+      "action" : "android.intent.action.PTT.up"
+    } ,
+    "-2_KEY_DOWN" : {
+      "as_key":true,
+      "action" : "android.intent.action.SOS.down"
+    } ,
+    "-2_KEY_UP" : {
+      "as_key":true,
+      "action" : "android.intent.action.SOS.up"
+    },
+    "-3_KEY_DOWN" : {
+      "action" : "android.intent.action.CHANNEL_UP"
+    } ,
+    "-4_KEY_DOWN" : {
+      "action" : "android.intent.action.CHANNEL_DOWN"
+    },
+    "-6_KEY_DOWN" : {
+      "action" : "android.intent.action.CHANNELDOWN.down"
+    } ,
+    "-7_KEY_DOWN" : {
+      "action" : "android.intent.action.CHANNELUP.up"
+    },
+    "many_ptt_down_BM330" : {
+      "action" : "android.intent.action.stdIntent",
+      "extra" : {
+        "keyCode" : 133,
+        "action" : 0
+      }
+    } ,
+    "ptt_up_BM330" : {
+      "action" : "android.intent.action.stdIntent",
+      "extra" : {
+        "keyCode" : 133,
+        "action" : 1
+      }
+    } ,
+    "-9_KEY_DOWN" : {
+      "as_key":true,
+      "action" : "android.intent.action.stdIntent",
+      "extra" : {
+        "keyCode" : 134,
+        "action" : 0
+      }
+    } ,
+    "-9_KEY_UP" : {
+      "as_key":true,
+      "action" : "android.intent.action.stdIntent",
+      "extra" : {
+        "keyCode" : 134,
+        "action" : 1
+      }
+    },
+    "-10_KEY_DOWN" : {
+      "as_key":true,
+      "action" : "android.intent.action.stdIntent",
+      "extra" : {
+        "keyCode" : 135,
+        "action" : 0
+      }
+    } ,
+    "-10_KEY_UP" : {
+      "as_key":true,
+      "action" : "android.intent.action.stdIntent",
+      "extra" : {
+        "keyCode" : 135,
+        "action" : 1
+      }
+    }
+  } ,
+  "custom" : [
+    "join_next_group",
+    "switch_group_name_tts",
+    "switch_group_click",
+    "join_prev_group",
+    "ui_session_list"
+  ],
+  "action" : {
+    "-3_KEY_DOWN":{
+      "normal":[
+        {
+          "command":{
+            "name":"join_next_group",
+            "id":"ENTER_CUSTOM_STATUS",
+            "timeout":100
+          }
+        }
+      ]
+    },
+    "-4_KEY_DOWN":{
+      "normal":[
+        {
+          "command":{
+            "name":"join_prev_group",
+            "id":"ENTER_CUSTOM_STATUS",
+            "timeout":100
+          }
+        }
+      ]
+    },
+    "-6_KEY_DOWN":{
+      "normal":[
+        {
+          "command":{
+            "name":"join_next_group",
+            "id":"ENTER_CUSTOM_STATUS",
+            "timeout":100
+          }
+        }
+      ]
+    },
+    "-7_KEY_DOWN":{
+      "normal":[
+        {
+          "command":{
+            "name":"join_prev_group",
+            "id":"ENTER_CUSTOM_STATUS",
+            "timeout":100
+          }
+        }
+      ]
+    },
+    "ptt_down": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    },
+    "-5_KEY_DOWN":{
+      "normal":[
+        {
+          "command":{
+            "name":"ui_session_list",
+            "id":"ENTER_CUSTOM_STATUS",
+            "timeout":100
+          }
+        }
+      ]
+    },
+    "many_ptt_down_BM330": {
+      "default": []
+    },
+    "ptt_up_BM330": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    }
+  }
+}

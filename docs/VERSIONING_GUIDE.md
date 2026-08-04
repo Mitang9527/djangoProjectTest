@@ -1,4 +1,4 @@
-# utils/versioning — API 版本管理（灰度 / 弃用 / 多版本共存）
+# framework/versioning — API 版本管理（灰度 / 弃用 / 多版本共存）
 
 > 在 DRF 自带版本（`Accept: application/json; version=1.0`）之上，提供**灰度发布、流量切分、过期提示、自动降级**能力。
 
@@ -44,12 +44,12 @@ canary  ──→ active  ──→ deprecated  ──→ sunset
 # 零新增依赖
 ```
 
-把 `utils/versioning/` 放到 `utils/` 下，然后在 `settings.MIDDLEWARE` 末尾添加：
+把 `framework/versioning/` 放到 `framework/` 下，然后在 `settings.MIDDLEWARE` 末尾添加：
 
 ```python
 MIDDLEWARE = [
     ...,
-    "utils.versioning.middleware.VersioningMiddleware",
+    "framework.versioning.middleware.VersioningMiddleware",
 ]
 ```
 
@@ -66,7 +66,7 @@ from django.apps import AppConfig
 class SaasConfig(AppConfig):
     name = "apps.saas"
     def ready(self):
-        from utils.versioning import register_version, VersionSpec, VersionStatus
+        from framework.versioning import register_version, VersionSpec, VersionStatus
         from datetime import date
 
         register_version(VersionSpec(
@@ -95,7 +95,7 @@ class SaasConfig(AppConfig):
 ```python
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from utils.versioning import versioned_view, only_for, since, until
+from framework.versioning import versioned_view, only_for, since, until
 
 
 class OrderAPIView(APIView):
@@ -123,7 +123,7 @@ class OrderAPIView(APIView):
 ### 4.3 ViewSet 集成
 
 ```python
-from utils.versioning import VersionedMixin, get_versioned_api_view
+from framework.versioning import VersionedMixin, get_versioned_api_view
 
 APIView = get_versioned_api_view()
 MyBase = VersionedMixin  # 或同时使用 get_versioned_viewset()
@@ -185,7 +185,7 @@ Link: </api/v2/>; rel="successor-version"
 ### 6.1 后台任务强制指定版本
 
 ```python
-from utils.versioning import set_active_version, get_active_version
+from framework.versioning import set_active_version, get_active_version
 
 def my_celery_task():
     set_active_version("v3")
@@ -225,7 +225,7 @@ urlpatterns = [
 
 ```python
 @versioned_view(min_version="v2", removed_in="v4")
-@idempotent(key_fields=["order_id"], ttl=600)  # 可与 P0 utils 组合
+@idempotent(key_fields=["order_id"], ttl=600)  # 可与 P0 framework 组合
 @retry(max_attempts=3)
 def create_order(order_id):
     ...
@@ -238,7 +238,7 @@ def create_order(order_id):
 `request.api_version` 由中间件注入，可在权限类、限流器中读取：
 
 ```python
-# utils/permissions.py
+# framework/permissions.py
 from rest_framework.permissions import BasePermission
 
 class VersionedPermission(BasePermission):
@@ -308,7 +308,7 @@ def test_v1_deprecated_header(self):
 ## 10. 测试
 
 ```bash
-python -m unittest utils.versioning.tests -v
+python -m unittest framework.versioning.tests -v
 # 38 个测试用例：
 # - VersionSpec: 4
 # - VersionRegistry: 6

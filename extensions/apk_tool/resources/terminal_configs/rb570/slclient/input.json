@@ -1,0 +1,138 @@
+{
+  "stdkey": {
+    "ptt_down": {
+      "key": -1,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up": {
+      "key": -1,
+      "event": "KEY_UP"
+    },
+    "recorder_capture_image": {
+      "key": -2,
+      "event": "KEY_DOWN"
+    },
+    "recorder_capture_video": {
+      "key": -3,
+      "event": "KEY_DOWN"
+    },
+    "recorder_capture_audio": {
+      "key": -4,
+      "event": "KEY_DOWN"
+    },
+    "-5_KEY_DOWN": {
+      "key": -5,
+      "event": "KEY_DOWN"
+    },
+    "-5_KEY_UP": {
+      "key": -5,
+      "event": "KEY_UP"
+    },
+    "sos": {
+      "key": -5,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    },
+    "-6_group_down": {
+      "key": -6,
+      "event": "KEY_DOWN"
+    }
+  },
+  "intent": {
+    "ptt_down": {
+      "action" : "android.intent.action.stdIntent",
+      "extra" : {
+        "keyCode" : 133,
+        "action" : 0
+      }
+    },
+    "ptt_up": {
+      "action" : "android.intent.action.stdIntent",
+      "extra" : {
+        "keyCode" : 133,
+        "action" : 1
+      }
+    },
+    "recorder_capture_image": {
+      "action" : "android.intent.action.stdIntent",
+      "extra" : {
+        "keyCode" : 131,
+        "action" : 0
+      }
+    },
+    "recorder_capture_video": {
+      "action" : "android.intent.action.stdIntent",
+      "extra" : {
+        "keyCode" : 135,
+        "action" : 0
+      }
+    },
+    "recorder_capture_audio": {
+      "action" : "android.intent.action.stdIntent",
+      "extra" : {
+        "keyCode" : 134,
+        "action" : 0
+      }
+    },
+    "-5_KEY_DOWN": {
+      "as_key" : true,
+      "action" : "android.intent.action.stdIntent",
+      "extra" : {
+        "keyCode" : 136,
+        "action" : 0
+      }
+    },
+    "-5_KEY_UP": {
+      "as_key" : true,
+      "action" : "android.intent.action.stdIntent",
+      "extra" : {
+        "keyCode" : 136,
+        "action" : 1
+      }
+    },
+    "-6_group_down": {
+      "action" : "android.intent.action.stdIntent",
+      "extra" : {
+        "keyCode" : 132,
+        "action" : 0
+      }
+    }
+  },
+  "custom": [
+    "join_next_group",
+    "switch_group_name_tts",
+    "switch_group_click",
+    "join_prev_group"
+  ],
+  "action": {
+    "-6_group_down":{
+      "normal":[
+        {
+          "command":{
+            "name":"join_next_group",
+            "id":"ENTER_CUSTOM_STATUS",
+            "timeout":1000
+          }
+        }
+      ]
+    },
+    "ptt_down": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    }
+  }
+}

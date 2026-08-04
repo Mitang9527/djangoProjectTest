@@ -1,0 +1,139 @@
+{
+  "stdkey": {
+    "ptt_down": {
+      "key": -1,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up": {
+      "key": -1,
+      "event": "KEY_UP"
+    },
+    "ptt_down_2": {
+      "key": -11,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up_2": {
+      "key": -11,
+      "event": "KEY_UP"
+    },
+    "sos": {
+      "key": -5,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    },
+    "sos_short": {
+      "key": -5,
+      "event": "KEY_CLICK",
+      "time": 3000
+    },
+    "down_sos": {
+      "key": -5,
+      "event": "KEY_DOWN"
+    },
+    "up_sos": {
+      "key": -5,
+      "event": "KEY_UP"
+    },
+    "-3_KEY_DOWN": {
+      "key": -3,
+      "event": "KEY_DOWN"
+    },
+    "-4_KEY_DOWN": {
+      "key": -4,
+      "event": "KEY_DOWN"
+    }
+  },
+  "intent": {
+    "ptt_down": {
+      "action": "android.intent.action.ptt.down"
+    },
+    "ptt_up": {
+      "action": "android.intent.action.ptt.up"
+    },
+    "ptt_down_2": {
+      "action": "android.intent.action.PTT.down"
+    },
+    "ptt_up_2": {
+      "action": "android.intent.action.PTT.up"
+    },
+    "up_sos": {
+      "as_key": true,
+      "action": "android.intent.action.SOS.up"
+    },
+    "down_sos": {
+      "as_key": true,
+      "action": "android.intent.action.SOS.down"
+    },
+    "-3_KEY_DOWN" : {
+      "action" : "com.zello.intent.channelDown"
+    } ,
+    "-4_KEY_DOWN" : {
+      "action" : "com.zello.intent.channelUp"
+    }
+  },
+  "custom": [
+    "new_call_in",
+    "join_next_group",
+    "join_prev_group"
+  ],
+  "action": {
+    "ptt_down": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_down_2": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up_2": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    },
+    "-3_KEY_DOWN":{
+      "normal":[
+        {
+          "command":{
+            "name":"join_next_group",
+            "id":"ENTER_CUSTOM_STATUS",
+            "timeout":100
+          }
+        }
+      ]
+    },
+    "-4_KEY_DOWN":{
+      "normal":[
+        {
+          "command":{
+            "name":"join_prev_group",
+            "id":"ENTER_CUSTOM_STATUS",
+            "timeout":100
+          }
+        }
+      ]
+    }
+  }
+}

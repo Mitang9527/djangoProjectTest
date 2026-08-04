@@ -1,0 +1,79 @@
+# AI 创作工作室独立服务编排
+#   api    : Django + Gunicorn 提供 /api/v1/ 接口
+#   worker : Celery 执行生成任务
+#   redis  : broker + result backend + 缓存
+#   postgres: 业务数据库（额度 / 任务）
+#
+# 启动: docker compose --env-file .env up --build
+# 默认同步 mock 生成；如需异步，将 AI_STUDIO_SYNC 设为 0（worker 才会真正派发任务）。
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ai_studio}
+      POSTGRES_USER: ${POSTGRES_USER:-ai_studio}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ai_studio_pass}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ai_studio}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: .
+    environment:
+      DEBUG: "${DEBUG:-0}"
+      DJANGO_SECRET_KEY: "${DJANGO_SECRET_KEY:-change-me}"
+      POSTGRES_DB: ${POSTGRES_DB:-ai_studio}
+      POSTGRES_USER: ${POSTGRES_USER:-ai_studio}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ai_studio_pass}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      CELERY_BROKER_URL: "redis://redis:6379/0"
+      CELERY_RESULT_BACKEND: "redis://redis:6379/0"
+      JWT_SIGNING_KEY: "${JWT_SIGNING_KEY:-change-me-shared-secret}"
+      CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS:-http://localhost:5173}"
+      AI_STUDIO_SYNC: "${AI_STUDIO_SYNC:-1}"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    build: .
+    command: ["worker"]
+    environment:
+      DJANGO_SECRET_KEY: "${DJANGO_SECRET_KEY:-change-me}"
+      POSTGRES_DB: ${POSTGRES_DB:-ai_studio}
+      POSTGRES_USER: ${POSTGRES_USER:-ai_studio}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ai_studio_pass}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      CELERY_BROKER_URL: "redis://redis:6379/0"
+      CELERY_RESULT_BACKEND: "redis://redis:6379/0"
+      JWT_SIGNING_KEY: "${JWT_SIGNING_KEY:-change-me-shared-secret}"
+      AI_STUDIO_SYNC: "0"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:

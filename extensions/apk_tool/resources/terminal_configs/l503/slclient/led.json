@@ -1,0 +1,50 @@
+{
+    "control":{
+        "red":{
+            "serial":{
+                "dev":"/sys/class/leds/red/brightness",
+                "at":"1"
+            }
+        },
+        "red_off":{
+            "serial":{
+                "dev":"/sys/class/leds/red/brightness",
+                "at":"0"
+            }
+        },
+        "green":{
+            "serial":{
+                "dev":"/sys/class/leds/green/brightness",
+                "at":"1"
+            }
+        },
+        "green_off":{
+            "serial":{
+                "dev":"/sys/class/leds/green/brightness",
+                "at":"0"
+            }
+        },
+        "blue":{
+            "serial":{
+                "dev":"/sys/class/leds/blue/brightness",
+                "at":"1"
+            }
+        },
+        "blue_off":{
+            "serial":{
+                "dev":"/sys/class/leds/blue/brightness",
+                "at":"0"
+            }
+        }
+    },
+    "enabled":true,
+    "theme" : {
+        "ON_STANDBY": ["green_off","red_off"],
+        "WHEN_RECEIVING_VOICE": ["green"],
+        "WHEN_SENDING_VOICE": ["red"],
+        "WHEN_DISCONNECTED": ["red",3000,"red_off",1000],
+        "SOS_SEND_SUCCESSFULLY": ["green",3000],
+        "SOS_SEND_FAILED": ["red",3000],
+        "SOS_RECEIVED": ["red",1000]
+    }
+}

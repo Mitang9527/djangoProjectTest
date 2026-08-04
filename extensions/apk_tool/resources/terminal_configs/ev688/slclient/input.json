@@ -1,0 +1,194 @@
+{
+  "stdkey": {
+    "ptt_down": {
+      "key": -1,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up": {
+      "key": -1,
+      "event": "KEY_UP"
+    },
+    "sos": {
+      "event": "KEY_LONG_PRESS",
+      "key": -3,
+      "time": 3000
+    },
+    "-3_KEY_DOWN": {
+      "key": -3,
+      "event": "KEY_DOWN"
+    },
+    "-3_KEY_UP": {
+      "key": -3,
+      "event": "KEY_UP"
+    },
+    "-4_KEY_DOWN": {
+      "key": -4,
+      "event": "KEY_DOWN"
+    },
+    "-5_KEY_DOWN": {
+      "key": -5,
+      "event": "KEY_DOWN"
+    },
+    "-6_KEY_DOWN": {
+      "key": -6,
+      "event": "KEY_DOWN"
+    },
+    "-6_KEY_UP": {
+      "key": -6,
+      "event": "KEY_UP"
+    },
+
+    "recorder_capture_video": {
+      "key": -6,
+      "event" : "KEY_CLICK",
+      "time": 3000
+    },
+
+    "irc_led_control": {
+      "key": -6,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    },
+
+    "recorder_capture_audio": {
+      "key": -105,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    },
+
+    "recorder_capture_image": {
+      "key": -106,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    }
+  },
+  "intent": {
+    "ptt_down": {
+      "action": "com.key.broadcast",
+      "extra": {
+        "keyCode": 142,
+        "down": true
+      }
+    },
+    "ptt_up": {
+      "action": "com.key.broadcast",
+      "extra": {
+        "keyCode": 142,
+        "down": false
+      }
+    },
+    "-3_KEY_DOWN": {
+      "as_key": true,
+      "action": "com.key.broadcast",
+      "extra": {
+        "keyCode": 141,
+        "down": true
+      }
+    },
+    "-3_KEY_UP": {
+      "as_key": true,
+      "action": "com.key.broadcast",
+      "extra": {
+        "keyCode": 141,
+        "down": false
+      }
+    },
+    "-6_KEY_DOWN": {
+      "as_key": true,
+      "action": "com.key.broadcast",
+      "extra": {
+        "keyCode": 140,
+        "down": true
+      }
+    },
+    "-6_KEY_UP": {
+      "as_key": true,
+      "action": "com.key.broadcast",
+      "extra": {
+        "keyCode": 140,
+        "down": false
+      }
+    },
+    "recorder_capture_audio": {
+      "action": "com.key.broadcast",
+      "extra": {
+        "keyCode": 139,
+        "down": true
+      }
+    },
+
+    "recorder_capture_image": {
+      "action": "com.key.broadcast",
+      "extra": {
+        "keyCode": 27,
+        "down": true
+      }
+    },
+    "-4_KEY_DOWN": {
+      "action": "android.intent.action.CHANNELUP"
+    },
+    "-5_KEY_DOWN": {
+      "action": "android.intent.action.CHANNELDOWN"
+    }
+  },
+  "custom": [
+    "join_prev_group",
+    "join_next_group",
+    "switch_group_name_tts",
+    "switch_group_click",
+    "ir_control"
+  ],
+  "action": {
+    "ptt_down": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    },
+    "-4_KEY_DOWN": {
+      "normal": [
+        {
+          "command": {
+            "id": "ENTER_CUSTOM_STATUS",
+            "name": "join_prev_group",
+            "timeout": 30000
+          }
+        }
+      ]
+    },
+    "-5_KEY_DOWN": {
+      "normal": [
+        {
+          "command": {
+            "id": "ENTER_CUSTOM_STATUS",
+            "name": "join_next_group",
+            "timeout": 30000
+          }
+        }
+      ]
+    },
+    "irc_led_control":{
+      "normal" : [
+        {
+          "command" : {
+            "id" : "ENTER_CUSTOM_STATUS" ,
+            "name" : "ir_control" ,
+            "timeout" : 30000
+          }
+        }
+      ]
+    }
+  }
+}

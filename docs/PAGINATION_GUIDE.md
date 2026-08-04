@@ -1,4 +1,4 @@
-# utils/pagination — 统一分页工具
+# framework/pagination — 统一分页工具
 
 > 标准库级别、与 DRF 兼容的**统一分页封装**。支持 4 种分页策略、2 种调用方式、X-Pagination-* 响应头。
 
@@ -20,7 +20,7 @@
 
 零新增依赖，仅 `rest_framework`。
 
-把 `utils/pagination/` 放到 `utils/` 下即可。
+把 `framework/pagination/` 放到 `framework/` 下即可。
 
 ---
 
@@ -31,7 +31,7 @@
 ```python
 # settings.py
 REST_FRAMEWORK = {
-    "DEFAULT_PAGINATION_CLASS": "utils.pagination.AutoPagination",
+    "DEFAULT_PAGINATION_CLASS": "framework.pagination.AutoPagination",
     "PAGE_SIZE": 20,
 }
 ```
@@ -39,7 +39,7 @@ REST_FRAMEWORK = {
 ### 3.2 视图层覆盖
 
 ```python
-from utils.pagination import CursorPagination, PageNumberPagination
+from framework.pagination import CursorPagination, PageNumberPagination
 
 class LogViewSet(viewsets.ReadOnlyModelViewSet):
     pagination_class = CursorPagination
@@ -54,7 +54,7 @@ class OrderViewSet(viewsets.ModelViewSet):
 ### 3.3 函数式（普通 view、Celery 任务、脚本）
 
 ```python
-from utils.pagination import paginate_response, get_paginator
+from framework.pagination import paginate_response, get_paginator
 
 # 函数式：直接返回 dict（用于 Celery 任务、导出脚本）
 def export_users():
@@ -162,7 +162,7 @@ class SearchView(generics.ListAPIView):
 ## 6. 自定义分页器
 
 ```python
-from utils.pagination import PageNumberPagination
+from framework.pagination import PageNumberPagination
 
 class MyPagination(PageNumberPagination):
     page_size = 50
@@ -228,7 +228,7 @@ class UniversalPagination(PageNumberPagination):
 ## 9. 测试
 
 ```bash
-python -m unittest utils.pagination.tests -v
+python -m unittest framework.pagination.tests -v
 # 22 个测试用例，覆盖：
 # - PaginatedResponse: 3
 # - 函数式分页: 4

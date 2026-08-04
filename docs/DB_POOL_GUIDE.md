@@ -178,11 +178,11 @@ DB_POOL_PRE_PING=true
 ┌──────────────────────────────────────────────────────────┐
 │  Django ORM (业务代码, 无改动)                            │
 │      ↓                                                     │
-│  django.db.utils.connections["default"]                    │
+│  django.db.framework.connections["default"]                    │
 │      ↓                                                     │
 │  PooledDatabaseWrapper (猴补丁)                            │
 │      ↓ get_new_connection()                                │
-│  pool.acquire()  ──────────────►  utils.db.pool.BasePool   │
+│  pool.acquire()  ──────────────►  framework.db.pool.BasePool   │
 │      ↓                                PriorityQueue        │
 │  return pc.raw (psycopg/mysql connector 连接)             │
 │      ↓                                                     │
@@ -218,7 +218,7 @@ class PostgreSQLPool(BasePool):
 
 ## 七、性能对比（基线参考）
 
-| 场景 | 无池 | Django CONN_MAX_AGE | utils.db 池 |
+| 场景 | 无池 | Django CONN_MAX_AGE | framework.db 池 |
 |------|------|---------------------|-------------|
 | 单查询延迟 | 8ms | 2ms | 0.3ms |
 | 100 QPS 占用 PG 连接 | 100 (会爆) | 100 | 10-15 |
@@ -250,7 +250,7 @@ A: 不用。SQLite 自动走 `CONN_MAX_AGE` 复用，无须配置。
 
 ### Q6: 怎样手动取连接跑原生 SQL？
 ```python
-from utils.db import pool_manager
+from framework.db import pool_manager
 with pool_manager.get("default").connection() as conn:
     with conn.cursor() as cur:
         cur.execute("SELECT 1")

@@ -38,7 +38,7 @@ services:
       - "8000:8000"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health/"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health/live/"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -63,6 +63,24 @@ services:
     container_name: saas_celery_beat
     command: celery-beat
     restart: unless-stopped
+
+  # ---- Flower: Celery 任务监控面板 ----
+  celery-flower:
+    <<: *django-common
+    container_name: saas_flower
+    command: celery -A djangoProjectTest flower --port=5555 --url-prefix=flower --basic-auth=${FLOWER_USER:-admin}:${FLOWER_PASSWORD:-flower123}
+    ports:
+      - "5555:5555"
+    restart: unless-stopped
+    depends_on:
+      celery-worker:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5555/flower/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # ---- PostgreSQL ----
   postgres:

@@ -1,0 +1,50 @@
+{
+    "control" : {
+        "red" : {
+            "intent" : {
+                "action" : "com.android.action.PTT_LIGHT_CONTROL_ACTION" ,
+                "extra" : {
+                    "color" : 33488896,
+                    "on" : true
+                }
+            }
+        } ,
+        "green" : {
+            "intent" : {
+                "action" : "com.android.action.PTT_LIGHT_CONTROL_ACTION" ,
+                "extra" : {
+                    "color" : 16842496 ,
+                    "on" : true
+                }
+            }
+        } ,
+        "blue" : {
+            "intent" : {
+                "action" : "com.android.action.PTT_LIGHT_CONTROL_ACTION" ,
+                "extra" : {
+                    "color" : 16777471 ,
+                    "on" : true
+                }
+            }
+        } ,
+        "off" : {
+            "intent" : {
+                "action" : "com.android.action.PTT_LIGHT_CONTROL_ACTION" ,
+                "extra" : {
+                    "color" : 16777471 ,
+                    "on" : false
+                }
+            }
+        }
+    },
+    "theme": {
+        "ON_STANDBY": ["off",3000,"green",1000],
+        "WHEN_RECEIVING_VOICE": ["green",1000],
+        "WHEN_SENDING_VOICE": ["red",1000],
+        "WHEN_DISCONNECTED": ["red",500,"off",500],
+        "SOS_SEND_SUCCESSFULLY": ["green", 3000, "off",1000],
+        "SOS_SEND_FAILED": ["red", 3000, "off",1000],
+        "SOS_RECEIVED": ["red",1000]
+    },
+    "enabled" : true
+}

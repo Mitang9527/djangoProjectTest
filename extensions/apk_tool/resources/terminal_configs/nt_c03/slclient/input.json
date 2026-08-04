@@ -1,0 +1,78 @@
+{
+  "stdkey": {
+    "ptt_down": {
+      "key": -1,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up": {
+      "key": -1,
+      "event": "KEY_UP"
+    },
+    "-2_KEY_DOWN": {
+      "key": -2,
+      "event": "KEY_DOWN"
+    },
+    "-2_KEY_UP": {
+      "key": -2,
+      "event": "KEY_UP"
+    },
+    "sos": {
+      "key": -2,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    },
+    "video_pass_back": {
+      "key": -3,
+      "event": "KEY_DOWN"
+    },
+    "capture_image_media": {
+      "key": -4,
+      "event": "KEY_DOWN"
+    }
+  },
+  "intent": {
+    "ptt_down": {
+      "action": "com.hebs.action.ACTION_START_PTT"
+    },
+    "ptt_up": {
+      "action": "com.hebs.action.ACTION_STOP_PTT"
+    },
+    "-2_KEY_DOWN": {
+      "as_key": true,
+      "action": "com.hebs.action.ACTION_SOS"
+    },
+    "-2_KEY_UP": {
+      "as_key": true,
+      "action": "com.hebs.action.ACTION_SOS_UP"
+    },
+    "video_pass_back": {
+      "action": "com.hebs.action.ACTION_START_VIDEO_RECORD"
+    },
+    "capture_image_media": {
+      "action": "com.hebs.action.ACTION_SHUTTER_NOW"
+    }
+  },
+  "custom": [
+    "new_call_in"
+  ],
+  "action": {
+    "ptt_down": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    }
+  }
+}

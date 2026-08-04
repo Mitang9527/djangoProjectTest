@@ -1,0 +1,470 @@
+{% extends 'saas/base_saas.html' %}
+{% load i18n %}
+
+{% block saas_content %}
+<div x-data="apkBuildWizard()" x-init="init()">
+    <!-- 步骤指示器 -->
+    <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 mb-6">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2" :class="currentStep >= 1 ? 'text-emerald-600' : 'text-slate-400'">
+                <div class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold" :class="currentStep >= 1 ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600' : 'bg-slate-100 dark:bg-slate-700 text-slate-400'">1</div>
+                <span class="text-sm font-medium">反编译</span>
+            </div>
+            <div class="w-16 h-0.5" :class="currentStep >= 2 ? 'bg-emerald-400' : 'bg-slate-200 dark:bg-slate-700'"></div>
+            <div class="flex items-center space-x-2" :class="currentStep >= 2 ? 'text-emerald-600' : 'text-slate-400'">
+                <div class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold" :class="currentStep >= 2 ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600' : 'bg-slate-100 dark:bg-slate-700 text-slate-400'">2</div>
+                <span class="text-sm font-medium">配置</span>
+            </div>
+            <div class="w-16 h-0.5" :class="currentStep >= 3 ? 'bg-emerald-400' : 'bg-slate-200 dark:bg-slate-700'"></div>
+            <div class="flex items-center space-x-2" :class="currentStep >= 3 ? 'text-emerald-600' : 'text-slate-400'">
+                <div class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold" :class="currentStep >= 3 ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600' : 'bg-slate-100 dark:bg-slate-700 text-slate-400'">3</div>
+                <span class="text-sm font-medium">终端配置</span>
+            </div>
+            <div class="w-16 h-0.5" :class="currentStep >= 4 ? 'bg-emerald-400' : 'bg-slate-200 dark:bg-slate-700'"></div>
+            <div class="flex items-center space-x-2" :class="currentStep >= 4 ? 'text-emerald-600' : 'text-slate-400'">
+                <div class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold" :class="currentStep >= 4 ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600' : 'bg-slate-100 dark:bg-slate-700 text-slate-400'">4</div>
+                <span class="text-sm font-medium">构建下载</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 1: 反编译 -->
+    <div x-show="currentStep === 1" x-transition class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+        <h2 class="text-lg font-bold text-slate-800 dark:text-white mb-4">步骤 1 — 选择 APK 类型并反编译</h2>
+        
+        <!-- APK 类型选择 -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <button @click="apkType = 'large'" :class="apkType === 'large' ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 ring-2 ring-emerald-500' : 'border-slate-200 dark:border-slate-700'" class="p-4 rounded-xl border-2 text-left transition-all hover:border-emerald-300">
+                <div class="w-10 h-10 bg-blue-100 dark:bg-blue-900/40 rounded-lg flex items-center justify-center mb-3">
+                    <svg class="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                </div>
+                <h3 class="text-sm font-bold text-slate-800 dark:text-white">大屏 APK</h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">LargeApp.apk — 适配大屏终端</p>
+            </button>
+            
+            <button @click="apkType = 'small'" :class="apkType === 'small' ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 ring-2 ring-emerald-500' : 'border-slate-200 dark:border-slate-700'" class="p-4 rounded-xl border-2 text-left transition-all hover:border-emerald-300">
+                <div class="w-10 h-10 bg-purple-100 dark:bg-purple-900/40 rounded-lg flex items-center justify-center mb-3">
+                    <svg class="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                </div>
+                <h3 class="text-sm font-bold text-slate-800 dark:text-white">小屏 APK</h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">SmallApp.apk — 适配小屏终端</p>
+            </button>
+            
+            <button @click="apkType = 'screenless'" :class="apkType === 'screenless' ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 ring-2 ring-emerald-500' : 'border-slate-200 dark:border-slate-700'" class="p-4 rounded-xl border-2 text-left transition-all hover:border-emerald-300">
+                <div class="w-10 h-10 bg-slate-100 dark:bg-slate-700 rounded-lg flex items-center justify-center mb-3">
+                    <svg class="w-5 h-5 text-slate-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg>
+                </div>
+                <h3 class="text-sm font-bold text-slate-800 dark:text-white">无屏 APK</h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Screenless.apk — 适配无屏终端</p>
+            </button>
+        </div>
+        
+        <!-- 反编译按钮 -->
+        <div class="flex justify-end">
+            <button @click="decompile()" :disabled="isProcessing" class="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2">
+                <svg x-show="isProcessing" class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                <span x-text="isProcessing ? '反编译中...' : '开始反编译'"></span>
+            </button>
+        </div>
+        
+        <!-- 日志显示区 -->
+        <div x-show="logs.length > 0" class="mt-4 bg-slate-900 rounded-xl p-4 max-h-48 overflow-y-auto">
+            <div class="text-xs text-green-400 font-mono space-y-1">
+                <template x-for="(log, idx) in logs" :key="idx">
+                    <p x-text="log"></p>
+                </template>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 2: 配置 -->
+    <div x-show="currentStep === 2" x-transition class="space-y-6">
+        <!-- 环境配置 -->
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+            <h2 class="text-lg font-bold text-slate-800 dark:text-white mb-4">步骤 2 — 业务配置</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- 环境选择 -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">服务器环境</label>
+                    <select x-model="config.env_key" class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                        <option value="domestic_v2">国内环境 2.0</option>
+                        <option value="overseas">海外环境</option>
+                    </select>
+                </div>
+                
+                <!-- 登录方式 -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">登录方式</label>
+                    <select x-model="config.login_type" class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                        <option value="account">账号登录</option>
+                        <option value="serial">IMEI 登录</option>
+                        <option value="iccid">ICCID 登录</option>
+                    </select>
+                </div>
+                
+                <!-- 地图源 -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">地图源</label>
+                    <select x-model="config.map_type" class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                        <option value="none">GPS</option>
+                        <option value="google">GPS [谷歌地图]</option>
+                        <option value="baidu_domestic">百度 [国内]</option>
+                        <option value="baidu_oversea">百度 [海外]</option>
+                    </select>
+                </div>
+                
+                <!-- 音频编码 -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">音频编码</label>
+                    <select x-model="config.sound_codec" class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                        <option value="opus">Opus</option>
+                        <option value="amr">AMR</option>
+                        <option value="speex">Speex</option>
+                    </select>
+                </div>
+                
+                <!-- DSP Provider -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">DSP 提供商</label>
+                    <select x-model="config.dsp_provider" class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                        <option value="default">Default</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                </div>
+                
+                <!-- Launcher Module -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Launcher 模式</label>
+                    <select x-model="config.launcher_module" class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                        <option value="none">不设为桌面</option>
+                        <option value="large">大屏 Launcher</option>
+                        <option value="middle">中屏 Launcher</option>
+                        <option value="small">小屏 Launcher</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- 开关项 -->
+            <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <label class="flex items-center space-x-3 p-3 bg-slate-50 dark:bg-slate-700 rounded-xl cursor-pointer">
+                    <input type="checkbox" x-model="config.recorder_enable" class="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500">
+                    <span class="text-sm font-medium text-slate-700 dark:text-slate-300">录音功能</span>
+                </label>
+                <label class="flex items-center space-x-3 p-3 bg-slate-50 dark:bg-slate-700 rounded-xl cursor-pointer">
+                    <input type="checkbox" x-model="config.tone_enabled" class="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500">
+                    <span class="text-sm font-medium text-slate-700 dark:text-slate-300">提示音</span>
+                </label>
+                <label class="flex items-center space-x-3 p-3 bg-slate-50 dark:bg-slate-700 rounded-xl cursor-pointer">
+                    <input type="checkbox" x-model="config.tts_enabled" class="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500">
+                    <span class="text-sm font-medium text-slate-700 dark:text-slate-300">TTS 语音</span>
+                </label>
+            </div>
+        </div>
+        
+        <!-- 导航按钮 -->
+        <div class="flex justify-between">
+            <button @click="currentStep = 1" class="px-6 py-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl font-bold text-sm transition-all">上一步</button>
+            <button @click="saveConfig()" class="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm transition-all flex items-center space-x-2">
+                <span>保存配置 & 下一步</span>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- Step 3: 终端配置 -->
+    <div x-show="currentStep === 3" x-transition class="space-y-6">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+            <h2 class="text-lg font-bold text-slate-800 dark:text-white mb-4">步骤 3 — 选择终端预设配置</h2>
+            <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">可选 — 导入预设终端配置，自动填充 slclient.json / input.json / led.json / reaction.json</p>
+            
+            <!-- 搜索 -->
+            <div class="mb-4">
+                <input type="text" x-model="terminalSearch" @input="filterTerminals()" placeholder="搜索终端型号..." class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500">
+            </div>
+            
+            <!-- 终端列表 -->
+            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 max-h-64 overflow-y-auto">
+                <template x-for="t in filteredTerminals" :key="t.folder">
+                    <button @click="importTerminal(t.folder)" :class="selectedTerminal === t.folder ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-500 ring-2 ring-emerald-500' : 'bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600'" class="p-3 rounded-xl border text-center transition-all hover:border-emerald-300">
+                        <svg class="w-6 h-6 mx-auto mb-2 text-slate-500 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                        <p class="text-xs font-semibold text-slate-800 dark:text-white truncate" x-text="t.device_name || t.folder"></p>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 truncate" x-text="t.folder"></p>
+                    </button>
+                </template>
+            </div>
+            
+            <!-- 设备型号输入 -->
+            <div class="mt-6">
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">设备型号名称（必填，用于 APK 文件名）</label>
+                <input type="text" x-model="config.device_model" placeholder="例如: EC800, N59A..." class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500">
+            </div>
+        </div>
+        
+        <div class="flex justify-between">
+            <button @click="currentStep = 2" class="px-6 py-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl font-bold text-sm transition-all">上一步</button>
+            <button @click="currentStep = 4" class="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm transition-all flex items-center space-x-2">
+                <span>确认 & 开始构建</span>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- Step 4: 构建下载 -->
+    <div x-show="currentStep === 4" x-transition class="space-y-6">
+        <!-- 配置确认 -->
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+            <h2 class="text-lg font-bold text-slate-800 dark:text-white mb-4">步骤 4 — 确认配置并构建</h2>
+            
+            <div class="bg-slate-50 dark:bg-slate-700 rounded-xl p-4 mb-6">
+                <h3 class="text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">配置摘要</h3>
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+                    <div><span class="text-slate-500 dark:text-slate-400">环境:</span> <span class="font-semibold text-slate-800 dark:text-white" x-text="config.env_key === 'overseas' ? '海外' : '国内 2.0'"></span></div>
+                    <div><span class="text-slate-500 dark:text-slate-400">登录:</span> <span class="font-semibold text-slate-800 dark:text-white" x-text="config.login_type === 'account' ? '账号' : config.login_type === 'serial' ? 'IMEI' : 'ICCID'"></span></div>
+                    <div><span class="text-slate-500 dark:text-slate-400">地图:</span> <span class="font-semibold text-slate-800 dark:text-white" x-text="config.map_type"></span></div>
+                    <div><span class="text-slate-500 dark:text-slate-400">编码:</span> <span class="font-semibold text-slate-800 dark:text-white" x-text="config.sound_codec"></span></div>
+                    <div><span class="text-slate-500 dark:text-slate-400">Launcher:</span> <span class="font-semibold text-slate-800 dark:text-white" x-text="config.launcher_module || '不设桌面'"></span></div>
+                    <div><span class="text-slate-500 dark:text-slate-400">型号:</span> <span class="font-semibold text-slate-800 dark:text-white" x-text="config.device_model || '未设置'"></span></div>
+                </div>
+            </div>
+            
+            <div class="flex justify-between">
+                <button @click="currentStep = 3" class="px-6 py-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl font-bold text-sm transition-all">上一步</button>
+                <button @click="startBuild()" :disabled="isProcessing" class="px-8 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-xl font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 shadow-lg shadow-emerald-900/20">
+                    <svg x-show="isProcessing" class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    <span x-text="isProcessing ? '构建中...' : '开始构建 APK'"></span>
+                </button>
+            </div>
+        </div>
+        
+        <!-- 构建日志 -->
+        <div x-show="logs.length > 0" class="bg-slate-900 rounded-2xl p-4 max-h-64 overflow-y-auto">
+            <div class="text-xs text-green-400 font-mono space-y-1">
+                <template x-for="(log, idx) in logs" :key="idx">
+                    <p x-text="log"></p>
+                </template>
+            </div>
+        </div>
+        
+        <!-- 构建结果 -->
+        <div x-show="buildResult" class="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-2xl p-6">
+            <div class="flex items-center space-x-3 mb-4">
+                <div class="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/40 rounded-xl flex items-center justify-center">
+                    <svg class="w-6 h-6 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </div>
+                <div>
+                    <h3 class="text-lg font-bold text-emerald-800 dark:text-emerald-300">构建成功！</h3>
+                    <p class="text-sm text-emerald-600 dark:text-emerald-400" x-text="buildResult?.apk_name"></p>
+                </div>
+            </div>
+            <a :href="downloadUrl" class="inline-flex items-center space-x-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm transition-all shadow-lg shadow-emerald-900/20">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                <span>下载 APK</span>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+const API_BASE = '/saas/apk-tool/api/tasks/';
+
+/**
+ * 解析 CustomRenderer 包装的响应格式 {code, msg, data}
+ * CustomRenderer 会把 DRF 的原始响应包装成统一格式
+ */
+function parseApiResponse(raw) {
+    // 如果响应已经是 {code, msg, data} 格式，提取 data
+    if (raw && typeof raw === 'object' && 'code' in raw && 'msg' in raw && 'data' in raw) {
+        return raw.data;
+    }
+    // 如果是原始 DRF 格式（没有包装），直接返回
+    return raw;
+}
+
+function apkBuildWizard() {
+    return {
+        currentStep: 1,
+        apkType: 'large',
+        taskId: null,
+        isProcessing: false,
+        logs: [],
+        buildResult: null,
+        downloadUrl: '',
+        
+        config: {
+            env_key: 'domestic_v2',
+            login_type: 'account',
+            map_type: 'none',
+            sound_codec: 'opus',
+            dsp_provider: 'default',
+            launcher_module: 'none',
+            recorder_enable: false,
+            tone_enabled: true,
+            tts_enabled: true,
+            device_model: '',
+        },
+        
+        terminals: JSON.parse('{{ terminal_configs_json }}'),
+        filteredTerminals: [],
+        terminalSearch: '',
+        selectedTerminal: '',
+        
+        init() {
+            this.filteredTerminals = this.terminals;
+        },
+        
+        filterTerminals() {
+            const q = this.terminalSearch.toLowerCase();
+            this.filteredTerminals = this.terminals.filter(t => 
+                (t.device_name || '').toLowerCase().includes(q) || 
+                t.folder.toLowerCase().includes(q)
+            );
+        },
+        
+        async decompile() {
+            this.isProcessing = true;
+            this.logs = ['[1/4] 创建构建任务...'];
+            
+            try {
+                const createRes = await saasFetch(API_BASE, {
+                    method: 'POST',
+                    body: JSON.stringify({apk_type: this.apkType})
+                });
+                
+                if (!createRes.ok) {
+                    const errRaw = await createRes.json();
+                    const errData = parseApiResponse(errRaw);
+                    this.logs.push(`[ERROR] 创建任务失败: ${errData?.detail || errRaw?.msg || JSON.stringify(errRaw)}`);
+                    this.isProcessing = false;
+                    return;
+                }
+                
+                const createRaw = await createRes.json();
+                const createData = parseApiResponse(createRaw);
+                if (!createData || !createData.id) {
+                    this.logs.push('[ERROR] 创建任务返回无效 ID');
+                    this.isProcessing = false;
+                    return;
+                }
+                this.taskId = createData.id;
+                this.logs.push(`[OK] 任务已创建: ${this.taskId}`);
+                
+                // 反编译
+                this.logs.push('[2/4] 反编译 APK...');
+                const decompileRes = await saasFetch(`${API_BASE}${this.taskId}/decompile/`, {
+                    method: 'POST',
+                });
+                const decompileRaw = await decompileRes.json();
+                const decompileData = parseApiResponse(decompileRaw);
+                
+                if (decompileData && decompileData.success) {
+                    this.logs.push(`[OK] 反编译成功: ${decompileData.package_name}`);
+                    if (decompileData.slclient_data) {
+                        const sc = decompileData.slclient_data;
+                        this.config.env_key = sc.profile?.env_key || 'domestic_v2';
+                        this.config.login_type = sc.profile?.login_mode || 'account';
+                        this.config.device_model = sc.device?.name || '';
+                    }
+                    this.currentStep = 2;
+                } else {
+                    this.logs.push(`[ERROR] 反编译失败: ${decompileData?.message || decompileRaw?.msg || '未知错误'}`);
+                    if (decompileData?.logs) this.logs.push(...decompileData.logs);
+                }
+            } catch (e) {
+                this.logs.push(`[ERROR] ${e.message}`);
+            }
+            this.isProcessing = false;
+        },
+        
+        async saveConfig() {
+            if (!this.taskId) {
+                this.logs.push('[ERROR] 请先反编译 APK 创建任务');
+                return;
+            }
+            this.isProcessing = true;
+            try {
+                const res = await saasFetch(`${API_BASE}${this.taskId}/configure/`, {
+                    method: 'POST',
+                    body: JSON.stringify(this.config)
+                });
+                const raw = await res.json();
+                const data = parseApiResponse(raw);
+                if (data && data.success) {
+                    this.logs.push('[OK] 配置已保存');
+                    this.currentStep = 3;
+                } else {
+                    this.logs.push(`[ERROR] 配置保存失败: ${data?.message || raw?.msg || '未知错误'}`);
+                }
+            } catch (e) {
+                this.logs.push(`[ERROR] ${e.message}`);
+            }
+            this.isProcessing = false;
+        },
+        
+        async importTerminal(folder) {
+            if (!this.taskId) {
+                this.logs.push('[WARN] 请先反编译 APK 再导入终端配置');
+                return;
+            }
+            this.selectedTerminal = folder;
+            this.config.terminal_config = folder;
+            try {
+                const res = await saasFetch(`${API_BASE}${this.taskId}/import-terminal/`, {
+                    method: 'POST',
+                    body: JSON.stringify({folder_name: folder})
+                });
+                const raw = await res.json();
+                const data = parseApiResponse(raw);
+                if (data && data.success) {
+                    this.logs.push(`[OK] 已导入终端配置: ${folder}`);
+                    if (data.slclient_data?.device?.name) {
+                        this.config.device_model = data.slclient_data.device.name;
+                    }
+                }
+            } catch (e) {
+                this.logs.push(`[WARN] 终端导入失败: ${e.message}`);
+            }
+        },
+        
+        async startBuild() {
+            if (!this.taskId) {
+                this.logs.push('[ERROR] 请先反编译 APK 创建任务');
+                this.isProcessing = false;
+                return;
+            }
+            this.isProcessing = true;
+            this.logs = ['[1/5] 保存最终配置...'];
+            
+            try {
+                await saasFetch(`${API_BASE}${this.taskId}/configure/`, {
+                    method: 'POST',
+                    body: JSON.stringify(this.config)
+                });
+                
+                this.logs.push('[2/5] 开始构建 APK...');
+                const res = await saasFetch(`${API_BASE}${this.taskId}/build/`, {
+                    method: 'POST',
+                });
+                const raw = await res.json();
+                const data = parseApiResponse(raw);
+                
+                if (data && data.success) {
+                    this.logs.push(`[OK] 构建成功: ${data.apk_name}`);
+                    this.buildResult = data;
+                    this.downloadUrl = `/media/${data.apk_relative_path}`;
+                } else {
+                    this.logs.push(`[ERROR] 构建失败: ${data?.message || raw?.msg || '未知错误'}`);
+                    if (data?.logs) this.logs.push(...data.logs);
+                }
+            } catch (e) {
+                this.logs.push(`[ERROR] ${e.message}`);
+            }
+            this.isProcessing = false;
+        },
+    }
+}
+</script>
+{% endblock %}

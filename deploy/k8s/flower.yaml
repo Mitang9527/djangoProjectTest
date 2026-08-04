@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flower
+  namespace: django-saas
+  labels:
+    app.kubernetes.io/name: django-saas
+    app.kubernetes.io/component: flower
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: django-saas
+      app.kubernetes.io/component: flower
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: django-saas
+        app.kubernetes.io/component: flower
+    spec:
+      containers:
+        - name: flower
+          image: djangosaas:latest
+          command:
+            - celery
+            - -A
+            - djangoProjectTest
+            - flower
+            - --port=5555
+          envFrom:
+            - configMapRef:
+                name: django-config
+            - secretRef:
+                name: django-secret
+          ports:
+            - containerPort: 5555
+              name: flower
+          resources:
+            limits:
+              cpu: 250m
+              memory: 256Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: flower
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: flower
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flower
+  namespace: django-saas
+  labels:
+    app.kubernetes.io/name: django-saas
+    app.kubernetes.io/component: flower
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5555
+      targetPort: flower
+      name: flower
+  selector:
+    app.kubernetes.io/name: django-saas
+    app.kubernetes.io/component: flower

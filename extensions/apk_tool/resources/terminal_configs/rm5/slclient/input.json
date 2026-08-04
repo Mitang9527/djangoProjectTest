@@ -1,0 +1,156 @@
+{
+  "stdkey": {
+    "-2_KEY_CLICK": {
+      "time": 500,
+      "event": "KEY_CLICK",
+      "key": -2
+    },
+    "-3_KEY_CLICK": {
+      "time": 500,
+      "event": "KEY_CLICK",
+      "key": -3
+    },
+    "ptt_down": {
+      "event": "KEY_DOWN",
+      "key": -5
+    },
+    "enter_member_list": {
+      "time": 500,
+      "event": "KEY_CLICK",
+      "key": -4
+    },
+    "-9_KEY_DOWN": {
+      "event": "KEY_DOWN",
+      "key": -9
+    },
+    "-9_KEY_UP": {
+      "event": "KEY_UP",
+      "key": -9
+    },
+    "sos": {
+      "time": 3000,
+      "event": "KEY_LONG_PRESS",
+      "key": -9
+    },
+    "-10_KEY_DOWN": {
+      "event": "KEY_DOWN",
+      "key": -10
+    },
+    "sos_bt": {
+      "time": 3000,
+      "event": "KEY_LONG_PRESS",
+      "key": -8
+    },
+    "-7_KEY_DOWN": {
+      "event": "KEY_DOWN",
+      "key": -7
+    },
+    "-7_KEY_UP": {
+      "event": "KEY_UP",
+      "key": -7
+    },
+    "ptt_up": {
+      "event": "KEY_UP",
+      "key": -5
+    }
+  },
+  "custom": [
+    "join_next_group",
+    "switch_group_name_tts",
+    "switch_group_click",
+    "join_prev_group",
+    "ui_map"
+  ],
+  "action": {
+    "-2_KEY_CLICK": {
+      "normal": [
+        {
+          "command": {
+            "name": "join_prev_group",
+            "id": "ENTER_CUSTOM_STATUS",
+            "timeout": 1000
+          }
+        }
+      ]
+    },
+    "ptt_down": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "-3_KEY_CLICK": {
+      "normal": [
+        {
+          "command": {
+            "name": "join_next_group",
+            "id": "ENTER_CUSTOM_STATUS",
+            "timeout": 1000
+          }
+        }
+      ]
+    },
+    "-10_KEY_DOWN": {
+      "normal": [
+        {
+          "command": {
+            "name": "ui_map",
+            "id": "ENTER_CUSTOM_STATUS",
+            "timeout": 1000
+          }
+        }
+      ]
+    },
+    "ptt_up": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    }
+  },
+  "intent": {
+    "-2_KEY_CLICK": {
+      "action": "android.intent.action.P2.down"
+    },
+    "ptt_down": {
+      "action": "android.intent.action.PTT.down"
+    },
+    "-3_KEY_CLICK": {
+      "action": "android.intent.action.P3.down"
+    },
+    "enter_member_list": {
+      "action": "android.intent.action.P4.down"
+    },
+    "sos_bt": {
+      "action": "com.shli.pocstar.bluetooth.SOS"
+    },
+    "-7_KEY_DOWN": {
+      "as_key": true,
+      "action": "com.shli.pocstar.bluetooth.SOS_DOWN"
+    },
+    "-7_KEY_UP": {
+      "as_key": true,
+      "action": "com.shli.pocstar.bluetooth.SOS_UP"
+    },
+    "-9_KEY_DOWN": {
+      "as_key": true,
+      "action": "android.intent.action.SOS.down"
+    },
+    "-9_KEY_UP": {
+      "as_key": true,
+      "action": "android.intent.action.SOS.up"
+    },
+    "-10_KEY_DOWN": {
+      "action": "android.intent.action.MAP.down"
+    },
+    "ptt_up": {
+      "action": "android.intent.action.PTT.up"
+    }
+  }
+}

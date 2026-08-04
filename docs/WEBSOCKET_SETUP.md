@@ -175,7 +175,7 @@ chatSocket.send(JSON.stringify({
 ### 在后台发送通知
 
 ```python
-from core.utils import send_user_notification
+from core.framework import send_user_notification
 
 # 向用户 ID 为 1 的用户发送通知
 send_user_notification(

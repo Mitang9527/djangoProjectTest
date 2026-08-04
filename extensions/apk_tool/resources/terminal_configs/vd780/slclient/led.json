@@ -1,0 +1,44 @@
+{
+    "control" : {
+        "red": {
+            "serial": {
+                "at": "1",
+                "dev": "/sys/bus/platform/devices/soc:vtucomm-drv/breath_led"
+            }
+        },
+        "green": {
+            "serial": {
+                "at": "2",
+                "dev": "/sys/bus/platform/devices/soc:vtucomm-drv/breath_led"
+            }
+        },
+        "blue": {
+            "serial": {
+                "at": "3",
+                "dev": "/sys/bus/platform/devices/soc:vtucomm-drv/breath_led"
+            }
+        },
+        "yellow": {
+            "serial": {
+                "at": "4",
+                "dev": "/sys/bus/platform/devices/soc:vtucomm-drv/breath_led"
+            }
+        },
+        "off": {
+            "serial": {
+                "at": "0",
+                "dev": "/sys/bus/platform/devices/soc:vtucomm-drv/breath_led"
+            }
+        }
+    },
+    "theme" : {
+        "ON_STANDBY": ["off",3000,"green",1000],
+        "WHEN_RECEIVING_VOICE": ["green",1000],
+        "WHEN_SENDING_VOICE": ["red",1000],
+        "WHEN_DISCONNECTED": ["red",3000,"off",500],
+        "SOS_SEND_SUCCESSFULLY": ["green", 3000, "off",1000],
+        "SOS_SEND_FAILED": ["red", 3000, "off",1000],
+        "SOS_RECEIVED": ["red",1000]
+    } ,
+    "enabled" : true
+}

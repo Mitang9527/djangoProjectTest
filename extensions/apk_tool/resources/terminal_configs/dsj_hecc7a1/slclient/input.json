@@ -1,0 +1,137 @@
+{
+  "stdkey": {
+    "ptt_down": {
+      "key": -1,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up": {
+      "key": -1,
+      "event": "KEY_UP"
+    },
+    "sos_d": {
+      "key": -2,
+      "event": "KEY_DOWN"
+    },
+    "sos_u": {
+      "key": -2,
+      "event": "KEY_UP"
+    },
+    "sos": {
+      "key": -2,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    },
+    "-3_KEY_DOWN": {
+      "key": -3,
+      "event": "KEY_DOWN"
+    },
+    "-3_KEY_UP": {
+      "key": -3,
+      "event": "KEY_UP"
+    },
+    "recorder_capture_image": {
+      "key": -3,
+      "event": "KEY_CLICK",
+      "time" : 1000
+    },
+    "recorder_capture_video": {
+      "key": -3,
+      "event": "KEY_LONG_PRESS",
+      "time" : 2000
+    },
+    "_4_KEY_DOWN": {
+      "key": -4,
+      "event": "KEY_DOWN"
+    },
+    "_4_KEY_UP": {
+      "key": -4,
+      "event": "KEY_UP"
+    },
+    "recorder_capture_audio": {
+      "key": -4,
+      "event": "KEY_LONG_PRESS",
+      "time" : 1000
+    },
+    "flash_light": {
+      "key": -4,
+      "event": "KEY_CLICK",
+      "time" : 1000
+    }
+  },
+  "intent": {
+    "ptt_down": {
+      "action": "android.intent.action.stdIntent",
+      "extra": {
+        "keyCode": 133,
+        "action": 0
+      }
+    },
+    "ptt_up": {
+      "action": "android.intent.action.stdIntent",
+      "extra": {
+        "keyCode": 133,
+        "action": 1
+      }
+    },
+    "sos_d": {
+      "as_key": true,
+      "action": "android.intent.action.stdIntent",
+      "extra": {
+        "keyCode": 136,
+        "action": 0
+      }
+    },
+    "sos_u": {
+      "as_key": true,
+      "action": "android.intent.action.stdIntent",
+      "extra": {
+        "keyCode": 136,
+        "action": 1
+      }
+    },
+    "-3_KEY_DOWN": {
+      "as_key": true,
+      "action": "android.intent.action.stdIntent",
+      "extra": {
+        "keyCode": 135,
+        "action": 0
+      }
+    },
+    "-3_KEY_UP": {
+      "as_key": true,
+      "action": "android.intent.action.stdIntent",
+      "extra": {
+        "keyCode": 135,
+        "action": 1
+      }
+    },
+    "_4_KEY_DOWN": {
+      "as_key": true,
+      "action": "android.intent.action.stdIntent",
+      "extra": {
+        "keyCode": 134,
+        "action": 0
+      }
+    },
+    "_4_KEY_UP": {
+      "as_key": true,
+      "action": "android.intent.action.stdIntent",
+      "extra": {
+        "keyCode": 134,
+        "action": 1
+      }
+    }
+  },
+  "custom": [
+    "new_call_in"
+  ],
+  "action": {
+    "ptt_down": {
+      "default": [{"command": {"id": "START_SPEAK"}}], "member": [],
+      "new_call_in": [{"command": {"id": "ACCEPT_LAST_CALL_INVITE"}}, {"command": {"id": "LEAVE_CUSTOM_STATUS", "name": "new_call_in"}}]
+    },
+    "ptt_up": {
+      "default": [{ "command": {"id": "STOP_SPEAK"}}], "member": [], "new_call_in": []
+    }
+  }
+}

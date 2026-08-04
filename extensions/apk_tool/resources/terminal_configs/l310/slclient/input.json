@@ -1,0 +1,222 @@
+{
+  "stdkey": {
+    "ptt_down": {
+      "key": -285,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up": {
+      "key": -285,
+      "event": "KEY_UP"
+    },
+    "ptt_down_other": {
+      "key": -5,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up_other": {
+      "key": -5,
+      "event": "KEY_UP"
+    },
+    "ptt_down_l310": {
+      "key": -6,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up_l310": {
+      "key": -6,
+      "event": "KEY_UP"
+    },
+    "sos": {
+      "event": "KEY_LONG_PRESS",
+      "key": -284,
+      "time": 3000
+    },
+    "recorder_capture_video": {
+      "key": -135,
+      "event": "KEY_CLICK",
+      "time": 3000
+    },
+    "recorder_capture_audio": {
+      "key": -25,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    },
+    "system_volume_down": {
+      "key": -25,
+      "event": "KEY_CLICK",
+      "time": 3000
+    },
+    "system_volume_up": {
+      "key": -24,
+      "event": "KEY_CLICK",
+      "time": 3000
+    },
+    "irc_led_control": {
+      "key": -24,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    },
+    "recorder_capture_image": {
+      "key": -27,
+      "event": "KEY_CLICK",
+      "time": 3000
+    },
+    "flash_light": {
+      "key": -27,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    },
+    "recorder_police_led": {
+      "key": -133,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    }
+  },
+  "intent": {
+    "ptt_down": {
+      "action": "android.intent.action.SIDE_KEY_INTENT",
+      "extra": {
+        "key_code": 285,
+        "key_status": 0
+      }
+    },
+    "ptt_up": {
+      "action": "android.intent.action.SIDE_KEY_INTENT",
+      "extra": {
+        "key_code": 285,
+        "key_status": 1
+      }
+    },
+    "ptt_down_other": {
+      "action": "android.intent.action.PTT.down"
+    },
+    "ptt_up_other": {
+      "action": "android.intent.action.PTT.up"
+    },
+    "ptt_down_l310": {
+      "action": "android.intent.action.DOWN_PTT_KEY"
+    },
+    "ptt_up_l310": {
+      "action": "android.intent.action.UP_PTT_KEY"
+    },
+    "sos": {
+      "action": "android.intent.action.SIDE_KEY_INTENT",
+      "extra": {
+        "key_code": 284,
+        "key_event": 1
+      }
+    },
+    "recorder_capture_video": {
+      "action": "android.intent.action.SIDE_KEY_INTENT",
+      "extra": {
+        "key_code": 135,
+        "key_event": 0
+      }
+    },
+    "recorder_capture_audio": {
+      "action": "android.intent.action.SIDE_KEY_INTENT",
+      "extra": {
+        "key_code": 25,
+        "key_event": 1
+      }
+    },
+    "system_volume_down": {
+      "action": "android.intent.action.SIDE_KEY_INTENT",
+      "extra": {
+        "key_code": 25,
+        "key_event": 0
+      }
+    },
+    "system_volume_up": {
+      "action": "android.intent.action.SIDE_KEY_INTENT",
+      "extra": {
+        "key_code": 24,
+        "key_event": 0
+      }
+    },
+    "irc_led_control": {
+      "action": "android.intent.action.SIDE_KEY_INTENT",
+      "extra": {
+        "key_code": 24,
+        "key_event": 1,
+        "key_status": 1
+      }
+    },
+    "recorder_capture_image": {
+      "action": "android.intent.action.SIDE_KEY_INTENT",
+      "extra": {
+        "key_code": 27,
+        "key_event": 0
+      }
+    },
+    "flash_light": {
+      "action": "android.intent.action.SIDE_KEY_INTENT",
+      "extra": {
+        "key_code": 27,
+        "key_event": 1
+      }
+    },
+    "recorder_police_led": {
+      "action": "android.intent.action.SIDE_KEY_INTENT",
+      "extra": {
+        "key_code": 133,
+        "key_event": 1,
+        "key_status": 1
+      }
+    }
+  },
+  "action": {
+    "ptt_down": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_down_other": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up_other": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_down_l310": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up_l310": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    }
+  }
+}

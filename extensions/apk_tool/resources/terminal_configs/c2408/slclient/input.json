@@ -1,0 +1,107 @@
+{
+  "stdkey": {
+    "ptt_down": {
+      "key": -290,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up": {
+      "key": -290,
+      "event": "KEY_UP"
+    },
+    "sos": {
+      "event": "KEY_DOWN",
+      "key": -99999
+    },
+    "recorder_capture_video": {
+      "key": -25,
+      "event": "KEY_CLICK",
+      "time": 3000
+    },
+    "irc_led_control": {
+      "key": -60,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    },
+    "system_volume_down": {
+      "key": -284,
+      "event": "KEY_CLICK",
+      "time": 3000
+    },
+    "system_volume_up": {
+      "key": -135,
+      "event": "KEY_CLICK",
+      "time": 3000
+    },
+    "recorder_capture_audio": {
+      "key": -26,
+      "event": "KEY_CLICK",
+      "time": 3000
+    },
+    "recorder_capture_image": {
+      "key": -27,
+      "event": "KEY_CLICK",
+      "time": 3000
+    },
+    "flash_light": {
+      "key": -27,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    }
+  },
+  "intent": {
+    "ptt_down": {
+      "action": "android.intent.action.DOWN_PTT_KEY"
+    },
+    "ptt_up": {
+      "action": "android.intent.action.UP_PTT_KEY"
+    },
+    "sos": {
+      "action": "android.intent.action.LONG_PRESS_SOS_KEY"
+    },
+
+    "system_volume_down": {
+      "action": "android.intent.action.PRESS_SOS_KEY"
+    },
+    "system_volume_up": {
+      "action": "android.intent.action.PRESS_MARK_KEY"
+    },
+    "recorder_capture_audio": {
+      "action": "android.intent.action.PRESS_RECORD_KEY"
+    },
+    "irc_led_control": {
+      "action": "android.intent.action.LONG_PRESS_MARK_KEY"
+    },
+
+    "recorder_capture_video": {
+      "action": "android.intent.action.PRESS_VIDEO_KEY"
+    },
+
+    "recorder_capture_image": {
+      "action": "android.intent.action.PRESS_PIC_KEY"
+    },
+    "flash_light": {
+      "action": "android.intent.action.LONG_PRESS_PIC_KEY"
+    }
+  },
+
+  "action": {
+    "ptt_down": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    }
+  }
+}

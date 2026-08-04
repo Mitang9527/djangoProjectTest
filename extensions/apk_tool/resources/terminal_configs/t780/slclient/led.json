@@ -1,0 +1,16 @@
+{
+	"control":{
+		"lA9tve":{
+			"intent":{
+				"action":"android.led.ptt.green"
+			}
+		},
+		"ZwmHTI":{
+			"intent":{
+				"action":"android.led.ptt.red"
+			}
+		}
+	},
+	"theme":{},
+	"enabled":true
+}

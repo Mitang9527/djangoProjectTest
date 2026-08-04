@@ -33,13 +33,13 @@ python manage.py rotate_secret_key --force
 
 ```bash
 # 查看当前密钥状态
-python utils/key_management/key_rotation.py status
+python framework/key_management/key_rotation.py status
 
 # 轮换密钥
-python utils/key_management/key_rotation.py rotate 7
+python framework/key_management/key_rotation.py rotate 7
 
 # 查看密钥详情
-python utils/key_management/key_rotation.py list
+python framework/key_management/key_rotation.py list
 ```
 
 ---
@@ -97,7 +97,7 @@ crontab -e
 在需要签名数据的地方，使用我们提供的工具：
 
 ```python
-from utils.key_management import multi_key_sign, multi_key_unsign
+from framework.key_management import multi_key_sign, multi_key_unsign
 
 # 签名
 signed = multi_key_sign("my-data", salt="my-salt")
@@ -109,7 +109,7 @@ original = multi_key_unsign(signed, salt="my-salt")
 ### 方式 3：自定义 Signer
 
 ```python
-from utils.key_management import get_signer, get_timestamp_signer
+from framework.key_management import get_signer, get_timestamp_signer
 
 # 普通签名
 signer = get_signer(salt="custom-salt")
@@ -127,7 +127,7 @@ original = ts_signer.unsign(signed, max_age=3600)  # 1小时过期
 ### 步骤 1：生成新密钥
 
 ```bash
-python utils/key_management/key_rotation.py rotate 7
+python framework/key_management/key_rotation.py rotate 7
 ```
 
 这会：
@@ -150,7 +150,7 @@ SECRET_KEY=新生成的密钥
 ### 步骤 4：确认并清理
 
 ```bash
-python utils/key_management/key_rotation.py status
+python framework/key_management/key_rotation.py status
 ```
 
 ## 密钥存储位置
@@ -194,7 +194,7 @@ data/
 如果出现问题，可以恢复旧密钥：
 
 ```python
-from utils.key_management import get_key_manager
+from framework.key_management import get_key_manager
 
 manager = get_key_manager()
 # 手动编辑 data/secret_keys.json 恢复旧密钥
@@ -205,7 +205,7 @@ manager = get_key_manager()
 ### KeyRotationManager
 
 ```python
-from utils.key_management import KeyRotationManager
+from framework.key_management import KeyRotationManager
 
 manager = KeyRotationManager()
 
@@ -225,7 +225,7 @@ info = manager.get_key_info()
 ### 快捷函数
 
 ```python
-from utils.key_management import (
+from framework.key_management import (
     get_key_manager,
     get_rotatable_secret_key,
     get_all_secret_keys

@@ -79,4 +79,155 @@ dependencies = [
     "wcwidth>=0.2.0",
     "webencodings>=0.5.0",
     "whitenoise>=6.5.0",
+    # ---- 测试 & 质量工具 ----
+    "pytest-cov>=4.1.0",
+    "pytest-xdist>=3.5.0",
+    "pytest-mock>=3.12.0",
+    "bandit>=1.7.0",
+    "safety>=2.4.0",
+    "pre-commit>=3.6.0",
+    # ---- 可观测性 ----
+    "sentry-sdk>=1.40.0",
+    "django-prometheus>=2.3.0",
+    # ---- Celery 监控 ----
+    "flower>=2.0.0",
 ]
+
+# ================================================================
+# pytest 配置
+# ================================================================
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "djangoProjectTest.settings.test"
+python_files = ["test_*.py", "tests.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+    "--cov=apps",
+    "--cov=framework",
+    "--cov=extensions",
+    "--cov-report=term-missing",
+    "--cov-report=html:htmlcov",
+    "--cov-report=xml:coverage.xml",
+    "--cov-fail-under=15",
+]
+testpaths = ["tests", "apps"]
+markers = [
+    "unit: 单元测试 (快速, 无外部依赖)",
+    "integration: 集成测试 (需要 DB/Redis)",
+    "slow: 慢测试 (>1s)",
+    "api: API 端点测试",
+]
+
+# ================================================================
+# 覆盖率配置
+# ================================================================
+[tool.coverage.run]
+source = ["apps", "framework", "extensions"]
+omit = [
+    "*/migrations/*",
+    "*/tests/*",
+    "*/test_*.py",
+    "*/conftest.py",
+    "*__pycache__*",
+    "*/apps.py",
+    "*/urls.py",
+    "*/admin.py",
+    "manage.py",
+    "*/settings/*",
+    "*/asgi.py",
+    "*/wsgi.py",
+    "*/celery.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+precision = 2
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "def __str__",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "if settings.DEBUG:",
+    "@abstractmethod",
+]
+
+# ================================================================
+# Ruff 配置 (Linter + Formatter)
+# ================================================================
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+extend-exclude = [
+    "migrations",
+    "static",
+    "media",
+    "logs",
+    "htmlcov",
+    ".venv",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "UP",   # pyupgrade
+    "S",    # flake8-bandit (安全)
+    "T20",  # flake8-print
+]
+ignore = [
+    "E501",    # 行长度由 formatter 管理
+    "S101",    # assert 在测试中合法
+    "S104",    # 0.0.0.0 绑定在 Docker 中合法
+    "S106",    # 密码硬编码在配置模板中容忍
+    "B008",    # 函数调用作为默认参数 (Django 常见模式)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S106", "T20"]
+"apps/**/tests.py" = ["S101", "S106", "T20"]
+"apps/**/migrations/**" = ["E", "W", "F", "I"]
+"settings/*" = ["S105"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["apps", "framework", "extensions", "djangoProjectTest"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+# ================================================================
+# Mypy 配置 (类型检查)
+# ================================================================
+[tool.mypy]
+python_version = "3.10"
+strict = false
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+check_untyped_defs = true
+ignore_missing_imports = true
+exclude = [
+    "migrations/",
+    "static/",
+    "media/",
+    "logs/",
+    "htmlcov/",
+]
+
+[[tool.mypy.overrides]]
+module = ["apps.*.migrations.*"]
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = ["framework.*", "extensions.*"]
+disallow_untyped_defs = false

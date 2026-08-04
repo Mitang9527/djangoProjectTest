@@ -86,6 +86,19 @@ services:
     container_name: saas_celery_beat
     command: celery-beat
 
+  # ---- Flower: Celery 任务监控（内网访问）----
+  celery-flower:
+    <<: *django-common
+    container_name: saas_flower
+    command: celery -A djangoProjectTest flower --port=5555 --url-prefix=flower --basic-auth=${FLOWER_USER:-admin}:${FLOWER_PASSWORD}
+    expose:
+      - "5555"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+
   # ---- PostgreSQL ----
   postgres:
     image: postgres:16-alpine

@@ -1,4 +1,4 @@
-# utils/i18n 使用指南
+# framework/i18n 使用指南
 
 > Django i18n 的企业级增强包 —— 多租户 SaaS 场景下补齐 Django 自带 i18n 缺失的能力
 
@@ -47,7 +47,7 @@
 
 ### 2.1 安装
 
-无需安装（已随项目 `utils/` 提供）。
+无需安装（已随项目 `framework/` 提供）。
 
 ### 2.2 启用中间件（替换默认 LocaleMiddleware）
 
@@ -55,7 +55,7 @@
 # settings.py
 MIDDLEWARE = [
     "django.contrib.sessions.middleware.SessionMiddleware",
-    "utils.i18n.middleware.I18nMiddleware",  # 替代 django.middleware.locale.LocaleMiddleware
+    "framework.i18n.middleware.I18nMiddleware",  # 替代 django.middleware.locale.LocaleMiddleware
     ...
 ]
 ```
@@ -63,7 +63,7 @@ MIDDLEWARE = [
 ### 2.3 DRF 视图
 
 ```python
-from utils.i18n import t, LocalizedAPIView
+from framework.i18n import t, LocalizedAPIView
 
 class MyView(LocalizedAPIView):
     def get(self, request):
@@ -93,7 +93,7 @@ class MyView(LocalizedAPIView):
 ### 3.1 语言代码处理
 
 ```python
-from utils.i18n import normalize_language_code, is_supported_language, get_supported_languages
+from framework.i18n import normalize_language_code, is_supported_language, get_supported_languages
 
 normalize_language_code("zh_CN")      # 'zh-hans'
 normalize_language_code("ZH-cn")      # 'zh-hans'
@@ -111,7 +111,7 @@ get_supported_languages()
 ### 3.2 Accept-Language 解析与协商
 
 ```python
-from utils.i18n import parse_accept_language, negotiate_language
+from framework.i18n import parse_accept_language, negotiate_language
 
 # 解析
 parse_accept_language("zh-CN,en-US;q=0.8,ja;q=0.5")
@@ -131,7 +131,7 @@ negotiate_language(["ja-JP"], ["ja", "en"])
 ### 3.3 激活与切换
 
 ```python
-from utils.i18n import activate_language, activate_for_request, get_current_language, force_language
+from framework.i18n import activate_language, activate_for_request, get_current_language, force_language
 
 # 手动激活
 activate_language("zh_CN")      # 'zh-hans'
@@ -151,7 +151,7 @@ with force_language("en"):
 ### 3.4 翻译函数
 
 ```python
-from utils.i18n import t, tn, pget
+from framework.i18n import t, tn, pget
 
 # 单数翻译
 t("common.save_success")                    # 按当前语言查
@@ -166,7 +166,7 @@ tn("1 item", "%d items", 5)        # '5 items'
 pget("button", "Save")             # 翻译 "Save" in button context
 
 # 懒翻译（用于 model verbose_name 等）
-from utils.i18n import lazy_t, lazy_tn
+from framework.i18n import lazy_t, lazy_tn
 class MyModel(models.Model):
     name = models.CharField(verbose_name=lazy_t("model.name"))
 ```
@@ -174,7 +174,7 @@ class MyModel(models.Model):
 ### 3.5 错误消息本地化
 
 ```python
-from utils.i18n import localize_error, localized_error_response
+from framework.i18n import localize_error, localized_error_response
 
 # 函数式
 msg = localize_error("user.email_exists")
@@ -207,7 +207,7 @@ return localized_error_response(
 ### 默认优先级
 
 ```python
-# utils/i18n/core.py
+# framework/i18n/core.py
 _DEFAULT_DETECTORS = ("header", "query", "cookie", "user", "tenant", "default")
 ```
 
@@ -251,7 +251,7 @@ I18N_PARAMS = {
 ### 用法
 
 ```python
-from utils.i18n import register_translation, t
+from framework.i18n import register_translation, t
 
 # 注册一条翻译（无需重启）
 register_translation("zh-hans", "promo.summer_sale", "夏日特惠")
@@ -287,7 +287,7 @@ I18N_TRANSLATION_BACKEND = "orm"  # 或 "cache"（默认）
 
 ```python
 # 1) 加入 INSTALLED_APPS
-INSTALLED_APPS += ["utils.i18n.apps.I18nConfig"]
+INSTALLED_APPS += ["framework.i18n.apps.I18nConfig"]
 
 # 2) 迁移
 # python manage.py makemigrations utils_i18n
@@ -305,7 +305,7 @@ from django.apps import AppConfig
 
 class SaasConfig(AppConfig):
     def ready(self):
-        from utils.i18n import register_translation
+        from framework.i18n import register_translation
         register_translation("zh-hans", "saas.welcome", "欢迎使用 SaaS 控制台")
         register_translation("en", "saas.welcome", "Welcome to SaaS Console")
 ```
@@ -329,7 +329,7 @@ localize_error("order.amount_invalid", amount=100)  # '金额 100 无效'
 ### DRF Serializer 错误翻译
 
 ```python
-from utils.i18n import translate_serializer_errors
+from framework.i18n import translate_serializer_errors
 
 class MyView(APIView):
     def post(self, request):
@@ -352,7 +352,7 @@ ERROR_CODES = {
 }
 
 # 注册翻译
-from utils.i18n import register_translation
+from framework.i18n import register_translation
 
 register_translation("zh-hans", "user.email_exists", "邮箱已被注册")
 register_translation("en", "user.email_exists", "Email already registered")
@@ -367,7 +367,7 @@ register_translation("en", "user.invalid_credentials", "Invalid email or passwor
 ### 7.1 LocalizedAPIView 基类
 
 ```python
-from utils.i18n import LocalizedAPIView
+from framework.i18n import LocalizedAPIView
 
 class MyView(LocalizedAPIView):
     def get(self, request):
@@ -378,7 +378,7 @@ class MyView(LocalizedAPIView):
 ### 7.2 ViewSet 集成
 
 ```python
-from utils.i18n import LocalizedAPIView
+from framework.i18n import LocalizedAPIView
 from rest_framework.viewsets import ModelViewSet
 
 class MyViewSet(LocalizedAPIView, ModelViewSet):
@@ -389,7 +389,7 @@ class MyViewSet(LocalizedAPIView, ModelViewSet):
 ### 7.3 错误响应
 
 ```python
-from utils.i18n import localized_error_response
+from framework.i18n import localized_error_response
 
 class MyView(APIView):
     def post(self, request):
@@ -442,7 +442,7 @@ class Tenant(models.Model):
 
 ```python
 # admin.py
-from utils.i18n.models import Translation
+from framework.i18n.models import Translation
 @admin.register(Translation)
 class TranslationAdmin(admin.ModelAdmin):
     list_display = ("key", "lang", "value", "is_active", "updated_at")
@@ -458,13 +458,13 @@ class TranslationAdmin(admin.ModelAdmin):
 
 ```python
 from celery import shared_task
-from utils.i18n import force_language
+from framework.i18n import force_language
 
 @shared_task
 def send_welcome_email(user_id, lang):
     with force_language(lang):
         # 邮件模板里的 _("...") 按 lang 翻译
-        from utils.i18n import t
+        from framework.i18n import t
         subject = t("email.welcome.subject")
         body = t("email.welcome.body", name=get_user(user_id).name)
         send_email(subject, body, to=...)
@@ -475,7 +475,7 @@ def send_welcome_email(user_id, lang):
 ```python
 # management/commands/export.py
 from django.core.management.base import BaseCommand
-from utils.i18n import force_language, t
+from framework.i18n import force_language, t
 
 class Command(BaseCommand):
     def add_arguments(self, parser):
@@ -490,12 +490,12 @@ class Command(BaseCommand):
 ### 异步上下文
 
 ```python
-# utils/cache_warmup.py 等
-from utils.i18n import force_language
+# framework/cache_warmup.py 等
+from framework.i18n import force_language
 
 def warmup_for_lang(lang):
     with force_language(lang):
-        from utils.i18n import t
+        from framework.i18n import t
         # 预热 cache
         for key in ["common.welcome", "common.save_success"]:
             t(key)
@@ -578,7 +578,7 @@ window.location.reload();
 ### Q3：与 Django .po 的关系？
 
 - **Django .po**：代码里 `_(...)` 的字面量翻译（编译时固定）
-- **utils.i18n 数据库翻译**：运营/租户可改的动态文案
+- **framework.i18n 数据库翻译**：运营/租户可改的动态文案
 
 `register_translation` 是数据库翻译，会覆盖 .po 中同 key 的翻译。生产建议：
 

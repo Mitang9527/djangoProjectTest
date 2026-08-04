@@ -1,0 +1,165 @@
+{
+  "NOTIFY_CONNECTED": [
+    {
+      "command": {
+        "id": "LED_THEME",
+        "name": "ON_STANDBY",
+        "valueint": 1
+      }
+    }
+  ],
+  "NOTIFY_DISCONNECT": [
+    {
+      "command": {
+        "id": "LED_THEME",
+        "name": "WHEN_DISCONNECTED",
+        "valueint": 1
+      }
+    },
+    {
+      "tts" : {
+        "content" : "%error_msg%"
+      }
+    }
+  ],
+  "CAN_NOT_SPEAK" : [
+    {
+      "filter": {
+        "type": "command",
+        "field": "valueint8",
+        "method": "not equal",
+        "value": 0,
+        "default": true,
+        "breaking": true,
+        "command": { "id": "GET_CURRENT_GID"}
+      },
+      "command" : {
+        "id" : "PLAY_TONE" ,
+        "priority" : 150 ,
+        "method" : "square" ,
+        "freq" : 470 ,
+        "duration" : 100 ,
+        "amplitude" : 10
+      }
+    }
+  ] ,
+  "LOST_MIC" : [
+    {
+      "command" : {
+        "id" : "PLAY_TONE" ,
+        "priority" : 150 ,
+        "method" : "square" ,
+        "freq" : 470 ,
+        "duration" : 100 ,
+        "amplitude" : 10
+      }
+    }
+  ] ,
+  "REQMIC_FAIL" : [
+    {
+      "command" : {
+        "id" : "PLAY_TONE" ,
+        "priority" : 150 ,
+        "method" : "square" ,
+        "freq" : 470 ,
+        "duration" : 100 ,
+        "amplitude" : 10
+      }
+    }
+  ] ,
+  "BEFORE_SPEAK" : [
+    {
+      "command" : {
+        "id": "PLAY_TONE",
+        "priority": 150,
+        "method": "sine",
+        "freq": 900,
+        "duration": 60,
+        "amplitude": 10
+      }
+    }
+  ] ,
+  "START_SPEAK": [
+    {
+      "command": {
+        "id": "LED_THEME",
+        "name": "WHEN_SENDING_VOICE",
+        "valueint": 0
+      }
+    }
+  ],
+  "STOP_SPEAK" : [
+    {
+      "command" : {
+        "id": "PLAY_TONE",
+        "priority": 150,
+        "method": "sine",
+        "freq": 900,
+        "duration": 60,
+        "amplitude": 10
+      }
+    },
+    {
+      "command": {
+        "id": "LED_THEME",
+        "name": "ON_STANDBY",
+        "valueint": 1
+      }
+    }
+  ] ,
+  "BEFORE_MEMBER_SPEAK" : [
+    {
+      "command" : {
+        "id": "PLAY_TONE",
+        "priority": 150,
+        "method": "sine",
+        "freq": 900,
+        "duration": 60,
+        "amplitude": 10
+      }
+    }
+  ] ,
+  "MEMBER_START_SPEAK": [
+    {
+      "command": {
+        "id": "LED_THEME",
+        "name": "WHEN_RECEIVING_VOICE",
+        "valueint": 0
+      }
+    }
+  ],
+  "MEMBER_STOP_SPEAK" : [
+    {
+      "command" : {
+        "id": "PLAY_TONE",
+        "priority": 150,
+        "method": "sine",
+        "freq": 900,
+        "duration": 60,
+        "amplitude": 10
+      }
+    },
+    {
+      "command": {
+        "id": "LED_THEME",
+        "name": "ON_STANDBY",
+        "valueint": 1
+      }
+    }
+  ] ,
+  "I_START_SOS" : [
+    {
+      "command" : {
+        "id" : "FORCE_REPORT_LOCATION" ,
+        "timeout" : 10000
+      }
+    }
+  ] ,
+  "MY_SOS_CLOSED" : [
+    {
+      "command" : {
+        "id" : "STOP_FORCE_REPORT_LOCATION"
+      }
+    }
+  ]
+}

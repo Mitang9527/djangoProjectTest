@@ -1,0 +1,103 @@
+{
+  "control": {
+    "green": {
+      "serial": {
+        "at": "6",
+        "dev": "/sys/light_if/green"
+      }
+    },
+    "green_off": {
+      "serial": {
+        "at": "0",
+        "dev": "/sys/light_if/green"
+      }
+    },
+    "red": {
+      "serial": {
+        "at": "6",
+        "dev": "/sys/light_if/red"
+      }
+    },
+    "red_off": {
+      "serial": {
+        "at": "0",
+        "dev": "/sys/light_if/red"
+      }
+    },
+    "blue_led_on": {
+      "serial": {
+        "at": "6",
+        "dev": "/sys/light_if/jsd_blue"
+      }
+    },
+    "blue_led_off": {
+      "serial": {
+        "at": "0",
+        "dev": "/sys/light_if/jsd_blue"
+      }
+    },
+    "flash_light_on": {
+      "serial": {
+        "at": "6",
+        "dev": "/dev/torchlight"
+      }
+    },
+    "flash_light_off": {
+      "serial": {
+        "at": "0",
+        "dev": "/dev/torchlight"
+      }
+    }
+  },
+  "theme": {
+    "ON_STANDBY": [
+      "red_off",
+      "green_off",
+      3000,
+      "green",
+      1000
+    ],
+    "WHEN_RECEIVING_VOICE": [
+      "green",
+      1000
+    ],
+    "WHEN_SENDING_VOICE": [
+      "green_off",
+      "red",
+      1000
+    ],
+    "WHEN_DISCONNECTED": [
+      "green_off",
+      "red",
+      3000
+    ],
+    "SOS_SEND_SUCCESSFULLY": [
+      "red_off",
+      "green",
+      3000
+    ],
+    "SOS_SEND_FAILED": [
+      "green_off",
+      "red",
+      3000
+    ],
+    "SOS_RECEIVED": [
+      "green_off",
+      "red",
+      1000
+    ],
+    "FLASH_LIGHT_ON": [
+      "flash_light_on"
+    ],
+    "FLASH_LIGHT_OFF": [
+      "flash_light_off"
+    ],
+    "VOICE_RECORD": [
+      "red",
+      1000,
+      "red_off",
+      1000
+    ]
+  },
+  "enabled": true
+}

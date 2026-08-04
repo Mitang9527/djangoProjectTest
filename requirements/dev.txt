@@ -1,0 +1,17 @@
+# ================================================================
+# 开发环境依赖（在 base 基础上追加）
+# 安装：pip install -r requirements/dev.txt
+# ================================================================
+-r base.txt
+
+# Django 工具扩展（仅开发）
+django-extensions>=3.2.0
+django-debug-toolbar>=4.0.0
+
+# 代码质量工具
+ruff>=0.1.0
+mypy>=1.8.0
+django-stubs>=4.2.0
+bandit>=1.7.0
+safety>=2.4.0
+pre-commit>=3.6.0

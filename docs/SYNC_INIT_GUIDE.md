@@ -55,13 +55,13 @@ python scripts/sync_init.py mypackage --force
 
 ```bash
 # auto: 已有 init 则合并；没 init 则不创建（推荐；保护 from pkg.subpkg 风格）
-python scripts/sync_init.py utils --check
+python scripts/sync_init.py framework --check
 
 # create: 即便没 init 也强制创建（让 from pkg import xxx 暴露所有子模块）
-python scripts/sync_init.py utils --check --init-mode create
+python scripts/sync_init.py framework --check --init-mode create
 
 # skip: 不动 init，只扫描
-python scripts/sync_init.py utils --check --init-mode skip
+python scripts/sync_init.py framework --check --init-mode skip
 ```
 
 ### 3.3 忽略目录
@@ -136,7 +136,7 @@ from . import legacy_module
 
 ### 5.1 实际 diff 示例
 
-**现有 `utils/cache/__init__.py`**（手工写）：
+**现有 `framework/cache/__init__.py`**（手工写）：
 ```python
 """
 缓存工具包
@@ -152,9 +152,9 @@ __all__ = [
 from . import warmup_tasks
 ```
 
-**新增了 `utils/cache/view_cache.py`**（含 `view_cache` 装饰器）
+**新增了 `framework/cache/view_cache.py`**（含 `view_cache` 装饰器）
 
-**运行**：`python scripts/sync_init.py utils/cache --write`
+**运行**：`python scripts/sync_init.py framework/cache --write`
 
 **结果**：
 ```python
@@ -186,7 +186,7 @@ from . import view_cache  # ← 新增
 - name: Check __init__.py is in sync
   run: |
     python scripts/sync_init.py apps --check
-    python scripts/sync_init.py utils --check --init-mode create
+    python scripts/sync_init.py framework --check --init-mode create
 ```
 
 `pre-commit` hook（`.pre-commit-config.yaml`）：
@@ -233,14 +233,14 @@ repos:
 **不能**。`sync_init` 一次只处理一个包目录。要给多个包加 init，就多次调用：
 
 ```bash
-python scripts/sync_init.py utils --check
+python scripts/sync_init.py framework --check
 python scripts/sync_init.py apps --check
 ```
 
 或者写个 wrapper：
 
 ```bash
-for pkg in utils apps saas; do
+for pkg in framework apps saas; do
   python scripts/sync_init.py $pkg --check || exit 1
 done
 ```
@@ -254,7 +254,7 @@ done
 | 1. 不追踪 re-export | 不会去解析 `from .x import Y`，`Y` 不会出现在最外层 `__all__` |
 | 2. 不解析 type alias 链 | `X: TypeAlias = List[int]` 会被记录名字 `X`，但不会追类型 |
 | 3. 嵌套子包递归 | 一次只处理直接子模块，不递归子包下的子模块 |
-| 4. 合并是行级非语义 | 若现有 init 用 `from utils.x import y`（绝对导入），追加的会是 `from . import y` |
+| 4. 合并是行级非语义 | 若现有 init 用 `from framework.x import y`（绝对导入），追加的会是 `from . import y` |
 | 5. Windows GBK 编码 | 工具已做 `PYTHONIOENCODING=utf-8` 兜底；脚本里不用 emoji |
 
 ---

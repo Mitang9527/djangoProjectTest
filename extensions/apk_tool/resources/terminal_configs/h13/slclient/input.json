@@ -1,0 +1,69 @@
+{
+  "stdkey": {
+    "ptt_down": {
+      "key": -1,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up": {
+      "key": -1,
+      "event": "KEY_UP"
+    },
+    "call_dispatcher": {
+      "key": -3,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    },
+    "join_prev_group": {
+      "key": -4,
+      "event": "KEY_DOWN"
+    },
+    "join_next_group": {
+      "key": -5,
+      "event": "KEY_DOWN"
+    }
+  },
+  "intent": {
+    "ptt_down": {
+      "action": "BOPTT.privkey.ptt.down"
+    },
+    "ptt_up": {
+      "action": "BOPTT.privkey.ptt.up"
+    },
+    "call_dispatcher": {
+      "action": "BOPTT.privkey.m2.long"
+    },
+    "join_prev_group": {
+      "action": "BOPTT.privkey.chup.up"
+    },
+    "join_next_group": {
+      "action": "BOPTT.privkey.chdown.up"
+    }
+  },
+  "custom": [
+    "new_call_in"
+  ],
+  "action": {
+    "ptt_down": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ],
+      "member": [
+      ],
+      "new_call_in": [
+      ]
+    }
+  }
+}

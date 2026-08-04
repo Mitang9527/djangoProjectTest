@@ -1,0 +1,149 @@
+{
+  "stdkey": {
+    "ptt_down": {
+      "key": -290,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up": {
+      "key": -290,
+      "event": "KEY_UP"
+    },
+    "sos": {
+      "event": "KEY_LONG_PRESS",
+      "key": -289,
+      "time": 3000
+    },
+    "recorder_capture_video": {
+      "key": -135,
+      "event": "KEY_CLICK",
+      "time": 3000
+    },
+    "system_volume_down": {
+      "key": -25,
+      "event": "KEY_CLICK",
+      "time": 3000
+    },
+    "recorder_capture_audio": {
+      "key": -25,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    },
+
+    "system_volume_up": {
+      "key": -24,
+      "event": "KEY_CLICK",
+      "time": 3000
+    },
+    "irc_led_control": {
+      "key": -24,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    },
+    "recorder_capture_image": {
+      "key": -27,
+      "event": "KEY_CLICK",
+      "time": 3000
+    },
+    "recorder_police_led": {
+      "key": -27,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    }
+
+  },
+  "intent": {
+    "ptt_down": {
+      "action": "android.intent.action.SIDE_KEY_INTENT",
+      "extra": {
+        "key_code": 290,
+        "key_status": 0
+      }
+    },
+    "ptt_up": {
+      "action": "android.intent.action.SIDE_KEY_INTENT",
+      "extra": {
+        "key_code": 290,
+        "key_status": 1
+      }
+    },
+    "sos": {
+      "action": "android.intent.action.SIDE_KEY_INTENT",
+      "extra": {
+        "key_code": 289,
+        "key_event": 1
+      }
+    },
+    "recorder_capture_video": {
+      "action": "android.intent.action.SIDE_KEY_INTENT",
+      "extra": {
+        "key_code": 135,
+        "key_event": 0
+      }
+    },
+    "recorder_capture_audio": {
+      "action": "android.intent.action.SIDE_KEY_INTENT",
+      "extra": {
+        "key_code": 25,
+        "key_event": 1
+      }
+    },
+    "system_volume_down": {
+      "action": "android.intent.action.SIDE_KEY_INTENT",
+      "extra": {
+        "key_code": 25,
+        "key_event": 0
+      }
+    },
+    "system_volume_up": {
+      "action": "android.intent.action.SIDE_KEY_INTENT",
+      "extra": {
+        "key_code": 24,
+        "key_event": 0
+      }
+    },
+    "irc_led_control": {
+      "action": "android.intent.action.SIDE_KEY_INTENT",
+      "extra": {
+        "key_code": 24,
+        "key_event": 1,
+        "key_status": 1
+      }
+    },
+    "recorder_capture_image": {
+      "action": "android.intent.action.SIDE_KEY_INTENT",
+      "extra": {
+        "key_code": 27,
+        "key_event": 0
+      }
+    },
+    "recorder_police_led": {
+      "action": "android.intent.action.SIDE_KEY_INTENT",
+      "extra": {
+        "key_code": 27,
+        "key_event": 1,
+        "key_status": 0
+      }
+    }
+  },
+
+  "action": {
+    "ptt_down": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    }
+  }
+}

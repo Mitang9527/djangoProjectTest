@@ -1,0 +1,123 @@
+{
+  "stdkey":{
+    "ptt_down": {
+      "key": -1,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up": {
+      "key": -1,
+      "event": "KEY_UP"
+    },
+    "sos":{
+      "time":3000,
+      "event":"KEY_LONG_PRESS",
+      "key":-2
+    },
+    "-3_KEY_DOWN": {
+      "key": -3,
+      "event": "KEY_DOWN"
+    },
+    "-4_KEY_DOWN": {
+      "key": -4,
+      "event": "KEY_DOWN"
+    },
+    "enter_member_list": {
+      "key": -5,
+      "event": "KEY_DOWN"
+    },
+    "enter_group_list": {
+      "key": -6,
+      "event": "KEY_DOWN"
+    },
+    "-7_KEY_DOWN": {
+      "key": -7,
+      "event": "KEY_DOWN"
+    }
+  },
+  "custom":[
+    "join_next_group",
+    "switch_group_name_tts",
+    "switch_group_click",
+    "join_prev_group",
+    "ui_map"
+  ],
+  "action":{
+    "ptt_down": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    },
+    "-3_KEY_DOWN":{
+      "normal":[
+        {
+          "command":{
+            "name":"join_next_group",
+            "id":"ENTER_CUSTOM_STATUS",
+            "timeout":1000
+          }
+        }
+      ]
+    },
+    "-4_KEY_DOWN":{
+      "normal":[
+        {
+          "command":{
+            "name":"join_prev_group",
+            "id":"ENTER_CUSTOM_STATUS",
+            "timeout":1000
+          }
+        }
+      ]
+    },
+    "-7_KEY_DOWN":{
+      "normal":[
+        {
+          "command":{
+            "name":"ui_map",
+            "id":"ENTER_CUSTOM_STATUS",
+            "timeout":1000
+          }
+        }
+      ]
+    }
+  },
+  "intent":{
+    "ptt_down":{
+      "action":"android.intent.action.PTT.down"
+    },
+    "ptt_up":{
+      "action":"android.intent.action.PTT.up"
+    },
+    "sos":{
+      "action":"android.intent.action.SOS.down"
+    },
+    "-3_KEY_DOWN": {
+      "action": "android.intent.action.pttUp.down"
+    },
+    "-4_KEY_DOWN": {
+      "action": "android.intent.action.pttDown.down"
+    },
+    "enter_member_list": {
+      "action": "android.intent.action.P1.down"
+    },
+    "enter_group_list": {
+      "action": "android.intent.action.P2.down"
+    },
+    "-7_KEY_DOWN": {
+      "action": "android.intent.action.P3.down"
+    }
+  }
+}

@@ -1,18 +1,18 @@
-# utils P0 模块使用指南
+# framework P0 模块使用指南
 
-`utils/` 目录下新增三个 P0 工具集，覆盖「分布式 + 容错」核心诉求。
+`framework/` 目录下新增三个 P0 工具集，覆盖「分布式 + 容错」核心诉求。
 
 | 模块 | 文件数 | 单测 | 用途 |
 |------|--------|------|------|
-| `utils/idempotency/` | 5 | 7 ✅ | 幂等键（防重 + body 篡改检测） |
-| `utils/locks/` | 3 | 8 ✅ | 分布式锁（互斥/可重入/看门狗） |
-| `utils/reliability/` | 6 | 11 ✅ | 重试/熔断/隔离/降级 四件套 |
+| `framework/idempotency/` | 5 | 7 ✅ | 幂等键（防重 + body 篡改检测） |
+| `framework/locks/` | 3 | 8 ✅ | 分布式锁（互斥/可重入/看门狗） |
+| `framework/reliability/` | 6 | 11 ✅ | 重试/熔断/隔离/降级 四件套 |
 
-合计 **26 个单测全部通过**，examples 可直接 `python utils/<module>/examples.py` 跑通。
+合计 **26 个单测全部通过**，examples 可直接 `python framework/<module>/examples.py` 跑通。
 
 ---
 
-## 1. utils/idempotency — 幂等键
+## 1. framework/idempotency — 幂等键
 
 ### 解决的问题
 - 支付/订单/消息发送场景下，「重复点击 = 重复扣款」
@@ -22,7 +22,7 @@
 ### 核心 API
 
 ```python
-from utils.idempotency import idempotent, idempotent_context
+from framework.idempotency import idempotent, idempotent_context
 
 # ===== 装饰器 =====
 @idempotent(key_fields=["order_id"], ttl=600)
@@ -55,7 +55,7 @@ with idempotent_context(key="upload:UP001", fingerprint=fp, ttl=300) as ctx:
 ### DRF 集成
 
 ```python
-from utils.idempotency.drf import IdempotencyKeyMixin
+from framework.idempotency.drf import IdempotencyKeyMixin
 
 class OrderViewSet(IdempotencyKeyMixin, viewsets.ModelViewSet):
     idempotency_ttl = 600
@@ -69,7 +69,7 @@ class OrderViewSet(IdempotencyKeyMixin, viewsets.ModelViewSet):
 
 ---
 
-## 2. utils/locks — 分布式锁
+## 2. framework/locks — 分布式锁
 
 ### 解决的问题
 - 库存/订单并发：避免超卖
@@ -79,7 +79,7 @@ class OrderViewSet(IdempotencyKeyMixin, viewsets.ModelViewSet):
 ### 核心 API
 
 ```python
-from utils.locks import RedisLock, locked, RedLock
+from framework.locks import RedisLock, locked, RedLock
 
 # ===== 上下文管理器（推荐）=====
 with RedisLock("order:123:pay", ttl=30, wait=5):
@@ -111,7 +111,7 @@ with RedisLock("long_task", ttl=3, auto_renewal=True):
 
 ---
 
-## 3. utils/reliability — 容错四件套
+## 3. framework/reliability — 容错四件套
 
 ### 解决的问题
 - 第三方 API 抖动拖垮主流程
@@ -122,7 +122,7 @@ with RedisLock("long_task", ttl=3, auto_renewal=True):
 ### 核心 API
 
 ```python
-from utils.reliability import (
+from framework.reliability import (
     retry, circuit_breaker, bulkhead, fallback
 )
 
@@ -191,9 +191,9 @@ def charge(amount, card_no):
 ### 订单支付（完整容错链）
 
 ```python
-from utils.reliability import retry, circuit_breaker, bulkhead, fallback
-from utils.locks import RedisLock
-from utils.idempotency import idempotent
+from framework.reliability import retry, circuit_breaker, bulkhead, fallback
+from framework.locks import RedisLock
+from framework.idempotency import idempotent
 
 class OrderService:
     @fallback(default=lambda order_id, **kw: {"status": "queued"})
@@ -220,7 +220,7 @@ class OrderService:
 
 ## 5. 集成检查清单
 
-- [ ] 生产环境已配置 Redis（`utils.cache.get_redis()` 可用）
+- [ ] 生产环境已配置 Redis（`framework.cache.get_redis()` 可用）
 - [ ] 业务关键路径已加幂等键（订单/支付/状态变更）
 - [ ] 库存/订单并发场景已加分布式锁
 - [ ] 外部 API 调用已加重试 + 熔断

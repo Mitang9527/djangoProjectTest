@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: django-saas
+  labels:
+    app.kubernetes.io/name: django-saas
+    app.kubernetes.io/component: postgres
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: django-saas
+      app.kubernetes.io/component: postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: django-saas
+        app.kubernetes.io/component: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+              name: postgres
+          env:
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: django-config
+                  key: DB_NAME
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: django-config
+                  key: DB_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: django-secret
+                  key: DB_PASSWORD
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 250m
+              memory: 256Mi
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - djangosaas
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - djangosaas
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: django-saas
+  labels:
+    app.kubernetes.io/name: django-saas
+    app.kubernetes.io/component: postgres
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: postgres
+      name: postgres
+  selector:
+    app.kubernetes.io/name: django-saas
+    app.kubernetes.io/component: postgres

@@ -1,0 +1,83 @@
+{
+  "stdkey": {
+    "ptt_down": {
+      "key": -1,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up": {
+      "key": -1,
+      "event": "KEY_UP"
+    },
+    "sos": {
+      "event": "KEY_LONG_PRESS",
+      "key": -3,
+      "time": 3000
+    },
+    "-4_KEY_DOWN": {
+      "key": -4,
+      "event": "KEY_DOWN"
+    },
+    "-5_KEY_DOWN": {
+      "key": -5,
+      "event": "KEY_DOWN"
+    }
+  },
+  "intent": {
+    "ptt_down": {
+      "action": "android.intent.action.PTT.down"
+    },
+    "ptt_up": {
+      "action": "android.intent.action.PTT.up"
+    },
+    "sos": {
+      "action": "android.intent.action.SOS.longpress"
+    },
+    "-4_KEY_DOWN": {
+      "action": "android.intent.action.F11.click"
+    },
+    "-5_KEY_DOWN": {
+      "action": "android.intent.action.F10.click"
+    }
+  },
+  "custom": [
+    "join_prev_group",
+    "join_next_group",
+    "switch_group_name_tts",
+    "switch_group_click"
+  ],
+  "action": {
+    "ptt_down": {
+      "default": [{
+        "command": {
+          "id": "START_SPEAK"
+        }
+      }]
+    },
+    "ptt_up": {
+      "default": [{
+        "command": {
+          "id": "STOP_SPEAK"
+        }
+      }]
+    },
+    "-4_KEY_DOWN": {
+      "normal": [{
+        "command": {
+          "id": "ENTER_CUSTOM_STATUS",
+          "name": "join_prev_group",
+          "timeout": 3000
+        }
+      }]
+    },
+    "-5_KEY_DOWN": {
+      "normal": [{
+        "command": {
+          "id": "ENTER_CUSTOM_STATUS",
+          "name": "join_next_group",
+          "timeout": 3000
+        }
+      }]
+    }
+
+  }
+}

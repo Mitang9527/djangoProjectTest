@@ -2,7 +2,7 @@
 """Django's command-line utility for administrative tasks."""
 import os
 import sys
-from utils.env_loader import load_env_file, get_env_type
+from framework.core.env_loader import load_env_file, get_env_type
 
 def main():
     """Run administrative tasks."""

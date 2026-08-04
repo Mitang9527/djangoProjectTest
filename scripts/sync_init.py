@@ -21,16 +21,16 @@ sync_init.py
 .. code-block:: bash
 
     # 仅查看会改什么（CI 友好）
-    python scripts/sync_init.py utils --check
+    python scripts/sync_init.py framework --check
 
     # 显示 diff
-    python scripts/sync_init.py utils --diff
+    python scripts/sync_init.py framework --diff
 
     # 真正写盘（已存在的 init 只追加，不覆盖）
-    python scripts/sync_init.py utils --write
+    python scripts/sync_init.py framework --write
 
     # 强制重写（会丢失手工内容，请备份！）
-    python scripts/sync_init.py utils --force
+    python scripts/sync_init.py framework --force
 
 **作者**：WorkBuddy
 """
@@ -529,7 +529,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     parser.add_argument(
         "package",
-        help="包目录路径（如 utils/）",
+        help="包目录路径（如 framework/）",
     )
     parser.add_argument(
         "--ignore",
@@ -561,7 +561,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         help=(
             "auto: 已有非空 init 则合并；空 init 则保持空；"
             "skip: 永远不动 init（仅 dry-run 报告）；"
-            "create: 即便空 init 也生成（注意：会让 from utils import xxx 暴露全部子模块）"
+            "create: 即便空 init 也生成（注意：会让 from framework import xxx 暴露全部子模块）"
         ),
     )
     parser.add_argument("-q", "--quiet", action="store_true", help="静默模式")

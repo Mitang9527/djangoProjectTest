@@ -1,0 +1,50 @@
+{
+	"stdkey": {
+		"ptt_down": {
+			"key": -1,
+			"event": "KEY_DOWN"
+		},
+		"ptt_up": {
+			"key": -1,
+			"event": "KEY_UP"
+		},
+		"sos": {
+			"event": "KEY_LONG_PRESS",
+			"key": -3,
+			"time": 3000
+		}
+	},
+	"intent": {
+		"ptt_down": {
+			"action": "android.intent.action.PTT.down"
+		},
+		"ptt_up": {
+			"action": "android.intent.action.PTT.up"
+		},
+		"sos": {
+			"action": "android.intent.action.SOS.down"
+		}
+	},
+	"custom": [
+		"join_prev_group",
+		"join_next_group",
+		"switch_group_name_tts",
+		"switch_group_click"
+	],
+	"action": {
+		"ptt_down": {
+			"default": [{
+				"command": {
+					"id": "START_SPEAK"
+				}
+			}]
+		},
+		"ptt_up": {
+			"default": [{
+				"command": {
+					"id": "STOP_SPEAK"
+				}
+			}]
+		}
+	}
+}

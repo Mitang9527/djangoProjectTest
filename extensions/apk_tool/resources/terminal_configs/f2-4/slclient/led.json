@@ -1,0 +1,37 @@
+{
+    "control":{
+        "red_off":{
+            "intent":{
+                "action":"com.intent.redled.off"
+            }
+        },
+        "red_on":{
+            "intent":{
+                "action":"com.intent.redled.on"
+            }
+        },
+        "green_off":{
+            "intent":{
+                "action":"com.intent.greenled.off"
+            }
+        },
+        "green_on":{
+            "intent":{
+                "action":"com.intent.greenled.on"
+            }
+        }
+    },
+    "theme":{
+        "ON_STANDBY":[
+            "green_off",
+            "red_off"
+        ],
+        "WHEN_RECEIVING_VOICE":[
+            "green_on"
+        ],
+        "WHEN_SENDING_VOICE":[
+            "red_on"
+        ]
+    },
+    "enabled":true
+}

@@ -1,0 +1,32 @@
+# ================================================================
+# Prometheus 抓取配置
+# 作用：采集 Django 暴露的 /metrics 端点（django_prometheus + 自定义指标）
+# 用法：prometheus --config.file=deploy/prometheus/prometheus.yml
+#       docker 环境：targets 用 compose 服务名 web:8000
+#       裸机/本地：targets 改为 ['localhost:8000']
+# ================================================================
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'django-saas'
+
+scrape_configs:
+  # ---- Django 应用指标 ----
+  - job_name: 'django'
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['web:8000']
+        labels:
+          app: 'django-saas'
+
+  # ---- Prometheus 自监控（可选） ----
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+# 告警规则（基于通用 + 自定义指标，配合 Alertmanager 或依赖项目内置 alert_system）
+rule_files:
+  - 'rules/*.yml'

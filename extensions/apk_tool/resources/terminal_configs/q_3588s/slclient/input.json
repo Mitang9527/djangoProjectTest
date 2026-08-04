@@ -1,0 +1,148 @@
+{
+  "stdkey": {
+    "ptt_down": {
+      "key": -1,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up": {
+      "key": -1,
+      "event": "KEY_UP"
+    },
+    "-2_KEY_DOWN": {
+      "key": -2,
+      "event": "KEY_DOWN"
+    },
+    "-2_KEY_UP": {
+      "key": -2,
+      "event": "KEY_UP"
+    },
+    "enter_group_list":{
+      "time":500,
+      "event":"KEY_CLICK",
+      "key":-2
+    },
+    "sos": {
+      "key": -2,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    },
+    "-3_KEY_DOWN": {
+      "key": -3,
+      "event": "KEY_DOWN"
+    },
+    "-3_KEY_UP": {
+      "key": -3,
+      "event": "KEY_UP"
+    },
+    "enter_member_list": {
+      "key": -3,
+      "event": "KEY_CLICK",
+      "time": 500
+    },
+    "video_pass_back": {
+      "key": -3,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    },
+    "-4_KEY_DOWN": {
+      "key": -4,
+      "event": "KEY_DOWN"
+    },
+    "-4_KEY_UP": {
+      "key": -4,
+      "event": "KEY_UP"
+    },
+    "local_capture_image": {
+      "key": -4,
+      "event": "KEY_CLICK",
+      "time": 500
+    },
+    "local_capture_video": {
+      "key": -4,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    },
+    "-5_KEY_DOWN": {
+      "key": -5,
+      "event": "KEY_DOWN"
+    }
+  },
+  "intent": {
+    "ptt_down": {
+      "action": "android.intent.action.ptt.down"
+    },
+    "ptt_up": {
+      "action": "android.intent.action.ptt.up"
+    },
+    "-3_KEY_DOWN": {
+      "as_key":true,
+      "action": "android.intent.action.p2.down"
+    },
+    "-3_KEY_UP": {
+      "as_key":true,
+      "action": "android.intent.action.p2.up"
+    },
+    "-2_KEY_DOWN": {
+      "as_key":true,
+      "action": "android.intent.action.p1.down"
+    },
+    "-2_KEY_UP": {
+      "as_key":true,
+      "action": "android.intent.action.p1.up"
+    },
+    "-4_KEY_DOWN": {
+      "as_key":true,
+      "action": "android.intent.action.camera.down"
+    },
+    "-4_KEY_UP": {
+      "as_key":true,
+      "action": "android.intent.action.camera.up"
+    },
+    "-5_KEY_DOWN": {
+      "action": "android.intent.action.menu.down"
+    }
+  },
+  "custom": ["system_setting"],
+  "action": {
+    "ptt_down": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    },
+    "enter_group_list": {
+      "default" : [
+        {
+          "command" : {
+            "id" : "PLAY_TTS" ,
+            "priority" : 4 ,
+            "content" : "$current_group_temp$%group_name%"
+          }
+        }
+      ]
+    },
+    "-5_KEY_DOWN": {
+      "default" : [
+        {
+          "command" : {
+            "id" : "ENTER_CUSTOM_STATUS" ,
+            "name" : "system_setting" ,
+            "timeout" : 30000
+          }
+        }
+      ]
+    }
+  }
+}
