@@ -26,16 +26,19 @@ x-django-common: &django-common
 
 services:
 
-  # ---- Nginx 反向代理（生产必须）----
+  # ---- Nginx：托管 Vue SPA + 反向代理 /api 到 Django（生产必须）----
+  # 镜像是多阶段构建（Dockerfile.nginx）：Node 构建 Vue dist → 拷入 nginx。
+  # Nginx 配置与 SPA 静态资源已在镜像内，运行时只挂载数据卷。
   nginx:
-    image: nginx:1.27-alpine
+    build:
+      context: .
+      dockerfile: Dockerfile.nginx
+    image: ${NGINX_IMAGE:-djangosaas-nginx:latest}
     container_name: saas_nginx
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./deploy/nginx/conf.d:/etc/nginx/conf.d:ro
       - django_static:/app/static_root:ro
       - django_media:/app/media:ro
       - nginx_logs:/var/log/nginx

@@ -12,6 +12,8 @@
   --warn: #ffb020;
   --danger: #ff5c7c;
   --radius: 16px;
+  --muted: #6b7693;
+  --shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
 }
 
 * {

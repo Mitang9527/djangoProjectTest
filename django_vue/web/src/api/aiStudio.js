@@ -58,25 +58,3 @@ export const adminGrant = async (payload) =>
 // ============ 当前用户可用渠道（功能入口） ============
 export const listMyChannels = async () =>
   (await request.get('/api/ai_studio/my-channels/')).data
-
-// ============ 单点登录桥接：跳转 Django 后端页面 ============
-// 前端持 JWT 换一张 60s 短时票据，再用它打开后端页面并自动建立 Session，
-// 避免把长效 JWT 暴露在 URL / 浏览器历史 / 访问日志中。
-export const getSsoTicket = async () =>
-  (await request.post('/api/ai_studio/sso/ticket/')).data
-
-// 后端页面的来源地址：开发期前后端分离（vite 只代理 /api，/saas/ 不在代理内），
-// 需用绝对地址直达后端；生产同域部署时留空即可走相对路径。
-export const BACKEND_ORIGIN = import.meta.env.VITE_BACKEND_ORIGIN || ''
-
-/**
- * 换票后在新标签页打开 Django 后端页面。
- * @param {string} next 后端站内路径，需在后端白名单内（/saas/、/admin/ 等）
- */
-export const openBackendPage = async (next = '/saas/') => {
-  const { ticket } = await getSsoTicket()
-  const url =
-    `${BACKEND_ORIGIN}/api/ai_studio/sso/bridge/` +
-    `?ticket=${encodeURIComponent(ticket)}&next=${encodeURIComponent(next)}`
-  window.open(url, '_blank', 'noopener')
-}

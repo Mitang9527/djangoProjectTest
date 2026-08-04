@@ -59,27 +59,11 @@ class TestApiView(APIView):
         # 这里处理业务逻辑
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-from django.shortcuts import render, redirect
-from rest_framework.renderers import TemplateHTMLRenderer
-from framework.drf.renderer import CustomRenderer
-from django.views.generic import TemplateView
-from django.contrib import messages
-
-class UserProfileTemplateView(TemplateView):
-    template_name = 'users/profile.html'
-    permission_classes = [permissions.IsAuthenticated] # Note: TemplateView doesn't use this by default, but good for reference
-
 class UserRegisterView(generics.CreateAPIView):
-    """用户注册视图 (支持页面和 API)"""
+    """用户注册视图 (API)"""
     queryset = User.objects.all()
     serializer_class = UserRegisterSerializer
     permission_classes = [permissions.AllowAny]
-    renderer_classes = [TemplateHTMLRenderer, CustomRenderer]
-    template_name = 'users/register.html'
-
-    @extend_schema(exclude=True)
-    def get(self, request):
-        return Response({})
 
     def perform_create(self, serializer):
         user = serializer.save()
@@ -89,24 +73,15 @@ class UserRegisterView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
             logger.warning(f"注册失败: 用户输入无效 - {serializer.errors}")
-            if request.accepted_renderer.format == 'html':
-                messages.error(request, _("注册失败，请检查输入信息"))
-                return Response({'error': serializer.errors}, template_name=self.template_name)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-            
+
         self.perform_create(serializer)
-        
+
         # 获取请求 IP
         x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
         ip = x_forwarded_for.split(',')[0] if x_forwarded_for else request.META.get('REMOTE_ADDR')
         logger.success(f"新用户注册成功: 用户名=[{serializer.validated_data['username']}], IP=[{ip}]")
-        
-        if request.accepted_renderer.format == 'html':
-            messages.success(
-                request,
-                _("注册成功！欢迎您，%(username)s。请登录。") % {'username': serializer.validated_data['username']}
-            )
-            return redirect('users:login')
+
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 from django.utils import timezone
@@ -114,15 +89,9 @@ from datetime import timedelta
 from django.conf import settings
 
 class UserLoginView(APIView):
-    """用户登录视图 (支持页面和 API)"""
+    """用户登录视图 (返回 JWT Token)"""
     permission_classes = [permissions.AllowAny]
-    renderer_classes = [TemplateHTMLRenderer, CustomRenderer]
-    template_name = 'users/login.html'
     serializer_class = UserLoginSerializer
-
-    @extend_schema(exclude=True)
-    def get(self, request):
-        return Response({})
 
     @extend_schema(
         summary="用户登录",
@@ -138,8 +107,6 @@ class UserLoginView(APIView):
         serializer = UserLoginSerializer(data=request.data)
         if not serializer.is_valid():
             logger.warning(f"登录失败: 数据验证不通过 - {serializer.errors}")
-            if request.accepted_renderer.format == 'html':
-                return Response({'error': _('用户名或密码格式错误')}, template_name=self.template_name)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         username = serializer.validated_data['username']
@@ -151,8 +118,6 @@ class UserLoginView(APIView):
         if user:
             if not user.is_active:
                 logger.warning(f"登录失败: 账号已被禁用 - [{username}]")
-                if request.accepted_renderer.format == 'html':
-                    return Response({'error': _('该账号已被禁用')}, template_name=self.template_name)
                 return Response({'detail': _('该账号已被禁用')}, status=status.HTTP_403_FORBIDDEN)
 
             # 获取请求 IP
@@ -160,11 +125,6 @@ class UserLoginView(APIView):
             ip = x_forwarded_for.split(',')[0] if x_forwarded_for else request.META.get('REMOTE_ADDR')
 
             logger.success(f"用户登录成功: 用户名=[{user.username}], 角色=[{getattr(user, 'role', 'user')}], IP=[{ip}]")
-
-            if request.accepted_renderer.format == 'html':
-                from django.contrib.auth import login
-                login(request, user)
-                return redirect('/')
 
             # 使用 JWT 认证生成 token
             from rest_framework_simplejwt.tokens import RefreshToken
@@ -184,14 +144,11 @@ class UserLoginView(APIView):
 
         # 统一返回用户名或密码错误（不区分账号不存在/密码错误，防止枚举）
         logger.warning(f"登录失败: 用户名或密码错误 - [{username}]")
-        if request.accepted_renderer.format == 'html':
-            return Response({'error': _('用户名或密码错误')}, template_name=self.template_name)
         return Response({'detail': _('用户名或密码错误')}, status=status.HTTP_401_UNAUTHORIZED)
 
 class UserLogoutView(APIView):
-    """用户登出视图 - 支持 JWT 和 Session"""
+    """用户登出视图 - 支持 JWT 黑名单和 Session 清理"""
     permission_classes = [permissions.AllowAny]  # 允许未认证访问，避免 401
-    renderer_classes = [TemplateHTMLRenderer, CustomRenderer]
 
     @extend_schema(
         summary="用户登出",
@@ -207,7 +164,7 @@ class UserLogoutView(APIView):
             if request.user and request.user.is_authenticated:
                 username = request.user.username
 
-                # 1.1 退出 Session 登录 (针对 HTML 页面)
+                # 1.1 退出 Session 登录
                 from django.contrib.auth import logout
                 logout(request)
 
@@ -221,23 +178,15 @@ class UserLogoutView(APIView):
                     logger.info("JWT Token 已加入黑名单")
                 except Exception as e:
                     logger.warning(f"JWT Token 黑名单处理失败: {e}")
-                    # 即使黑名单失败也继续，不影响登出流程
-            
+
             if username:
                 logger.info(f"用户登出成功: {username}")
             else:
                 logger.info("匿名用户登出请求")
-            
-            # 判断请求来源：如果是浏览器表单提交（通常包含 HTML 渲染器）
-            if request.accepted_renderer.format == 'html' or 'text/html' in request.headers.get('Accept', ''):
-                messages.success(request, _("您已成功退出登录"))
-                return redirect('/')
-                
+
             return Response({'message': _('登出成功')}, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"用户登出异常: {e}")
-            if request.accepted_renderer.format == 'html':
-                return redirect('/')
             return Response({'detail': _('登出失败')}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class UserInfoView(generics.RetrieveUpdateAPIView):
@@ -245,8 +194,6 @@ class UserInfoView(generics.RetrieveUpdateAPIView):
     queryset = User.objects.all()
     serializer_class = UserDetailSerializer
     permission_classes = [permissions.IsAuthenticated, IsAdminOrSelf]
-    renderer_classes = [TemplateHTMLRenderer, CustomRenderer]
-    template_name = 'users/profile.html'
 
     def get_object(self):
         # 如果 URL 中传了 pk，则获取指定用户（受 IsAdminOrSelf 保护）
@@ -255,37 +202,6 @@ class UserInfoView(generics.RetrieveUpdateAPIView):
             return super().get_object()
         # 否则默认返回当前登录用户
         return self.request.user
-
-    def get(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = self.get_serializer(instance)
-        if request.accepted_renderer.format == 'html':
-            return Response({'user': instance, 'serializer': serializer})
-        return Response(serializer.data)
-
-    def post(self, request, *args, **kwargs):
-        """支持 HTML 表单通过 POST 方法修改信息"""
-        return self.update(request, *args, **kwargs)
-
-    def update(self, request, *args, **kwargs):
-        partial = kwargs.pop('partial', True)
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=partial)
-        
-        if not serializer.is_valid():
-            logger.warning(f"更新用户信息失败: {serializer.errors}")
-            if request.accepted_renderer.format == 'html':
-                messages.error(request, _("更新失败，请检查输入信息"))
-                return Response({'user': instance, 'error': serializer.errors}, template_name=self.template_name)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        self.perform_update(serializer)
-        logger.success(f"用户信息更新成功: {instance.username}")
-
-        if request.accepted_renderer.format == 'html':
-            messages.success(request, _("个人资料更新成功！"))
-            return redirect('users:profile')
-        return Response(serializer.data)
 
 from rest_framework import filters
 from django_filters.rest_framework import DjangoFilterBackend

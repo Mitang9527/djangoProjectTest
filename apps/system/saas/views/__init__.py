@@ -14,25 +14,6 @@ SaaS 后台管理系统 — 视图包。
 
 此 __init__.py 向后兼容：所有公共符号通过 re-export 保持原有导入路径不变。
 """
-from .page_views import (
-    DashboardView,
-    PlaceholderModuleView,
-    TenantListView,
-    MemberListView,
-    RoleListView,
-    PermissionListView,
-    PlanListView,
-    SubscriptionListView,
-    OrderListView,
-    InvoiceListView,
-    ConfigListView,
-    SystemUserListView,
-    SystemDashboardView,
-    SystemLogsView,
-    SystemSettingsView,
-    GatewayDashboardView,
-    GatewayRulesView,
-)
 from .viewsets import (
     PlanViewSet,
     PlanFeatureViewSet,
@@ -96,13 +77,6 @@ from .db_pool import (
 )
 
 __all__ = [
-    # Page views
-    'DashboardView', 'PlaceholderModuleView', 'TenantListView',
-    'MemberListView', 'RoleListView', 'PermissionListView',
-    'PlanListView', 'SubscriptionListView', 'OrderListView',
-    'InvoiceListView', 'ConfigListView', 'SystemUserListView',
-    'SystemDashboardView', 'SystemLogsView', 'SystemSettingsView',
-    'GatewayDashboardView', 'GatewayRulesView',
     # ViewSets
     'PlanViewSet', 'PlanFeatureViewSet', 'TenantViewSet',
     'TenantSubscriptionViewSet', 'TenantConfigViewSet',

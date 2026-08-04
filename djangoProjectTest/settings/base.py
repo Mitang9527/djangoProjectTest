@@ -76,7 +76,6 @@ THIRD_PARTY_APPS = [
     'channels',  # WebSocket 支持
     'django_filters',   #接口过滤
     'corsheaders',     #解决前后端跨域
-    'bootstrap4',    #前端 CSS 框架
     'drf_spectacular',  # Swagger 文档生成
     'django_extensions',  # Django 扩展工具
     'django_celery_beat',  # Celery 定时任务
@@ -160,10 +159,7 @@ ROOT_URLCONF = 'djangoProjectTest.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [
-            os.path.join(BASE_DIR, 'templates'),
-            os.path.join(BASE_DIR, 'apps', 'core', 'templates')
-        ],
+        'DIRS': [],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -612,6 +608,7 @@ API_SIGNATURE_EXCLUDE_PATHS = [
     "/api/users/register/",
     "/api/docs/",
     "/api/health/",
+    "/api/ping/",
     # 第一方 Web SPA（带 JWT 的浏览器客户端）走 JWT 鉴权，不做签名校验
     "/api/ai_studio/*",
 ]

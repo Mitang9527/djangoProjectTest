@@ -4,22 +4,6 @@ SaaS 后台管理系统 - 路由配置
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
-    DashboardView,
-    TenantListView,
-    MemberListView,
-    RoleListView,
-    PermissionListView,
-    PlanListView,
-    SubscriptionListView,
-    OrderListView,
-    InvoiceListView,
-    ConfigListView,
-    SystemUserListView,
-    SystemDashboardView,
-    SystemLogsView,
-    SystemSettingsView,
-    GatewayDashboardView,
-    GatewayRulesView,
     PlanViewSet,
     PlanFeatureViewSet,
     TenantViewSet,
@@ -66,8 +50,6 @@ from .views import (
     get_user_features,
     toggle_feature_flag,
 )
-# APK 工具页面视图
-from apk_tool.page_views import apk_dashboard, apk_build_page, apk_task_detail, apk_terminal_page
 
 app_name = 'saas'
 
@@ -87,29 +69,6 @@ router.register(r'feature-flags', FeatureFlagViewSet)
 router.register(r'config-history', ConfigHistoryViewSet)
 
 urlpatterns = [
-    # 网页路由（name 统一加 -page 后缀，避免与 DRF Router 自动生成的 xxx-list 冲突）
-    path('', DashboardView.as_view(), name='dashboard'),
-    path('tenants/', TenantListView.as_view(), name='tenant-page'),
-    path('members/', MemberListView.as_view(), name='member-page'),
-    path('roles/', RoleListView.as_view(), name='role-page'),
-    path('permissions/', PermissionListView.as_view(), name='permission-page'),
-    path('plans/', PlanListView.as_view(), name='plan-page'),
-    path('subscriptions/', SubscriptionListView.as_view(), name='subscription-page'),
-    path('orders/', OrderListView.as_view(), name='order-page'),
-    path('invoices/', InvoiceListView.as_view(), name='invoice-page'),
-    path('configs/', ConfigListView.as_view(), name='config-page'),
-    path('users/', SystemUserListView.as_view(), name='system-user-page'),
-    path('system/dashboard/', SystemDashboardView.as_view(), name='system-dashboard'),
-    path('system/logs/', SystemLogsView.as_view(), name='system-logs'),
-    path('system/settings/', SystemSettingsView.as_view(), name='system-settings'),
-    # 网关管理页面
-    path('gateway/', GatewayDashboardView.as_view(), name='gateway-dashboard'),
-    path('gateway/rules/', GatewayRulesView.as_view(), name='gateway-rules'),
-    # APK 工具页面路由（在 SaaS 后台下）
-    path('apk-tool/', apk_dashboard, name='apk-tool-dashboard'),
-    path('apk-tool/build/', apk_build_page, name='apk-tool-build'),
-    path('apk-tool/build/<uuid:task_id>/', apk_task_detail, name='apk-tool-task-detail'),
-    path('apk-tool/terminals/', apk_terminal_page, name='apk-tool-terminals'),
     # APK 工具 API 路由
     path('apk-tool/api/', include('apk_tool.urls')),
     # API 路由

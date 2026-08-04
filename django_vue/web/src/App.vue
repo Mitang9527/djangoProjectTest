@@ -7,16 +7,13 @@
         <el-menu
           mode="horizontal"
           :ellipsis="false"
-          :default-active="route.path"
+          :default-active="activeMenu"
           class="menu"
           @select="onMenuSelect"
         >
           <el-menu-item index="/">首页</el-menu-item>
           <el-menu-item :index="consolePath">{{ consoleLabel }}</el-menu-item>
-          <el-menu-item index="/studio">工作台</el-menu-item>
-          <el-menu-item v-if="user.isAdmin" :index="BACKEND_MENU_KEY">
-            后台管理<span class="ext-icon">↗</span>
-          </el-menu-item>
+          <el-menu-item index="/backend">工作台</el-menu-item>
         </el-menu>
         <div class="right">
           <el-tag v-if="user.token" type="info" effect="dark" round>
@@ -41,14 +38,7 @@
         <div class="m-brand" @click="go('/')">图灵智绘 <span class="grad">AI</span></div>
         <van-cell title="首页" @click="go('/')" />
         <van-cell :title="consoleLabel" @click="go(consolePath)" />
-        <van-cell title="工作台" @click="go('/studio')" />
-        <van-cell
-          v-if="user.isAdmin"
-          title="后台管理"
-          value="新窗口"
-          is-link
-          @click="openBackendConsole()"
-        />
+        <van-cell title="工作台" @click="go('/backend')" />
         <van-cell v-if="!user.token" title="登录" @click="go('/login')" />
         <van-cell v-else :title="user.isAdmin ? '退出登录（管理员）' : '退出登录'" @click="doLogout()" />
       </van-popup>
@@ -61,7 +51,7 @@
       <van-tabbar v-if="isMobile" route>
         <van-tabbar-item to="/" icon="home-o">首页</van-tabbar-item>
         <van-tabbar-item :to="consolePath" icon="apps-o">{{ consoleShort }}</van-tabbar-item>
-        <van-tabbar-item to="/studio" icon="brush-o">工作台</van-tabbar-item>
+        <van-tabbar-item to="/backend" icon="brush-o">工作台</van-tabbar-item>
       </van-tabbar>
     </div>
   </el-config-provider>
@@ -72,7 +62,6 @@ import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/store/user'
-import { openBackendPage } from '@/api/aiStudio'
 
 const user = useUserStore()
 const route = useRoute()
@@ -80,12 +69,14 @@ const router = useRouter()
 const isMobile = ref(false)
 const showMenu = ref(false)
 
-// 「后台管理」不是前端路由，用特殊 key 与真实路径区分，避免被 router.push
-const BACKEND_MENU_KEY = '__backend_console__'
-
 const consolePath = computed(() => (user.isAdmin ? '/admin' : '/console'))
 const consoleLabel = computed(() => (user.isAdmin ? '管理后台' : '我的控制台'))
 const consoleShort = computed(() => (user.isAdmin ? '后台' : '控制台'))
+
+// 工作台（/backend 及其子页）在顶栏高亮时统一映射到 /backend
+const activeMenu = computed(() =>
+  route.path.startsWith('/backend') ? '/backend' : route.path
+)
 
 const check = () => {
   isMobile.value = window.innerWidth <= 768
@@ -103,44 +94,23 @@ const go = (p) => {
   router.push(p)
 }
 
-// 打开 Django SaaS 后台：先换短时票据，再新标签页跳转并自动建立 Session
-const openingBackend = ref(false)
-const openBackendConsole = async () => {
-  if (openingBackend.value) return
-  openingBackend.value = true
-  showMenu.value = false
-  try {
-    await openBackendPage('/saas/')
-  } catch (e) {
-    ElMessage.error(e?.response?.data?.message || '打开后台失败，请重新登录后再试')
-  } finally {
-    openingBackend.value = false
-  }
-}
-
-// el-menu 未开启 router 模式，这里手动分发：外链项走新窗口，其余走前端路由
+// el-menu 未开启 router 模式，这里手动分发：其余走前端路由
 const onMenuSelect = (index) => {
-  if (index === BACKEND_MENU_KEY) {
-    openBackendConsole()
-    return
+  if (
+    index !== route.path &&
+    !(index === '/backend' && route.path.startsWith('/backend'))
+  ) {
+    router.push(index)
   }
-  if (index !== route.path) router.push(index)
 }
 const doLogout = () => {
   showMenu.value = false
   user.logout()
   router.push('/')
 }
-const activePath = computed(() => route.path)
 </script>
 
 <style scoped>
-/* 「↗」标示这是跳出 SPA 的外部页面（新标签页打开） */
-.ext-icon {
-  font-size: 12px;
-  margin-left: 3px;
-  opacity: 0.65;
-}
 .mobile-menu {
   width: 70%;
   max-width: 280px;

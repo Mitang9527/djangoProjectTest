@@ -5,7 +5,6 @@ from .views import (
     DemoLoginView, GenerateView, QuotaView, TaskListView, MeView,
     RechargeView, AdminGrantView, AdminUsersView,
     ChannelListView, ChannelDetailView, GrantView, MyChannelsView, AdminDashboardView,
-    SsoTicketView, SsoBridgeView,
 )
 
 urlpatterns = [
@@ -26,7 +25,4 @@ urlpatterns = [
     path('my-channels/', MyChannelsView.as_view(), name='ai-my-channels'),
     # 管理员工作台概览
     path('admin/dashboard/', AdminDashboardView.as_view(), name='ai-admin-dashboard'),
-    # SPA(JWT) -> Django 后台(Session) 单点登录桥接
-    path('sso/ticket/', SsoTicketView.as_view(), name='ai-sso-ticket'),
-    path('sso/bridge/', SsoBridgeView.as_view(), name='ai-sso-bridge'),
 ]

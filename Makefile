@@ -156,8 +156,9 @@ collectstatic: ## 收集静态文件（容器内）
 # ================================================================
 # 生产环境
 # ================================================================
-prod-build: ## 构建生产镜像
+prod-build: ## 构建生产镜像（Django + Nginx 前端）
 	docker build -t $(IMAGE_NAME):$(IMAGE_TAG) .
+	docker build -f Dockerfile.nginx -t $(IMAGE_NAME)-nginx:$(IMAGE_TAG) .
 
 prod-up: ## 启动生产环境
 	$(COMPOSE_PROD) up -d
@@ -170,6 +171,9 @@ prod-logs: ## 查看生产日志
 
 prod-restart-web: ## 零停机重启 web 服务
 	$(COMPOSE_PROD) up -d --no-deps --build web
+
+deploy-linux: ## 一键部署（Linux + Docker）：构建并拉起生产环境
+	./scripts/deploy_docker.sh
 
 # ================================================================
 # 数据管理

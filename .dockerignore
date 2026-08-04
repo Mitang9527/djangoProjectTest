@@ -1,79 +1,32 @@
 # ================================================================
-# .dockerignore — 排除不需要进入镜像的文件
+# .dockerignore —— 同时作用于 Django 镜像与 Nginx(前端) 镜像的构建上下文
 # ================================================================
 
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.pyo
-.Python
-*.egg
-*.egg-info/
-dist/
-build/
-.eggs/
-pip-wheel-metadata/
+# 依赖与 Python 缓存
+**/node_modules
+**/__pycache__
+*.pyc
+.venv
+**/.venv
 
-# 虚拟环境
-.venv/
-venv/
-env/
-ENV/
+# 前端构建产物（构建期重新生成，不应带入上下文）
+django_vue/web/dist
 
-# 测试
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-htmlcov/
-.coverage
+# 运行时 / 数据目录（均由 volume 挂载，不打包进镜像）
+db.sqlite3
+media
+logs
+htmlcov
 coverage.xml
 
-# 数据库文件（容器使用 PostgreSQL，不需要 sqlite3）
-*.sqlite3
-db.sqlite3
+# 版本控制与 CI
+.git
+.github
 
-# 日志（容器运行时动态生成）
-logs/
-*.log
+# 本地开发 / 临时文件
+tmp_*.py
+**/*.log
 
-# 媒体文件（应挂载外部卷）
-media/
-
-# 静态文件（collectstatic 在构建时生成）
-static_root/
-
-# 本地备份
-backups/
-
-# 环境变量文件（通过 docker-compose 或 k8s secret 注入）
-.env
-.env.*
-!.env.example
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-.DS_Store
-Thumbs.db
-
-# Git
-.git/
-.gitignore
-
-# Docker 自身
-Dockerfile*
-docker-compose*.yml
-.dockerignore
-
-# 文档
-docs/
-*.md
-README*
-
-# 开发工具配置
-pyproject.toml
-uv.lock
-tasks.py
+# 大体积扩展产物（按需放开）
+extensions/**/*.apk
+extensions/**/*.keystore
