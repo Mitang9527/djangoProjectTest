@@ -20,14 +20,6 @@ try:
 except ImportError:
     HAS_REDIS = False
 
-try:
-    import pika
-    from pika.exceptions import AMQPError
-    HAS_RABBITMQ = True
-except ImportError:
-    HAS_RABBITMQ = False
-
-
 class HealthStatus(Enum):
     """健康状态枚举"""
     PASS = "pass"
@@ -129,52 +121,6 @@ class RedisHealthCheck(HealthCheck):
             )
 
 
-class RabbitMQHealthCheck(HealthCheck):
-    """RabbitMQ健康检查"""
-    name = "rabbitmq"
-    component_type = "messaging"
-    
-    def check(self) -> HealthCheckResult:
-        if not HAS_RABBITMQ:
-            return HealthCheckResult(
-                status=HealthStatus.PASS,
-                message="RabbitMQ not configured (optional)"
-            )
-        
-        try:
-            rabbitmq_config = getattr(settings, "RABBITMQ_CONFIG", {})
-            if not rabbitmq_config:
-                return HealthCheckResult(
-                    status=HealthStatus.PASS,
-                    message="RabbitMQ not configured"
-                )
-            
-            credentials = pika.PlainCredentials(
-                rabbitmq_config.get("username", "guest"),
-                rabbitmq_config.get("password", "guest")
-            )
-            parameters = pika.ConnectionParameters(
-                host=rabbitmq_config.get("host", "localhost"),
-                port=rabbitmq_config.get("port", 5672),
-                virtual_host=rabbitmq_config.get("virtual_host", "/"),
-                credentials=credentials,
-                socket_timeout=5
-            )
-            connection = pika.BlockingConnection(parameters)
-            connection.close()
-            
-            return HealthCheckResult(
-                status=HealthStatus.PASS,
-                message="RabbitMQ is healthy"
-            )
-        except AMQPError as e:
-            logger.error(f"RabbitMQ health check failed: {e}")
-            return HealthCheckResult(
-                status=HealthStatus.FAIL,
-                message=f"RabbitMQ connection failed: {str(e)}"
-            )
-
-
 class DiskSpaceHealthCheck(HealthCheck):
     """磁盘空间健康检查"""
     name = "disk"
@@ -222,7 +168,6 @@ class HealthChecker:
         self.checks: List[HealthCheck] = [
             DatabaseHealthCheck(),
             RedisHealthCheck(),
-            RabbitMQHealthCheck(),
             DiskSpaceHealthCheck(),
         ]
     

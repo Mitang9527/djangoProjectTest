@@ -46,7 +46,7 @@ def cleanup_old_backups(retention_days: int = 30):
 
 @shared_task(name="core.tasks.probe_dependencies")
 def probe_dependencies():
-    """主动探活依赖组件（DB / Redis / RabbitMQ / 磁盘），失败时经 alert_system 发告警。
+    """主动探活依赖组件（DB / Redis / Celery Broker / 磁盘），失败时经 alert_system 发告警。
 
     复用 apps/core/health.py 的 HealthChecker，对每个 FAIL 的组件调用
     AlertEngine.trigger 创建告警（并按 settings.ALERT_PROBE_CHANNELS 外发）。

@@ -465,9 +465,6 @@ CACHALOT_UNCACHABLE_TABLES = frozenset([
     'django_celery_beat_clockedschedule',
 ])
 
-# --- RabbitMQ 消息队列配置 ---
-RABBITMQ_CONFIG = global_config.rabbitmq.model_dump()
-
 LOGIN_URL = '/api/users/login/'
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'

@@ -57,18 +57,6 @@ class RedisConfig(BaseModel):
     socket_timeout: int = Field(10, validation_alias=AliasChoices("REDIS_TIMEOUT"))
     enabled: bool = Field(False, validation_alias=AliasChoices("REDIS_ENABLED"))
 
-class RabbitMQConfig(BaseModel):
-    """RabbitMQ 配置"""
-    host: str = Field("localhost", validation_alias=AliasChoices("RABBITMQ_HOST"))
-    port: int = Field(5672, validation_alias=AliasChoices("RABBITMQ_PORT"))
-    username: str = Field("guest", validation_alias=AliasChoices("RABBITMQ_USER"))
-    password: str = Field("guest", validation_alias=AliasChoices("RABBITMQ_PASSWORD"))
-    virtual_host: str = Field("/", validation_alias=AliasChoices("RABBITMQ_VHOST"))
-    heartbeat: int = Field(300, validation_alias=AliasChoices("RABBITMQ_HEARTBEAT"))
-    connection_attempts: int = Field(3, validation_alias=AliasChoices("RABBITMQ_ATTEMPTS"))
-    retry_delay: int = Field(5, validation_alias=AliasChoices("RABBITMQ_RETRY_DELAY"))
-    enabled: bool = Field(False, validation_alias=AliasChoices("RABBITMQ_ENABLED"))
-
 class NotificationConfig(BaseModel):
     """通知配置"""
     # 使用 Any 绕过 pydantic-settings 的强制 JSON 解析
@@ -165,7 +153,6 @@ class ProjectSettings(BaseSettings):
     wechat: WeChatConfig = Field(default_factory=WeChatConfig)
     notification: NotificationConfig = Field(default_factory=NotificationConfig)
     redis: RedisConfig = Field(default_factory=RedisConfig)
-    rabbitmq: RabbitMQConfig = Field(default_factory=RabbitMQConfig)
 
     # --- OIDC 单点登录配置（顶层字段，确保 OIDC_* 环境变量可直接注入）---
     OIDC_ENABLED: bool = Field(False, validation_alias=AliasChoices("OIDC_ENABLED"))
