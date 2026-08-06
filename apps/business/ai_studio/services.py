@@ -7,13 +7,17 @@
 每笔变动均写入不可变流水账 QuotaTransaction。
 """
 import base64
+import contextlib
 import random
 import time
-import uuid
 
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
+from framework.idempotency import idempotent_context
+from framework.locks import RedisLock, LockTimeoutError, LockAcquireError
+from framework.random_utils.random_utils import gen_order_no
+from loguru import logger
 
 from .models import (
     UserQuota, QuotaTransaction, GenerationTask, RechargeOrder,
@@ -45,6 +49,31 @@ def compute_cost(kind: str, resolution: str, count: int) -> int:
     return base * max(1, int(count))
 
 
+@contextlib.contextmanager
+def _quota_lock(user_id):
+    """对单个用户的额度变动加分布式锁（best-effort）。
+
+    - Redis 可用时提供跨进程互斥，避免并发请求同时越过余额校验；
+    - Redis 不可用时降级为无锁，由事务内的 ``select_for_update`` 兜底行级锁，
+      业务不因此中断。
+    """
+    lock = RedisLock(f"quota:{user_id}", ttl=15, wait=3.0)
+    acquired = False
+    try:
+        lock.acquire()
+        acquired = True
+    except (LockTimeoutError, LockAcquireError):
+        logger.warning("额度锁获取失败（Redis 不可用或超时），降级为无锁（依赖 DB 行锁）")
+    try:
+        yield
+    finally:
+        if acquired:
+            try:
+                lock.release()
+            except Exception:
+                pass
+
+
 def get_or_create_quota(user) -> UserQuota:
     quota, created = UserQuota.objects.get_or_create(user=user)
     if created and not quota.signup_granted:
@@ -66,44 +95,53 @@ def _grant(quota: UserQuota, amount: int, task, remark: str, tx_type: str = 'GRA
 
 
 def freeze(quota: UserQuota, amount: int, task) -> None:
-    if quota.balance < amount:
-        raise ValueError('额度不足')
-    quota.balance -= amount
-    quota.frozen += amount
-    quota.save()
-    QuotaTransaction.objects.create(
-        user=quota.user, tx_type='FREEZE', amount=amount,
-        balance_after=quota.balance, frozen_after=quota.frozen,
-        task=task, remark='任务预扣',
-    )
+    with _quota_lock(quota.user_id):
+        with transaction.atomic():
+            q = UserQuota.objects.select_for_update().get(id=quota.id)
+            if q.balance < amount:
+                raise ValueError('额度不足')
+            q.balance -= amount
+            q.frozen += amount
+            q.save()
+            QuotaTransaction.objects.create(
+                user=q.user, tx_type='FREEZE', amount=amount,
+                balance_after=q.balance, frozen_after=q.frozen,
+                task=task, remark='任务预扣',
+            )
 
 
 def confirm(quota: UserQuota, task) -> None:
-    quota.frozen = max(0, quota.frozen - task.cost)
-    quota.save()
-    # 累计渠道专属消耗（管理员据此控制单用户在某渠道的总额度）
-    ch = getattr(task, 'channel', None)
-    if ch:
-        grant = UserChannelGrant.objects.filter(user=task.user, channel=ch).first()
-        if grant:
-            grant.used_quota = (grant.used_quota or 0) + task.cost
-            grant.save(update_fields=['used_quota'])
-    QuotaTransaction.objects.create(
-        user=quota.user, tx_type='CONFIRM', amount=task.cost,
-        balance_after=quota.balance, frozen_after=quota.frozen,
-        task=task, remark='任务成功确认扣减',
-    )
+    with _quota_lock(quota.user_id):
+        with transaction.atomic():
+            q = UserQuota.objects.select_for_update().get(id=quota.id)
+            q.frozen = max(0, q.frozen - task.cost)
+            q.save()
+            # 累计渠道专属消耗（管理员据此控制单用户在某渠道的总额度）
+            ch = getattr(task, 'channel', None)
+            if ch:
+                grant = UserChannelGrant.objects.filter(user=task.user, channel=ch).first()
+                if grant:
+                    grant.used_quota = (grant.used_quota or 0) + task.cost
+                    grant.save(update_fields=['used_quota'])
+            QuotaTransaction.objects.create(
+                user=q.user, tx_type='CONFIRM', amount=task.cost,
+                balance_after=q.balance, frozen_after=q.frozen,
+                task=task, remark='任务成功确认扣减',
+            )
 
 
 def refund(quota: UserQuota, task) -> None:
-    quota.frozen = max(0, quota.frozen - task.cost)
-    quota.balance += task.cost
-    quota.save()
-    QuotaTransaction.objects.create(
-        user=quota.user, tx_type='REFUND', amount=task.cost,
-        balance_after=quota.balance, frozen_after=quota.frozen,
-        task=task, remark='任务失败返还',
-    )
+    with _quota_lock(quota.user_id):
+        with transaction.atomic():
+            q = UserQuota.objects.select_for_update().get(id=quota.id)
+            q.frozen = max(0, q.frozen - task.cost)
+            q.balance += task.cost
+            q.save()
+            QuotaTransaction.objects.create(
+                user=q.user, tx_type='REFUND', amount=task.cost,
+                balance_after=q.balance, frozen_after=q.frozen,
+                task=task, remark='任务失败返还',
+            )
 
 
 def _make_placeholder(seed: int, label: str) -> str:
@@ -149,8 +187,25 @@ def run_mock_generation(task_id: str) -> None:
     confirm(quota, task)
 
 
+def create_generation_task(user, params: dict, channel=None, idempotency_key: str | None = None) -> GenerationTask:
+    """创建生成任务并冻结额度。
+
+    idempotency_key 用于客户端重试去重：相同 key 的重复请求会直接返回
+    首次创建的任务，避免重复冻结/扣减额度（孤儿任务）。
+    """
+    if idempotency_key:
+        with idempotent_context(key=f"gen:{idempotency_key}", ttl=3600) as ctx:
+            if ctx.is_replay:
+                # 命中重放：返回首次创建的同一任务
+                return GenerationTask.objects.get(id=ctx.replayed_response)
+            task = _create_generation_task(user, params, channel)
+            ctx.store(str(task.id))
+            return task
+    return _create_generation_task(user, params, channel)
+
+
 @transaction.atomic
-def create_generation_task(user, params: dict, channel=None) -> GenerationTask:
+def _create_generation_task(user, params: dict, channel=None) -> GenerationTask:
     quota = get_or_create_quota(user)
     kind = params['kind']
     resolution = params.get('resolution', 'standard')
@@ -198,7 +253,7 @@ def create_generation_task(user, params: dict, channel=None) -> GenerationTask:
 
 
 def _gen_order_no() -> str:
-    return 'RC' + time.strftime('%Y%m%d%H%M%S') + uuid.uuid4().hex[:6].upper()
+    return gen_order_no("RC", length=6, date_fmt="%Y%m%d%H%M%S", sep="")
 
 
 def _is_admin(user) -> bool:

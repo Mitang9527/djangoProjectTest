@@ -3,6 +3,7 @@ SaaS 后台管理系统 - 数据库模型
 """
 import re
 import uuid
+from framework.random_utils.random_utils import gen_order_no
 from django.db import models
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
@@ -374,7 +375,7 @@ class Order(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.order_number:
-            self.order_number = f"ORD-{timezone.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:8].upper()}"
+            self.order_number = gen_order_no("ORD")
         super().save(*args, **kwargs)
 
 
@@ -412,7 +413,7 @@ class Invoice(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.invoice_number:
-            self.invoice_number = f"INV-{timezone.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:8].upper()}"
+            self.invoice_number = gen_order_no("INV")
         super().save(*args, **kwargs)
 
 

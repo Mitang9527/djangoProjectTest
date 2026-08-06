@@ -487,7 +487,34 @@ class AlertEngine:
 
     @classmethod
     def _dispatch_sync(cls, history: AlertHistory) -> None:
-        """同步发送通知"""
+        """发送通知：优先投递到独立 notice_service，失败降级本地发送。"""
+        payload = {
+            "channels": history.channels,
+            "title": history.title,
+            "content": history.content,
+            "level": history.level,
+            "context": history.context or {},
+        }
+        from .notice_client import send_notification
+
+        result = send_notification(
+            payload, fallback=lambda: cls._dispatch_sync_local(history)
+        )
+        if result["via"] == "service":
+            history.status = AlertStatus.SENT
+            history.sent_channels = history.channels
+            history.save(update_fields=["status", "sent_channels", "error_message"])
+        elif result["via"] == "local":
+            # _dispatch_sync_local 已负责保存 history
+            pass
+        else:
+            history.status = AlertStatus.FAILED
+            history.error_message = result.get("error")
+            history.save(update_fields=["status", "error_message"])
+
+    @classmethod
+    def _dispatch_sync_local(cls, history: AlertHistory) -> None:
+        """本地兜底：直接调用 NotificationDispatcher（与改造前一致）。"""
         results = NotificationDispatcher.dispatch(
             channels=history.channels,
             title=history.title,

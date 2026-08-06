@@ -10,9 +10,11 @@ Celery 不可用时自动降级为同步执行。
 
 from __future__ import annotations
 
-import logging
+from loguru import logger
 
-logger = logging.getLogger(__name__)
+from framework.reliability import retry
+
+from .models import AlertHistory
 
 try:
     from celery import shared_task
@@ -41,8 +43,24 @@ except ImportError:
         return decorator
 
 
-@shared_task(name="alert_system.dispatch_alert", bind=True, max_retries=3)
-def dispatch_alert(self, history_id: int):
+@retry(
+    max_attempts=3,
+    backoff="exponential",
+    jitter=True,
+    retry_on=(Exception,),
+    give_up_on=(AlertHistory.DoesNotExist,),
+)
+def _dispatch_alert(history_id: int) -> None:
+    """带重试的告警通知分发（missing 记录直接放弃重试）。"""
+    from .models import AlertHistory
+    from .services.alert_engine import AlertEngine
+
+    history = AlertHistory.objects.get(pk=history_id)
+    AlertEngine._dispatch_sync(history)
+
+
+@shared_task(name="alert_system.dispatch_alert")
+def dispatch_alert(history_id: int):
     """
     异步发送告警通知。
 
@@ -50,23 +68,13 @@ def dispatch_alert(self, history_id: int):
         history_id: AlertHistory.pk
     """
     try:
-        from .models import AlertHistory
-        from .services.alert_engine import AlertEngine
-
-        history = AlertHistory.objects.get(pk=history_id)
-        AlertEngine._dispatch_sync(history)
+        _dispatch_alert(history_id)
         logger.info("告警 %s 通知发送完成", history_id)
-
     except AlertHistory.DoesNotExist:
         logger.warning("告警 %s 不存在，跳过发送", history_id)
-
     except Exception as exc:
         logger.error("告警 %s 发送失败: %s", history_id, exc)
-        # 重试（指数退避）
-        if _CELERY_AVAILABLE:
-            raise self.retry(exc=exc, countdown=60 * (2 ** (self.request.retries or 0)))
-        else:
-            raise
+        raise
 
 
 @shared_task(name="alert_system.check_escalations")

@@ -16,7 +16,6 @@
 注意：本模块仅在 settings.OIDC_ENABLED 为 True 时才会被 urls 条件导入，
 因此 mozilla-django-oidc 未安装 / 未配置时不会触发导入错误。
 """
-import logging
 from urllib.parse import urlencode
 
 from django.conf import settings
@@ -28,7 +27,7 @@ from django.views import View
 from mozilla_django_oidc.auth import OIDCAuthenticationBackend
 from mozilla_django_oidc.views import OIDCAuthenticationCallbackView
 
-logger = logging.getLogger(__name__)
+from loguru import logger
 User = get_user_model()
 
 

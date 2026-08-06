@@ -172,15 +172,31 @@ class AlertNotificationConfigViewSet(BaseModelViewSet):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
-        results = NotificationDispatcher.dispatch(
-            channels=[data["channel"]],
-            title=data["title"],
-            content=data["content"],
-            level="info",
-            context={"source": "test_notify", "user": request.user.username},
+        from .services.notice_client import send_notification
+
+        ctx = {"source": "test_notify", "user": request.user.username}
+        result = send_notification(
+            {
+                "channels": [data["channel"]],
+                "title": data["title"],
+                "content": data["content"],
+                "level": "info",
+                "context": ctx,
+            },
+            fallback=lambda: NotificationDispatcher.dispatch(
+                channels=[data["channel"]],
+                title=data["title"],
+                content=data["content"],
+                level="info",
+                context=ctx,
+            ),
         )
 
-        channel_result = results.get(data["channel"], {})
+        channel_result = {
+            "success": result["success"],
+            "error": result.get("error"),
+            "via": result.get("via"),
+        }
         http_status = (
             status.HTTP_200_OK
             if channel_result.get("success")

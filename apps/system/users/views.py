@@ -205,13 +205,9 @@ class UserInfoView(generics.RetrieveUpdateAPIView):
 
 from rest_framework import filters
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.pagination import PageNumberPagination
+from djangoProjectTest.pagination import StandardPagination
 from rest_framework import viewsets
 
-class StandardResultsSetPagination(PageNumberPagination):
-    page_size = 20
-    page_size_query_param = 'page_size'
-    max_page_size = 200
 
 class UserListView(DataPermissionMixin, generics.ListAPIView):
     """
@@ -232,7 +228,7 @@ class UserListView(DataPermissionMixin, generics.ListAPIView):
     queryset = User.objects.all()
     serializer_class = UserDetailSerializer
     permission_classes = [permissions.IsAuthenticated]
-    pagination_class = StandardResultsSetPagination
+    pagination_class = StandardPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['role']
     search_fields = ['username', 'nickname', 'mobile']
@@ -404,7 +400,7 @@ class UserManageViewSet(viewsets.ModelViewSet):
     queryset = User.objects.select_related('role').all()
     serializer_class = UserManageSerializer
     permission_classes = [permissions.IsAuthenticated]
-    pagination_class = StandardResultsSetPagination
+    pagination_class = StandardPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['role', 'is_active']
     search_fields = ['username', 'email', 'nickname', 'mobile']

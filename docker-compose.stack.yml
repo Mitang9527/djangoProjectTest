@@ -1,8 +1,10 @@
 # ================================================================
 # 全栈 Docker 编排（后端）
-#   主平台 (Django/Daphne)  +  AI 创作服务 (Daphne)  +  RabbitMQ 解耦
-#   主平台把生成请求经 RabbitMQ 投递到 ai_studio.generate 队列，
-#   AI 服务 worker 消费并执行；结果存 AI 服务库，前端经 WS 主动查询。
+#   主平台 (Django/Gunicorn)  +  AI 创作服务 (Daphne)  +  通知服务 (Daphne+Celery)  +  RabbitMQ 解耦
+#   - 主平台把生成请求经 RabbitMQ 投递到 ai_studio.generate 队列，AI 服务 worker 消费并执行；
+#     结果存 AI 服务库，前端经 WS 主动查询。
+#   - 主平台把通知经 RabbitMQ 投递到 notice.send 队列，通知服务 worker 消费并分发到
+#     钉钉/飞书/邮件/企微等渠道（无状态，不落库）。
 #
 # 启动:
 #   docker compose --env-file .env.stack -f docker-compose.stack.yml up -d --build
@@ -10,7 +12,7 @@
 # 说明:
 #   - rabbitmq 为两服务共享 broker（镜像已本地缓存）
 #   - 主平台 broker 通过 CELERY_BROKER_URL 指向同一 rabbitmq
-#   - JWT_SIGNING_KEY 两服务必须一致（来自 .env.stack）
+#   - JWT_SIGNING_KEY 各服务必须一致（来自 .env.stack）
 #   - 前端 Vue 由独立 vite/容器运行，本编排只覆盖后端全栈
 # ================================================================
 
@@ -167,8 +169,8 @@ services:
 
   ai_api:
     build:
-      context: ./services/ai_studio
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/ai_studio/Dockerfile
     container_name: saas_ai_api
     command: ["daphne", "-b", "0.0.0.0", "-p", "8000", "ai_studio_service.asgi:application"]
     environment:
@@ -197,8 +199,8 @@ services:
 
   ai_worker:
     build:
-      context: ./services/ai_studio
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/ai_studio/Dockerfile
     container_name: saas_ai_worker
     command: ["worker"]
     environment:
@@ -216,6 +218,74 @@ services:
     depends_on:
       ai_postgres:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - backend
+
+  # ================= 通知服务（独立服务，RabbitMQ 异步解耦，无状态）=================
+  notice_api:
+    build:
+      context: .
+      dockerfile: services/notice_service/Dockerfile
+    container_name: saas_notice_api
+    command: ["daphne", "-b", "0.0.0.0", "-p", "8000", "notice_service.asgi:application"]
+    environment:
+      DEBUG: "0"
+      DJANGO_SECRET_KEY: ${NOTICE_DJANGO_SECRET_KEY:-notice-insecure-secret-change-me}
+      CELERY_BROKER_URL: "amqp://rabbitmq:5672//"
+      CELERY_RESULT_BACKEND: "rpc://"
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY}
+      DINGTALK_WEBHOOK: ${DINGTALK_WEBHOOK:-}
+      DINGTALK_SECRET: ${DINGTALK_SECRET:-}
+      FEISHU_WEBHOOK: ${FEISHU_WEBHOOK:-}
+      FEISHU_SECRET: ${FEISHU_SECRET:-}
+      WECHAT_WEBHOOK: ${WECHAT_WEBHOOK:-}
+      EMAIL_SEND_USER: ${EMAIL_SEND_USER:-}
+      EMAIL_HOST: ${EMAIL_HOST:-}
+      EMAIL_PORT: ${EMAIL_PORT:-25}
+      EMAIL_STAMP_KEY: ${EMAIL_STAMP_KEY:-}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-true}
+      EMAIL_USE_SSL: ${EMAIL_USE_SSL:-false}
+      EMAIL_SEND_LIST: ${EMAIL_SEND_LIST:-}
+      EMAIL_SENDER_NAME: ${EMAIL_SENDER_NAME:-Admin}
+    ports:
+      - "8500:8000"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - backend
+
+  notice_worker:
+    build:
+      context: .
+      dockerfile: services/notice_service/Dockerfile
+    container_name: saas_notice_worker
+    command: ["worker"]
+    environment:
+      DEBUG: "0"
+      DJANGO_SECRET_KEY: ${NOTICE_DJANGO_SECRET_KEY:-notice-insecure-secret-change-me}
+      CELERY_BROKER_URL: "amqp://rabbitmq:5672//"
+      CELERY_RESULT_BACKEND: "rpc://"
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY}
+      CELERY_WORKER_QUEUES: "notice.send"
+      DINGTALK_WEBHOOK: ${DINGTALK_WEBHOOK:-}
+      DINGTALK_SECRET: ${DINGTALK_SECRET:-}
+      FEISHU_WEBHOOK: ${FEISHU_WEBHOOK:-}
+      FEISHU_SECRET: ${FEISHU_SECRET:-}
+      WECHAT_WEBHOOK: ${WECHAT_WEBHOOK:-}
+      EMAIL_SEND_USER: ${EMAIL_SEND_USER:-}
+      EMAIL_HOST: ${EMAIL_HOST:-}
+      EMAIL_PORT: ${EMAIL_PORT:-25}
+      EMAIL_STAMP_KEY: ${EMAIL_STAMP_KEY:-}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-true}
+      EMAIL_USE_SSL: ${EMAIL_USE_SSL:-false}
+      EMAIL_SEND_LIST: ${EMAIL_SEND_LIST:-}
+      EMAIL_SENDER_NAME: ${EMAIL_SENDER_NAME:-Admin}
+    depends_on:
       rabbitmq:
         condition: service_healthy
     restart: unless-stopped

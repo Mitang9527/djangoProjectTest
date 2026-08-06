@@ -138,7 +138,7 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.IsAuthenticated",
     ),
     "DEFAULT_RENDERER_CLASSES": (
-        "ai_studio_app.renderers.CustomRenderer",
+        "framework.drf.renderer.CustomRenderer",
     ),
 }
 

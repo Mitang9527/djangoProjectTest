@@ -71,7 +71,11 @@ class GenerateView(APIView):
                 return Response({'detail': '无权使用该渠道/Agent'}, status=403)
 
         try:
-            task = create_generation_task(request.user, ser.validated_data, channel=channel)
+            idempotency_key = request.headers.get('Idempotency-Key') or request.data.get('idempotency_key')
+            task = create_generation_task(
+                request.user, ser.validated_data, channel=channel,
+                idempotency_key=idempotency_key,
+            )
         except PermissionError as e:
             return Response({'detail': str(e)}, status=403)
         except ValueError as e:

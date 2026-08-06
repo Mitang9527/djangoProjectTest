@@ -11,10 +11,22 @@
 7. 密码生成
 """
 
+import datetime
 import random
 import secrets
 import string
 import uuid
+
+
+def gen_order_no(prefix: str, length: int = 8, date_fmt: str = "%Y%m%d", sep: str = "-") -> str:
+    """生成带前缀 + 日期戳 + 随机串的业务单号（统一单号格式，避免各处手写）。
+
+    示例:
+        gen_order_no("ORD")                          -> "ORD-20260806-1A2B3C4D"
+        gen_order_no("RC", 6, "%Y%m%d%H%M%S", sep="") -> "RC202608061230451A2B3C"
+    """
+    stamp = datetime.datetime.now().strftime(date_fmt)
+    return f"{prefix}{sep}{stamp}{sep}{uuid.uuid4().hex[:length].upper()}"
 
 
 class RandomGenerator:

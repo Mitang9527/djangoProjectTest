@@ -13,7 +13,7 @@ import uuid
 from rest_framework import permissions, views
 from rest_framework.response import Response
 
-from djangoProjectTest.celery import app as celery_app
+from djangoProjectTest.task_dispatch import send_cross_service_task
 
 from .models import AiStudioTask
 from .serializers import GenerationRequestSerializer
@@ -41,7 +41,9 @@ class GenerateView(views.APIView):
         payload.update(ser.validated_data)
 
         try:
-            celery_app.send_task(AI_STUDIO_TASK, args=[payload], queue=AI_STUDIO_QUEUE)
+            send_cross_service_task(
+                AI_STUDIO_TASK, queue=AI_STUDIO_QUEUE, payload=payload, throw=True
+            )
         except Exception as exc:  # 队列不可用（如未配置 CELERY_BROKER_URL）
             return Response(
                 {
