@@ -151,7 +151,7 @@ def run_mock_generation(task_id: str) -> None:
 
 
 @transaction.atomic
-def create_generation_task(user_id, username, params: dict) -> GenerationTask:
+def create_generation_task(user_id, username, params: dict, task_id=None) -> GenerationTask:
     quota = get_or_create_quota(user_id, username)
     kind = params["kind"]
     resolution = params.get("resolution", "standard")
@@ -161,7 +161,7 @@ def create_generation_task(user_id, username, params: dict) -> GenerationTask:
     if quota.balance < cost:
         raise ValueError("额度不足")
 
-    task = GenerationTask.objects.create(
+    create_kwargs = dict(
         user_id=user_id,
         username=username,
         kind=kind,
@@ -174,6 +174,10 @@ def create_generation_task(user_id, username, params: dict) -> GenerationTask:
         cost=cost,
         status="PENDING",
     )
+    if task_id is not None:
+        create_kwargs["id"] = task_id
+
+    task = GenerationTask.objects.create(**create_kwargs)
     freeze(quota, cost, task)
 
     # 默认同步 mock 执行（便于 demo 开箱即跑）；AI_STUDIO_SYNC=False 走 Celery 异步

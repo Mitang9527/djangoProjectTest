@@ -32,7 +32,7 @@ try:
     s = socket.create_connection(('${host}', ${port}), timeout=2)
     s.close()
     sys.exit(0)
-except:
+except Exception:
     sys.exit(1)
 " 2>/dev/null; then
             log_info "数据库已就绪 (${i}/${retries})"
@@ -64,7 +64,7 @@ try:
     s = socket.create_connection(('${host}', ${port}), timeout=2)
     s.close()
     sys.exit(0)
-except:
+except Exception:
     sys.exit(1)
 " 2>/dev/null; then
             log_info "Redis 已就绪"
@@ -128,6 +128,7 @@ main() {
                 --bind 0.0.0.0:8000 \
                 --workers ${GUNICORN_WORKERS:-4} \
                 --worker-class sync \
+                --worker-tmp-dir /tmp \
                 --timeout ${GUNICORN_TIMEOUT:-120} \
                 --max-requests ${GUNICORN_MAX_REQUESTS:-1000} \
                 --max-requests-jitter 100 \

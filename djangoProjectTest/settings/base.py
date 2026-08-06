@@ -327,6 +327,16 @@ SIMPLE_JWT = {
 }
 
 # =====================================================
+# 生产环境异常处理脱敏
+# 决定 400 字段校验错误(ValidationError)在生产是否脱敏：
+#   False(默认) → 保留字段级 errors（前端表单提示需要，内容为静态校验文案、不含系统内部信息）
+#   True        → 一并隐藏为通用消息「请求参数有误或处理失败」
+# 注意：500 服务器内部错误在生产环境始终脱敏（绝不返回异常原文/类名/堆栈/内部路径），
+#       仅写入日志，与此开关无关。
+# =====================================================
+PROD_MASK_VALIDATION_ERRORS = False
+
+# =====================================================
 # OIDC 单点登录（SSO）配置
 # 仅在 global_config.oidc.enabled 为 True 时启用；未启用时不影响启动
 # =====================================================
@@ -603,14 +613,20 @@ API_SIGNATURE_PATHS = [
 ]
 
 # 排除签名验证的路径
+# 任何公开的 /api 接口,都必须在这儿加上，不然前端调取不到
 API_SIGNATURE_EXCLUDE_PATHS = [
     "/api/users/login/",
     "/api/users/register/",
+    "/api/jwt/login/",
+    "/api/jwt/refresh/",
+    "/api/jwt/verify/",
     "/api/docs/",
     "/api/health/",
+    "/api/health/*",
     "/api/ping/",
     # 第一方 Web SPA（带 JWT 的浏览器客户端）走 JWT 鉴权，不做签名校验
     "/api/ai_studio/*",
+    "/api/ai_gateway/*",
 ]
 
 # 时间戳容忍度（秒）
@@ -639,11 +655,19 @@ if REDIS_CONFIG.get('enabled', False):
         CELERY_BROKER_URL = f'redis://{redis_host}:{redis_port}/{redis_db}'
         CELERY_RESULT_BACKEND = f'redis://{redis_host}:{redis_port}/{redis_db}'
 
+# 允许通过环境变量显式覆盖 broker（例如跨服务连 RabbitMQ：amqp://host:5672//）
+CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", CELERY_BROKER_URL)
+CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", CELERY_RESULT_BACKEND)
+
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'Asia/Shanghai'
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+
+# 允许通过环境变量覆盖 broker / result backend（跨服务接入 RabbitMQ 等 MQ）
+CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL") or CELERY_BROKER_URL
+CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND") or CELERY_RESULT_BACKEND
 
 # =====================================================
 # Flower 监控配置

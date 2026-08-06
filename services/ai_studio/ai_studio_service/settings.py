@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework_simplejwt",
     "corsheaders",
+    "channels",  # WebSocket / ASGI
     "ai_studio_app",
 ]
 
@@ -142,11 +143,42 @@ REST_FRAMEWORK = {
 }
 
 # ---------------------------------------------------------------------------
-# Celery
+# Celery（任务队列：默认 RabbitMQ，跨服务解耦）
 # ---------------------------------------------------------------------------
-CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://redis:6379/0")
-CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "redis://redis:6379/0")
+# 默认连 docker-compose 内的 rabbitmq；本地可设 amqp://localhost:5672// 或 redis/memory 调试。
+CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "amqp://rabbitmq:5672//")
+# 跨服务投递任务不依赖 result backend，关闭可减少依赖（需要回查结果可设 rpc://）
+CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", None)
 CELERY_TASK_ALWAYS_EAGER = os.environ.get("CELERY_TASK_ALWAYS_EAGER", "0") == "1"
+
+# 任务路由：生成类任务固定进入 ai_studio.generate 队列
+# （worker 启动需监听该队列：celery -A ai_studio_service worker -Q ai_studio.generate）
+CELERY_TASK_ROUTES = {
+    "ai_studio_app.tasks.generate_task": {"queue": "ai_studio.generate"},
+    "ai_studio_app.tasks.handle_generation": {"queue": "ai_studio.generate"},
+}
+
+
+# ---------------------------------------------------------------------------
+# Channels / WebSocket（结果主动查询通道）
+# 前端连 WS 后，服务按 task_id 轮询库内结果并实时推送（生成由 Celery worker 完成）。
+# 默认内存通道层即可（消费者自建轮询，无需跨进程 group_send）；
+# 多 daphne 实例部署时设 AI_STUDIO_CHANNEL_REDIS=redis://host:6379/0 启用 Redis 通道层。
+# ---------------------------------------------------------------------------
+_AI_CHANNEL_REDIS = os.environ.get("AI_STUDIO_CHANNEL_REDIS")
+if _AI_CHANNEL_REDIS:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {"hosts": [_AI_CHANNEL_REDIS]},
+        }
+    }
+else:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        }
+    }
 
 # 默认同步 mock 执行；AI_STUDIO_SYNC=False 时由 Celery worker 异步执行
 AI_STUDIO_SYNC = os.environ.get("AI_STUDIO_SYNC", "1") == "1"

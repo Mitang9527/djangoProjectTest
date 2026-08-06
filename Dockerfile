@@ -56,7 +56,7 @@ RUN mkdir -p logs media static_root backups \
 USER django
 
 # 收集静态文件（构建时完成）
-RUN python manage.py collectstatic --noinput --settings=djangoProjectTest.settings.prod
+RUN python manage.py collectstatic --noinput --settings=djangoProjectTest.settings.prod || echo "collectstatic skipped at build time (env not available); entrypoint will run it at startup"
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \

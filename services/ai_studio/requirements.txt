@@ -7,3 +7,7 @@ redis>=5.0
 psycopg2-binary>=2.9
 gunicorn>=21.2
 django-cors-headers>=4.0
+# WebSocket / ASGI（结果主动查询通道）
+channels>=4.1
+channels-redis>=4.1
+daphne>=4.0

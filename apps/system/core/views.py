@@ -14,7 +14,7 @@ from framework.helpers.system_config import get_system_info
 from framework.helpers.time_utils import nowtime
 from framework.cache.view_cache import drf_cache_view, T_5_MINUTES
 from .models import AuditLog
-from .serializers import AuditLogSerializer
+from .serializers import AuditLogSerializer, PingSerializer
 from .health import HealthChecker
 
 from framework.files.upload.validators import safe_file_upload, FileValidator
@@ -98,6 +98,22 @@ class PingView(APIView):
     )
     def get(self, request):
         return Response({"ping": "pong", "time": nowtime()})
+
+    @extend_schema(
+        summary="连通性测试(POST)",
+        description="接收 name 字段并返回问候，演示 POST 请求链路、参数校验与统一返回格式",
+        tags=["系统"],
+    )
+    def post(self, request):
+        serializer = PingSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        name = serializer.validated_data["name"]
+        return Response({
+            "ping": "pong",
+            "method": "POST",
+            "message": f"hello, {name}!",
+            "received": serializer.validated_data,
+        })
 
 
 class HealthCheckView(APIView):

@@ -1,11 +1,11 @@
-# AI 创作工作室独立服务编排
-#   api    : Django + Gunicorn 提供 /api/v1/ 接口
-#   worker : Celery 执行生成任务
-#   redis  : broker + result backend + 缓存
+# AI 创作工作室独立服务编排（RabbitMQ + Celery 解耦版）
+#   api    : Daphne(ASGI) 同时提供 /api/v1/ HTTP 接口 与 /ws/ WebSocket 通道
+#   worker : Celery 消费 ai_studio.generate 队列，执行生成任务
+#   rabbitmq: 任务队列 broker（跨服务解耦主平台与 AI 服务）
 #   postgres: 业务数据库（额度 / 任务）
 #
 # 启动: docker compose --env-file .env up --build
-# 默认同步 mock 生成；如需异步，将 AI_STUDIO_SYNC 设为 0（worker 才会真正派发任务）。
+# 主平台侧通过 CELERY_BROKER_URL=amqp://rabbitmq:5672// 投递任务到同一 broker。
 
 services:
   postgres:
@@ -22,16 +22,20 @@ services:
       timeout: 5s
       retries: 10
 
-  redis:
-    image: redis:7-alpine
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 5s
-      timeout: 3s
+      timeout: 5s
       retries: 10
 
   api:
     build: .
+    command: ["daphne", "-b", "0.0.0.0", "-p", "8000", "ai_studio_service.asgi:application"]
     environment:
       DEBUG: "${DEBUG:-0}"
       DJANGO_SECRET_KEY: "${DJANGO_SECRET_KEY:-change-me}"
@@ -40,17 +44,18 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ai_studio_pass}
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
-      CELERY_BROKER_URL: "redis://redis:6379/0"
-      CELERY_RESULT_BACKEND: "redis://redis:6379/0"
+      CELERY_BROKER_URL: "amqp://rabbitmq:5672//"
+      CELERY_RESULT_BACKEND: "${CELERY_RESULT_BACKEND:-rpc://}"
       JWT_SIGNING_KEY: "${JWT_SIGNING_KEY:-change-me-shared-secret}"
       CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS:-http://localhost:5173}"
       AI_STUDIO_SYNC: "${AI_STUDIO_SYNC:-1}"
+      # 多 api 实例时启用：AI_STUDIO_CHANNEL_REDIS: "redis://redis:6379/0"
     ports:
       - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
+      rabbitmq:
         condition: service_healthy
     restart: unless-stopped
 
@@ -64,14 +69,16 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ai_studio_pass}
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
-      CELERY_BROKER_URL: "redis://redis:6379/0"
-      CELERY_RESULT_BACKEND: "redis://redis:6379/0"
+      CELERY_BROKER_URL: "amqp://rabbitmq:5672//"
+      CELERY_RESULT_BACKEND: "${CELERY_RESULT_BACKEND:-rpc://}"
       JWT_SIGNING_KEY: "${JWT_SIGNING_KEY:-change-me-shared-secret}"
+      # worker 监听生成队列（handle_generation / generate_task 均路由到此）
+      CELERY_WORKER_QUEUES: "ai_studio.generate"
       AI_STUDIO_SYNC: "0"
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
+      rabbitmq:
         condition: service_healthy
     restart: unless-stopped
 

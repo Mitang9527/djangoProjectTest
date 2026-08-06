@@ -28,3 +28,10 @@ class SystemStatusSerializer(serializers.Serializer):
     mem_usage = serializers.FloatField()
     active_users = serializers.IntegerField()
     last_update = serializers.CharField()
+
+
+class PingSerializer(serializers.Serializer):
+    """
+    连通性测试 POST 参数校验器
+    """
+    name = serializers.CharField(max_length=50, help_text="你的名字，将用于回显问候")

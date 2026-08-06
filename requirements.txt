@@ -21,6 +21,7 @@ django-bootstrap4>=23.0
 django-cors-headers>=4.0
 django-filter>=23.0
 djangorestframework>=3.14.0
+mozilla-django-oidc>=5.0
 docopt>=0.6.0
 fastjsonschema>=2.18.0
 idna>=3.0.0
