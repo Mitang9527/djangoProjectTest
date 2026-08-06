@@ -175,3 +175,7 @@ extensions/apk_tool/resources/DEF_APK/*.apk
 
 # Local signing materials
 extensions/apk_tool/resources/cert/
+
+# 本地 agent/工作记忆数据（不进远端仓库，保留在本地）
+.workbuddy/
+deploy/README.md
