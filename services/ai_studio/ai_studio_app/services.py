@@ -58,7 +58,9 @@ def get_or_create_quota(user_id, username="") -> UserQuota:
     return quota
 
 
+@transaction.atomic
 def _grant(quota: UserQuota, amount: int, task, remark: str) -> None:
+    quota = UserQuota.objects.select_for_update().get(pk=quota.pk)
     quota.balance += amount
     quota.total_granted += amount
     quota.save()
@@ -70,7 +72,9 @@ def _grant(quota: UserQuota, amount: int, task, remark: str) -> None:
     )
 
 
+@transaction.atomic
 def freeze(quota: UserQuota, amount: int, task) -> None:
+    quota = UserQuota.objects.select_for_update().get(pk=quota.pk)
     if quota.balance < amount:
         raise ValueError("额度不足")
     quota.balance -= amount
@@ -84,7 +88,9 @@ def freeze(quota: UserQuota, amount: int, task) -> None:
     )
 
 
+@transaction.atomic
 def confirm(quota: UserQuota, task) -> None:
+    quota = UserQuota.objects.select_for_update().get(pk=quota.pk)
     quota.frozen = max(0, quota.frozen - task.cost)
     quota.save()
     QuotaTransaction.objects.create(
@@ -95,7 +101,9 @@ def confirm(quota: UserQuota, task) -> None:
     )
 
 
+@transaction.atomic
 def refund(quota: UserQuota, task) -> None:
+    quota = UserQuota.objects.select_for_update().get(pk=quota.pk)
     quota.frozen = max(0, quota.frozen - task.cost)
     quota.balance += task.cost
     quota.save()

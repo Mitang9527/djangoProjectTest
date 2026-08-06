@@ -194,6 +194,12 @@ class AlertNotificationConfigSerializer(serializers.ModelSerializer):
     channel_display = serializers.CharField(
         source="get_channel_display", read_only=True
     )
+    # 凭据写入专用：API 读取不返回明文（脱敏），避免 webhook/token/secret 泄漏
+    config = serializers.JSONField(
+        write_only=True,
+        help_text="渠道配置（webhook/token/secret 等），写入后不通过 API 明文返回",
+    )
+    config_masked = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = AlertNotificationConfig
@@ -203,12 +209,18 @@ class AlertNotificationConfigSerializer(serializers.ModelSerializer):
             "channel",
             "channel_display",
             "config",
+            "config_masked",
             "enabled",
             "is_default",
             "created_at",
             "updated_at",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
+
+    def get_config_masked(self, obj):
+        if not obj.config:
+            return None
+        return {"_masked": True, "configured": True}
 
     def validate(self, attrs):
         """is_default 唯一性 — 每个渠道只能有一个默认配置"""

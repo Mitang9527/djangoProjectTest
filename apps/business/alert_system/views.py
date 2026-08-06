@@ -12,7 +12,8 @@
 
 from rest_framework import status, viewsets, filters as drf_filters
 from rest_framework.decorators import action, api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from django.db.models import Q
 from rest_framework.response import Response
 
 from django_filters.rest_framework import DjangoFilterBackend
@@ -44,25 +45,41 @@ from .services import AlertEngine, NotificationDispatcher
 # ---------------------------------------------------------------
 
 class AlertRuleViewSet(BaseModelViewSet):
-    """告警规则管理"""
+    """告警规则管理（按创建者隔离，管理员可见全部）"""
 
-    queryset = AlertRule.objects.select_related("created_by").all()
     serializer_class = AlertRuleSerializer
     filterset_fields = ["enabled", "level", "condition_type"]
     search_fields = ["name", "description", "condition_value"]
     ordering_fields = ["created_at", "updated_at", "level"]
     ordering = ["-created_at"]
 
+    def get_queryset(self):
+        qs = AlertRule.objects.select_related("created_by")
+        if getattr(self, "swagger_fake_view", False):
+            return qs
+        user = self.request.user
+        if user.is_superuser or user.is_staff:
+            return qs
+        return qs.filter(created_by=user)
+
 
 class AlertSilenceViewSet(BaseModelViewSet):
-    """告警静默管理"""
+    """告警静默管理（按创建者隔离，管理员可见全部）"""
 
-    queryset = AlertSilence.objects.select_related("rule", "created_by").all()
     serializer_class = AlertSilenceSerializer
     filterset_fields = ["enabled", "rule"]
     search_fields = ["name", "description", "match_pattern"]
     ordering_fields = ["created_at", "start_time", "end_time"]
     ordering = ["-created_at"]
+
+    def get_queryset(self):
+        qs = AlertSilence.objects.select_related("rule", "created_by")
+        if getattr(self, "swagger_fake_view", False):
+            return qs
+        user = self.request.user
+        if user.is_superuser or user.is_staff:
+            return qs
+        return qs.filter(created_by=user)
 
 
 class AlertHistoryViewSet(viewsets.ReadOnlyModelViewSet):
@@ -80,6 +97,19 @@ class AlertHistoryViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = AlertHistory.objects.select_related(
         "rule", "acknowledged_by", "resolved_by"
     ).all()
+
+    def get_queryset(self):
+        qs = AlertHistory.objects.select_related(
+            "rule", "acknowledged_by", "resolved_by"
+        )
+        if getattr(self, "swagger_fake_view", False):
+            return qs
+        user = self.request.user
+        if user.is_superuser or user.is_staff:
+            return qs
+        # 仅可见自己规则产生的历史；无规则关联的手动触发历史对所有人可见（不含凭据）
+        return qs.filter(Q(rule__created_by=user) | Q(rule__isnull=True))
+
     serializer_class = AlertHistorySerializer
     filterset_fields = ["level", "status", "acknowledged", "resolved", "rule"]
     search_fields = ["title", "content"]
@@ -156,7 +186,7 @@ class AlertHistoryViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class AlertNotificationConfigViewSet(BaseModelViewSet):
-    """通知渠道配置"""
+    """通知渠道配置（含 webhook/token/secret 凭据，写操作仅管理员）"""
 
     queryset = AlertNotificationConfig.objects.all()
     serializer_class = AlertNotificationConfigSerializer
@@ -164,6 +194,12 @@ class AlertNotificationConfigViewSet(BaseModelViewSet):
     search_fields = ["name"]
     ordering_fields = ["created_at", "channel"]
     ordering = ["-created_at"]
+
+    def get_permissions(self):
+        # 新增/修改/删除/测试发送涉及凭据，仅管理员可操作；读取对普通认证用户开放（凭据已脱敏）
+        if self.action in ("create", "update", "partial_update", "destroy", "test_notify"):
+            return [IsAdminUser()]
+        return [IsAuthenticated()]
 
     @action(detail=False, methods=["post"], url_path="test")
     def test_notify(self, request):

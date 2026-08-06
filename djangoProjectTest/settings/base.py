@@ -14,6 +14,8 @@ sys.path.insert(0, os.path.join(BASE_DIR, 'extensions'))
 # --- 核心配置 (通过 Pydantic 校验) ---
 SECRET_KEY = global_config.SECRET_KEY
 DEBUG = global_config.DEBUG
+# 演示登录开关（默认关闭，避免生产环境无认证即可签发 JWT；开发时设 ALLOW_DEMO_LOGIN=True）
+ALLOW_DEMO_LOGIN = os.environ.get("ALLOW_DEMO_LOGIN", "False").strip().lower() in ("1", "true", "yes", "on")
 ALLOWED_HOSTS = global_config.ALLOWED_HOSTS
 
 # Application definition

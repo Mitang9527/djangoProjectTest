@@ -4,7 +4,7 @@
 - POST generate/     创建生成任务（冻结额度 -> mock 生成 -> 确认扣减）
 - GET  quota/        查询当前用户额度
 - GET  tasks/        查询当前用户生成任务列表
-- POST demo-login/   演示登录（查找/创建用户并签发 JWT，自动赠送注册额度）
+- POST demo-login/   演示登录（默认禁用，需设置 ALLOW_DEMO_LOGIN=True；开发用，查找/创建用户并签发 JWT）
 - POST sso/ticket/   签发短时 SSO 票据（前端持 JWT 调用）
 - GET  sso/bridge/   凭票据建立 Django Session 并跳转后端页面（/saas/ 等）
 """
@@ -15,6 +15,7 @@ from django.db.models import Sum, Count
 from django.http import HttpResponse, HttpResponseRedirect
 from django.utils.html import escape
 from django.views import View
+from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated, BasePermission
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -112,14 +113,23 @@ class TaskListView(APIView):
 
 
 class DemoLoginView(APIView):
-    """演示用登录：生产环境应改用正式注册 + OIDC SSO。"""
+    """演示用登录：生产环境应改用正式注册 + OIDC SSO。
+
+    默认禁用，需设置环境变量 ALLOW_DEMO_LOGIN=True 才启用，避免生产环境
+    任意用户名即可签发 JWT 的无认证风险。
+    """
 
     permission_classes = [AllowAny]
 
     def post(self, request):
+        if not getattr(settings, "ALLOW_DEMO_LOGIN", False):
+            return Response(
+                {"detail": "演示登录已禁用，请使用正式登录方式（注册 / OIDC SSO）"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         username = (request.data.get('username') or '').strip()
         if not username:
-            return Response({'detail': '请输入用户名'}, status=400)
+            return Response({'detail': '请输入用户名'}, status=status.HTTP_400_BAD_REQUEST)
 
         user, _ = User.objects.get_or_create(username=username)
         if not user.email and '@' in username:
