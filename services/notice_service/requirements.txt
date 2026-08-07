@@ -1,0 +1,10 @@
+# 通知服务独立依赖（无状态，不连 PG）
+Django>=5.0,<6.0
+djangorestframework>=3.14
+celery>=5.3
+redis>=5.0
+daphne>=4.0
+gunicorn>=21.2
+dingtalkchatbot>=1.0
+requests>=2.28
+loguru>=0.7

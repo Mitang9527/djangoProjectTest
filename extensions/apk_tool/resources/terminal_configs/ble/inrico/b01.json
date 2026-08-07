@@ -1,0 +1,11 @@
+{
+  "spp": {
+    "ptt_down": "+PTT=P",
+    "ptt_up": "+PTT=R",
+    "sos_down": "C:SOS0",
+    "sos_up": "C:SOS1",
+    "sos": "C:SOS*",
+    "group_pre": "C:VP*",
+    "group_next": "C:VM*"
+  }
+}

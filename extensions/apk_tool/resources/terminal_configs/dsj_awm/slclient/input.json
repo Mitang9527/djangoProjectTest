@@ -1,0 +1,137 @@
+{
+  "stdkey": {
+    "ptt_down": {
+      "key": -290,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up": {
+      "key": -290,
+      "event": "KEY_UP"
+    },
+    "sos_short": {
+      "event": "KEY_CLICK",
+      "key": -99999,
+      "time": 3000
+    },
+    "sos": {
+      "event": "KEY_LONG_PRESS",
+      "key": -99999,
+      "time": 3000
+    },
+    "recorder_capture_video": {
+      "key": -25,
+      "event": "KEY_CLICK",
+      "time": 3000
+    },
+    "recorder_capture_video_long": {
+      "key": -25,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    },
+    "recorder_capture_audio": {
+      "key": -26,
+      "event": "KEY_CLICK",
+      "time": 3000
+    },
+    "enter_member_list": {
+      "key": -26,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    },
+    "recorder_capture_image": {
+      "key": -27,
+      "event": "KEY_CLICK",
+      "time": 3000
+    },
+    "enter_group_list": {
+      "key": -27,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    },
+    "mark_short_press": {
+      "key": -60,
+      "event": "KEY_CLICK",
+      "time": 3000
+    },
+    "mark_long_press": {
+      "key": -60,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    },
+    "fn_short_press": {
+      "key": -135,
+      "event": "KEY_CLICK",
+      "time": 3000
+    },
+    "fn_long_press": {
+      "key": -135,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    }
+  },
+  "intent": {
+    "ptt_down": {
+      "action": "android.intent.action.DOWN_PTT_KEY"
+    },
+    "ptt_up": {
+      "action": "android.intent.action.UP_PTT_KEY"
+    },
+    "sos_short": {
+      "action": "android.intent.action.PRESS_SOS_KEY"
+    },
+    "sos": {
+      "action": "android.intent.action.LONG_PRESS_SOS_KEY"
+    },
+    "recorder_capture_audio": {
+      "action": "android.intent.action.PRESS_RECORD_KEY"
+    },
+    "enter_member_list": {
+      "action": "android.intent.action.LONG_PRESS_RECORD_KEY"
+    },
+    "mark_short_press": {
+      "action": "android.intent.action.PRESS_MARK_KEY"
+    },
+    "mark_long_press": {
+      "action": "android.intent.action.LONG_PRESS_MARK_KEY"
+    },
+    "recorder_capture_video": {
+      "action": "android.intent.action.PRESS_VIDEO_KEY"
+    },
+    "recorder_capture_video_long": {
+      "action": "android.intent.action.LONG_PRESS_VIDEO_KEY"
+    },
+    "recorder_capture_image": {
+      "action": "android.intent.action.PRESS_PIC_KEY"
+    },
+    "enter_group_list": {
+      "action": "android.intent.action.LONG_PRESS_PIC_KEY"
+    },
+    "fn_short_press": {
+      "action": "android.intent.action.PRESS_FN_KEY"
+    },
+    "fn_long_press": {
+      "action": "android.intent.action.LONG_PRESS_FN_KEY"
+    }
+
+  },
+  "action": {
+    "ptt_down": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    }
+  }
+}

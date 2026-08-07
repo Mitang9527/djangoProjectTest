@@ -1,0 +1,37 @@
+{
+  "control": {
+
+    "red": {
+      "serial": {
+        "dev": "/sys/devices/platform/soc/soc:leds/leds/i-red/brightness",
+        "at": "1"
+      }
+    },
+    "red_off": {
+      "serial": {
+        "dev": "/sys/devices/platform/soc/soc:leds/leds/i-red/brightness",
+        "at": "0"
+      }
+    },
+
+    "green": {
+      "serial": {
+        "dev": "/sys/devices/platform/soc/soc:leds/leds/i-green/brightness",
+        "at": "1"
+      }
+    },
+    "green_off": {
+      "serial": {
+        "dev": "/sys/devices/platform/soc/soc:leds/leds/i-green/brightness",
+        "at": "0"
+      }
+    }
+  },
+  "enabled": true,
+  "theme": {
+    "ON_STANDBY": ["red_off","green"],
+    "SNAPSHOT": ["green_off","red",1000,"red_off","green"],
+    "VIDEO_RECORD": ["green_off","red",1000,"red_off",1000],
+    "VOICE_RECORD": ["green","red",1000,"green_off","red_off",1000]
+  }
+}

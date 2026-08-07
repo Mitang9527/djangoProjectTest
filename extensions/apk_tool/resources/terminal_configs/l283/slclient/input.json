@@ -1,0 +1,207 @@
+{
+  "stdkey": {
+    "ptt_down": {
+      "key": -1,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up": {
+      "key": -1,
+      "event": "KEY_UP"
+    },
+    "ptt_down_283": {
+      "key": -5,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up_l283": {
+      "key": -5,
+      "event": "KEY_UP"
+    },
+    "ptt_down_f10": {
+      "key": -6,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up_f10": {
+      "key": -6,
+      "event": "KEY_UP"
+    },
+    "recorder_capture_image": {
+      "key":141,
+      "event":"KEY_CLICK",
+      "time":3000
+    },
+    "ptt_f11_down": {
+      "key": 141,
+      "event": "KEY_DOWN"
+    },
+    "ptt_f11_up": {
+      "key": 141,
+      "event": "KEY_UP"
+    },
+    "sos": {
+      "event": "KEY_LONG_PRESS",
+      "key": -4,
+      "time": 3000
+    },
+    "open_close_led": {
+      "key":141,
+      "event":"KEY_LONG_PRESS",
+      "time":3000
+
+    },
+    "recorder_police_led": {
+      "key": -133,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    }
+  },
+  "intent": {
+    "ptt_down": {
+      "action": "android.intent.action.PTT.down"
+    },
+    "ptt_up": {
+      "action": "android.intent.action.PTT.up"
+    },
+    "ptt_down_283": {
+      "action": "android.intent.action.DOWN_PTT_KEY"
+    },
+    "ptt_up_l283": {
+      "action": "android.intent.action.UP_PTT_KEY"
+    },
+    "ptt_down_f10": {
+      "action": "android.intent.action.PTTR.down"
+    },
+    "ptt_up_f10": {
+      "action": "android.intent.action.PTTR.up"
+    },
+    "sos": {
+      "action": "android.intent.action.DOWN_SOS_KEY"
+    },
+    "ptt_f11_down": {
+      "as_key" : true,
+      "action": "android.intent.action.PTTL.down"
+    },
+    "ptt_f11_up": {
+      "as_key" : true,
+      "action": "android.intent.action.PTTL.up"
+    },
+    "recorder_police_led": {
+      "action": "android.intent.action.PTTL.longpress"
+    }
+  },
+  "custom": [
+    "new_call_in"
+  ],
+  "action": {
+    "ptt_down": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ],
+      "member": [
+      ],
+      "new_call_in": [
+        {
+          "command": {
+            "id": "ACCEPT_LAST_CALL_INVITE"
+          }
+        },
+        {
+          "command": {
+            "id": "LEAVE_CUSTOM_STATUS",
+            "name": "new_call_in"
+          }
+        }
+      ]
+    },
+    "ptt_up": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ],
+      "member": [
+      ],
+      "new_call_in": [
+      ]
+    },
+    "ptt_down_283": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ],
+      "member": [
+      ],
+      "new_call_in": [
+        {
+          "command": {
+            "id": "ACCEPT_LAST_CALL_INVITE"
+          }
+        },
+        {
+          "command": {
+            "id": "LEAVE_CUSTOM_STATUS",
+            "name": "new_call_in"
+          }
+        }
+      ]
+    },
+    "ptt_up_l283": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ],
+      "member": [
+      ],
+      "new_call_in": [
+      ]
+    },
+    "ptt_down_f10": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ],
+      "member": [
+      ],
+      "new_call_in": [
+        {
+          "command": {
+            "id": "ACCEPT_LAST_CALL_INVITE"
+          }
+        },
+        {
+          "command": {
+            "id": "LEAVE_CUSTOM_STATUS",
+            "name": "new_call_in"
+          }
+        }
+      ]
+    },
+    "ptt_up_f10": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ],
+      "member": [
+      ],
+      "new_call_in": [
+      ]
+    }
+  }
+}

@@ -1,0 +1,72 @@
+# ================================================================
+# Prometheus 告警规则示例
+# 这些规则基于本项目中暴露的指标：
+#   - django_api_requests_total / django_api_errors_total / django_api_request_duration_seconds（自定义，见 framework/metrics）
+#   - django_http_responses_total_by_status / django_db_queries_total（django_prometheus 通用）
+# 说明：规则仅触发 Prometheus 告警；如需发到钉钉/飞书，请额外配置 Alertmanager，
+#       或依赖本项目 alert_system 的主动探活任务（probe_dependencies）做业务级告警。
+# ================================================================
+
+groups:
+  - name: django_alerts
+    rules:
+      - alert: DjangoHighErrorRate
+        expr: |
+          sum(rate(django_api_errors_total[5m]))
+            / clamp_min(sum(rate(django_api_requests_total[5m])), 1) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Django API 错误率过高"
+          description: "近 5 分钟 4xx/5xx 错误率超过 5%（当前 {{ $value | humanizePercentage }}）"
+
+      - alert: DjangoSlowRequests
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(django_api_request_duration_seconds_bucket[5m])) by (le)
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Django API P95 延迟过高"
+          description: "P95 延迟超过 2s（当前 {{ $value }}s）"
+
+      - alert: DjangoInstanceDown
+        expr: up{job="django"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Django 实例不可达"
+          description: "Prometheus 无法抓取 /metrics（实例 {{ $labels.instance }} 已 down）"
+
+      - alert: DjangoDbQuerySpike
+        expr: rate(django_db_queries_total[5m]) > 500
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Django 数据库查询量突增"
+          description: "近 5 分钟 DB 查询速率超过 500 qps（当前 {{ $value }}）"
+
+      - alert: DjangoErrorLogSpike
+        # 跨进程聚合：所有 Django 实例的 ERROR+ 日志速率之和（对应 loguru 错误计数 sink）
+        expr: sum(rate(django_error_logs_total[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Django ERROR 日志突增（跨进程）"
+          description: "近 5 分钟 ERROR+ 日志速率超过 1/s（当前 {{ $value }}/s），请排查近期发布/依赖/流量"
+
+      - alert: DjangoSlowQuerySpike
+        # 跨进程聚合：慢查询速率（对应 framework.db.monitoring 的全局计时）
+        expr: sum(rate(django_db_slow_queries_total[5m])) > 0.2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Django 慢查询频发（跨进程）"
+          description: "近 5 分钟慢查询速率超过 0.2/s（当前 {{ $value }}/s）"

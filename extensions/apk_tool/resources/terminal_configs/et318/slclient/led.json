@@ -1,0 +1,25 @@
+{
+    "control":{
+        "red":{
+            "intent":{
+                "action":"com.intent.redled.on"
+            }
+        },
+        "green":{
+            "intent":{
+                "action":"com.intent.greenled.on"
+            }
+        },
+        "off":{
+            "intent":{
+                "action":"com.intent.led.off"
+            }
+        }
+    },
+    "enabled":true,
+    "theme":{
+        "ON_STANDBY":["off"],
+        "WHEN_RECEIVING_VOICE":["green"],
+        "WHEN_SENDING_VOICE":["red"]
+    }
+}

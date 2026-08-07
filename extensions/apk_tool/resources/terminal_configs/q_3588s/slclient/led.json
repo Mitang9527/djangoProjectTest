@@ -1,0 +1,34 @@
+{
+    "control" : {
+        "red" : {
+            "intent" : {
+                "action" : "com.intent.redled.on"
+            }
+        } ,
+        "green" : {
+            "intent" : {
+                "action" : "com.intent.greenled.on"
+            }
+        } ,
+        "red_off" : {
+            "intent" : {
+                "action" : "com.intent.redled.off"
+            }
+        },
+        "green_off" : {
+            "intent" : {
+                "action" : "com.intent.greenled.off"
+            }
+        }
+    },
+    "theme" : {
+        "ON_STANDBY": ["red_off", 0, "green_off", 3000, "green", 1000],
+        "WHEN_RECEIVING_VOICE": ["green", 1000],
+        "WHEN_SENDING_VOICE": ["red", 1000],
+        "WHEN_DISCONNECTED": ["red", 3000, "red_off", 0, "green_off", 500],
+        "SOS_SEND_SUCCESSFULLY": ["green", 3000, "red_off", 0, "green_off", 1000],
+        "SOS_SEND_FAILED": ["red", 3000, "red_off", 0, "green_off", 1000],
+        "SOS_RECEIVED": ["red",1000]
+    } ,
+    "enabled" : true
+}

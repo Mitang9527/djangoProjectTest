@@ -1,0 +1,121 @@
+{
+    "stdkey" : {
+        "ptt_down" : {
+            "key" : -1 ,
+            "event" : "KEY_DOWN"
+        } ,
+        "ptt_up" : {
+            "key" : -1 ,
+            "event" : "KEY_UP"
+        } ,
+        "down_sos" : {
+            "key" : -2 ,
+            "event" : "KEY_DOWN"
+        },
+        "up_sos" : {
+            "key" : -2 ,
+            "event" : "KEY_UP"
+        },
+        "sos" : {
+            "key" : -2 ,
+            "event" : "KEY_LONG_PRESS" ,
+            "time" : 3000
+        },
+        "capture_image_media": {
+            "key": -4,
+            "event" : "KEY_LONG_PRESS" ,
+            "time" : 3000
+        },
+        "ptt_up_long" : {
+            "key" : -5 ,
+            "event" : "KEY_UP"
+        }
+    } ,
+    "intent" : {
+        "ptt_down" : {
+            "action" : "action_ptt_key",
+            "extra" : {
+                "vtu_state" : 0
+            }
+        } ,
+        "ptt_up" : {
+            "action" : "action_ptt_key",
+            "extra" : {
+                "vtu_state" : 1
+            }
+        } ,
+        "ptt_up_long" : {
+            "action" : "action_ptt_key",
+            "extra" : {
+                "vtu_state" : 3
+            }
+        } ,
+        "down_sos" : {
+            "as_key" : true,
+            "action" : "action_sos_key",
+            "extra" : {
+                "vtu_state" : 0
+            }
+        },
+        "up_sos" : {
+            "as_key" : true,
+            "action" : "action_sos_key",
+            "extra" : {
+                "vtu_state" : 1
+            }
+        },
+        "capture_image_media": {
+            "action": "action_vtu_customzize_01",
+            "extra" : {
+                "vtu_state" : 0
+            }
+        }
+    } ,
+    "custom" : [  "new_call_in" ] ,
+    "action" : {
+        "ptt_down" : {
+            "default" : [
+                {
+                    "command" : { "id" : "START_SPEAK" }
+                }
+            ] ,
+            "member" : [
+            ],
+            "new_call_in": [
+                {
+                    "command": {
+                        "id": "ACCEPT_LAST_CALL_INVITE"
+                    }
+                },
+                {
+                    "command": {
+                        "id": "LEAVE_CUSTOM_STATUS",
+                        "name": "new_call_in"
+                    }
+                }
+            ]
+        } ,
+        "ptt_up" : {
+            "default" : [
+                {
+                    "command" : { "id" : "STOP_SPEAK" }
+                }
+            ] ,
+            "member" : [
+            ],
+            "new_call_in": [
+            ]
+        },
+        "ptt_up_long" : {
+            "default" : [
+                {
+                    "command" : { "id" : "STOP_SPEAK" }
+                }
+            ] ,
+            "member" : [
+            ],
+            "new_call_in": [
+            ]
+        }
+    }
+}

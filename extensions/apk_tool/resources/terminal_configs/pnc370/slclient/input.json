@@ -1,0 +1,188 @@
+{
+    "stdkey" : {
+        "ptt_down" : {
+            "key" : -1 ,
+            "event" : "KEY_DOWN"
+        } ,
+        "ptt_up" : {
+            "key" : -1 ,
+            "event" : "KEY_UP"
+        } ,
+        "ptt_down_ear" : {
+            "key" : -4 ,
+            "event" : "KEY_DOWN"
+        } ,
+        "ptt_up_ear" : {
+            "key" : -4 ,
+            "event" : "KEY_UP"
+        } ,
+		"ptt_down_bt" : {
+		    "key" : -5 ,
+		    "event" : "KEY_DOWN"
+		} ,
+		"ptt_up_bt" : {
+		    "key" : -5 ,
+		    "event" : "KEY_UP"
+		} ,
+        "down_sos" : {
+            "key" : -2 ,
+            "event" : "KEY_DOWN"
+        },
+        "up_sos" : {
+            "key" : -2 ,
+            "event" : "KEY_UP"
+        },
+        "131_KEY_DOWN":{
+			"event":"KEY_DOWN",
+			"key":-3
+		},
+		"131_KEY_UP":{
+			"event":"KEY_UP",
+			"key":-3
+		},
+        "sos" : {
+            "key" : -2 ,
+            "event" : "KEY_LONG_PRESS" ,
+            "time" : 3000
+        }
+    } ,
+    "intent" : {
+        "ptt_down" : {
+            "action" : "com.meigsmart.meigkeyaccessibility.onkeyevent",
+            "extra" : {
+                "keycode" : 142,
+                "action" : 0
+            }
+        } ,
+        "ptt_up" : {
+            "action" : "com.meigsmart.meigkeyaccessibility.onkeyevent",
+            "extra" : {
+                "keycode" : 142,
+                "action" : 1
+            }
+        } ,
+        "ptt_down_ear" : {
+            "action" : "com.meigsmart.meigkeyaccessibility.onkeyevent",
+            "extra" : {
+                "keycode" : 141,
+                "action" : 0
+            }
+        } ,
+        "ptt_up_ear" : {
+            "action" : "com.meigsmart.meigkeyaccessibility.onkeyevent",
+            "extra" : {
+                "keycode" : 141,
+                "action" : 1
+            }
+        } ,
+		"ptt_down_bt": {
+			"action": "com.shli.pocstar.bluetooth.PTT_DOWN"
+		},
+		"ptt_up_bt": {
+			"action": "com.shli.pocstar.bluetooth.PTT_UP"
+		},
+        "down_sos" : {
+            "as_key" : true,
+            "action" : "com.meigsmart.meigkeyaccessibility.onkeyevent",
+            "extra" : {
+                "keycode" : 132,
+                "action" : 0
+            }
+        },
+        "131_KEY_DOWN" : {
+            "action" : "com.meigsmart.meigkeyaccessibility.onkeyevent",
+            "extra" : {
+                "keycode" : 131,
+                "action" : 0
+            }
+        },
+        "131_KEY_UP" : {
+            "action" : "com.meigsmart.meigkeyaccessibility.onkeyevent",
+            "extra" : {
+                "keycode" : 131,
+                "action" : 1
+            }
+        },
+        "up_sos" : {
+            "as_key" : true,
+            "action" : "com.meigsmart.meigkeyaccessibility.onkeyevent",
+            "extra" : {
+                "keycode" : 132,
+                "action" : 1
+            }
+        }
+    } ,
+    "custom" : [
+		"new_call_in",
+		"join_next_group",
+		"switch_group_name_tts",
+		"switch_group_click"
+	],
+    "action" : {
+        "131_KEY_DOWN":{
+			"normal":[
+				{
+					"command":{
+						"name":"join_next_group",
+						"id":"ENTER_CUSTOM_STATUS",
+						"timeout":1000
+					}
+				}
+			]
+		},
+		"ptt_down": {
+			"default": [
+				{
+					"command": {
+						"id": "START_SPEAK"
+					}
+				}
+			]
+		},
+		"ptt_up": {
+			"default": [
+				{
+					"command": {
+						"id": "STOP_SPEAK"
+					}
+				}
+			]
+		},
+		"ptt_down_ear": {
+			"default": [
+				{
+					"command": {
+						"id": "START_SPEAK"
+					}
+				}
+			]
+		},
+		"ptt_up_ear": {
+			"default": [
+				{
+					"command": {
+						"id": "STOP_SPEAK"
+					}
+				}
+			]
+		},
+		"ptt_down_bt": {
+			"default": [
+				{
+					"command": {
+						"id": "START_SPEAK"
+					}
+				}
+			]
+		},
+		"ptt_up_bt": {
+			"default": [
+				{
+					"command": {
+						"id": "STOP_SPEAK"
+					}
+				}
+			]
+		}
+    }
+}

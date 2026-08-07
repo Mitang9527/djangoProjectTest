@@ -9,67 +9,76 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.http import JsonResponse
+from django.db import connection
 from loguru import logger
-from rest_framework.routers import DefaultRouter
-from saas.views import (
-    PlanViewSet,
-    PlanFeatureViewSet,
-    TenantViewSet,
-    TenantSubscriptionViewSet,
-    TenantConfigViewSet,
-    PermissionViewSet,
-    RoleViewSet,
-    TenantMemberViewSet,
-    OrderViewSet,
-    InvoiceViewSet
-)
+
+
+def health_check(request):
+    """Docker 健康检查端点，检查数据库连通性"""
+    try:
+        connection.ensure_connection()
+        db_ok = True
+    except Exception:
+        db_ok = False
+
+    status = 200 if db_ok else 503
+    return JsonResponse({
+        "status": "ok" if db_ok else "degraded",
+        "db": "ok" if db_ok else "error",
+    }, status=status)
 
 
 def discover_app_urls():
     """
-    自动发现 apps 目录下的所有路由（双层去重：app + route）
+    自动发现 apps/ 与 extensions/ 目录下的所有路由（支持分类子目录，如
+    apps/system/、apps/business/）。
+    路由前缀使用 app 叶子名（例如 api/ai_studio/），但 include 使用完整点分
+    模块路径（例如 business.ai_studio.urls），保证分类移动后 URL 保持稳定。
     """
     urlpatterns = []
 
-    seen_apps = set()
     seen_routes = set()
 
-    apps_dir = os.path.join(settings.BASE_DIR, 'apps')
+    # 手动接线的 app（按叶子 label）不在此自动发现，避免重复注册
+    MANUAL_APPS = {'users', 'core', 'saas', 'apk_tool'}
 
-    if not os.path.exists(apps_dir):
-        return urlpatterns
-
-    for app_name in os.listdir(apps_dir):
-        app_path = os.path.join(apps_dir, app_name)
-        urls_file = os.path.join(app_path, 'urls.py')
-
-        if app_name in ['users', 'core', 'saas']:
+    scan_dirs = [
+        os.path.join(settings.BASE_DIR, 'apps'),
+        os.path.join(settings.BASE_DIR, 'extensions'),
+    ]
+    for scan_dir in scan_dirs:
+        if not os.path.isdir(scan_dir):
             continue
-
-        if app_name in seen_apps:
-            continue
-
-        if os.path.isdir(app_path) and os.path.exists(urls_file):
-
-            route_path = f'api/{app_name}/'
-
-            if route_path in seen_routes:
+        for root, dirs, files in os.walk(scan_dir):
+            depth = root[len(scan_dir):].count(os.sep)
+            if depth > 2:
+                dirs[:] = []   # 超过最大深度则剪枝
+                continue
+            if 'urls.py' not in files:
                 continue
 
-            seen_apps.add(app_name)
+            rel = os.path.relpath(root, scan_dir)
+            mod = rel.replace(os.sep, '.')
+            leaf = mod.split('.')[-1]
+
+            if leaf in MANUAL_APPS:
+                continue
+
+            route_path = f'api/{leaf}/'
+            if route_path in seen_routes:
+                continue
             seen_routes.add(route_path)
 
             urlpatterns.append(
-                path(route_path, include(f'{app_name}.urls'))
+                path(route_path, include(f'{mod}.urls'))
             )
 
     return urlpatterns
 
 from django.urls import path, include
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
-from core.views import AdminRequiredMixin
-from saas.views import DashboardView
-
+from system.core.views import AdminRequiredMixin
 # 创建带权限保护的视图类
 class AdminOnlySpectacularAPIView(AdminRequiredMixin, SpectacularAPIView):
     pass
@@ -80,20 +89,13 @@ class AdminOnlySpectacularSwaggerView(AdminRequiredMixin, SpectacularSwaggerView
 class AdminOnlySpectacularRedocView(AdminRequiredMixin, SpectacularRedocView):
     pass
 
-# 配置 SaaS API 路由
-saas_router = DefaultRouter()
-saas_router.register(r'plans', PlanViewSet)
-saas_router.register(r'plan-features', PlanFeatureViewSet)
-saas_router.register(r'tenants', TenantViewSet)
-saas_router.register(r'tenant-subscriptions', TenantSubscriptionViewSet)
-saas_router.register(r'tenant-configs', TenantConfigViewSet)
-saas_router.register(r'permissions', PermissionViewSet)
-saas_router.register(r'roles', RoleViewSet)
-saas_router.register(r'tenant-members', TenantMemberViewSet)
-saas_router.register(r'orders', OrderViewSet)
-saas_router.register(r'invoices', InvoiceViewSet)
-
 urlpatterns = [
+    # 健康检查（Docker / 负载均衡器使用，无需认证）
+    path('api/health/', health_check, name='health-check'),
+
+    # Prometheus 指标导出（仅限内网访问，需在 nginx/ingress 层限制）
+    path('', include('django_prometheus.urls')),
+
     path('admin/', admin.site.urls),
     # DRF auth urls
     path('api-auth/', include('rest_framework.urls')),
@@ -105,13 +107,16 @@ urlpatterns = [
     path('api/redoc/', AdminOnlySpectacularRedocView.as_view(url_name='schema'), name='redoc'),
 
     # Users app urls
-    path('api/users/', include('users.urls')),
-    
-    # SaaS app urls
-    path('saas/', include('saas.urls')),
-    
+    path('api/users/', include('system.users.urls', namespace='users')),
+
+    # SaaS app urls (pages + API)
+    path('saas/', include('system.saas.urls')),
+
+    # API v1 — 向前兼容的新前缀 (与旧路由并行，逐步迁移)
+    path('api/v1/users/', include('system.users.urls', namespace='users_v1')),
+
     # Core app urls
-    path('', include('core.urls')),
+    path('', include('system.core.urls')),
 ]
 
 # 合并自动发现的路由（排除已手动添加的）

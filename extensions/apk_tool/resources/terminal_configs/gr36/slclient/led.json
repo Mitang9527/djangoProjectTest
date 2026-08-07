@@ -1,0 +1,37 @@
+{
+    "control": {
+        "green_on": {
+            "intent": {
+                "action": "com.dfl.greenled.on"
+            }
+        },
+        "green_off": {
+            "intent": {
+                "action": "com.dfl.greenled.off"
+            }
+        },
+        "red_on": {
+            "intent": {
+                "action": "com.dfl.redled.on"
+            }
+        },
+        "red_off": {
+            "intent": {
+                "action": "com.dfl.redled.off"
+            }
+        }
+    },
+    "theme": {
+        "ON_STANDBY": [
+            "green_off",
+            "red_off"
+        ],
+        "WHEN_RECEIVING_VOICE": [
+            "green_on"
+        ],
+        "WHEN_SENDING_VOICE": [
+            "red_on"
+        ]
+    },
+    "enabled": true
+}

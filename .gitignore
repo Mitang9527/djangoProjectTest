@@ -6,6 +6,10 @@ __pycache__/
 # C extensions
 *.so
 
+# media
+*.apk
+*.png
+
 # Distribution / packaging
 .Python
 build/
@@ -112,6 +116,9 @@ celerybeat.pid
 # Environments
 .env
 .env.*
+!.env.template
+!.env.docker
+!.env.test
 .venv
 env/
 venv/
@@ -152,3 +159,23 @@ cython_debug/
 # 密钥轮换数据（敏感，不要提交）
 data/secret_keys.json
 data/*.json
+
+# Frontend build artifacts
+**/node_modules/
+django_vue/web/dist/
+
+# Runtime artifacts
+logs/
+**/__pycache__/
+
+# Large local binary resources
+extensions/apk_tool/resources/*.jar
+extensions/apk_tool/resources/win/*.exe
+extensions/apk_tool/resources/DEF_APK/*.apk
+
+# Local signing materials
+extensions/apk_tool/resources/cert/
+
+# 本地 agent/工作记忆数据（不进远端仓库，保留在本地）
+.workbuddy/
+deploy/README.md

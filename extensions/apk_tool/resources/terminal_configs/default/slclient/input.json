@@ -1,0 +1,1014 @@
+{
+  "stdkey": {
+    "ptt_down": {
+      "event": "KEY_DOWN",
+      "key": -1
+    },
+    "ptt_up": {
+      "event": "KEY_UP",
+      "key": -1
+    },
+    "-2_KEY_DOWN": {
+      "event": "KEY_DOWN",
+      "key": -2
+    },
+    "-2_KEY_UP": {
+      "event": "KEY_UP",
+      "key": -2
+    },
+    "-3_KEY_DOWN": {
+      "event": "KEY_DOWN",
+      "key": -3
+    },
+    "-4_KEY_DOWN": {
+      "event": "KEY_DOWN",
+      "key": -4
+    },
+    "ptt_down_s21": {
+      "event": "KEY_DOWN",
+      "key": -5
+    },
+    "ptt_up_s21": {
+      "event": "KEY_UP",
+      "key": -5
+    },
+    "ptt_down_bt": {
+      "key": -8,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up_bt": {
+      "key": -8,
+      "event": "KEY_UP"
+    },
+    "ptt_down_s28": {
+      "key": -9,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up_s28": {
+      "key": -9,
+      "event": "KEY_UP"
+    },
+    "ptt_down_Runbo": {
+      "key": -10,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up_Runbo": {
+      "key": -10,
+      "event": "KEY_UP"
+    },
+    "ptt_down_sonim": {
+      "key": -11,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up_sonim": {
+      "key": -11,
+      "event": "KEY_UP"
+    },
+    "ptt_down_TID": {
+      "key": -12,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up_TID": {
+      "key": -12,
+      "event": "KEY_UP"
+    },
+    "ptt_down_TYT": {
+      "key": -13,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up_TYT": {
+      "key": -13,
+      "event": "KEY_UP"
+    },
+    "ptt_down_tlsj": {
+      "key": -14,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up_tlsj": {
+      "key": -14,
+      "event": "KEY_UP"
+    },
+    "ptt_down_sjty": {
+      "key": -15,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up_sjty": {
+      "key": -15,
+      "event": "KEY_UP"
+    },
+    "ptt_down_zx": {
+      "key": -16,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up_zx": {
+      "key": -16,
+      "event": "KEY_UP"
+    },
+    "ptt_down_ysf": {
+      "key": -17,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up_ysf": {
+      "key": -17,
+      "event": "KEY_UP"
+    },
+    "ptt_down_jx": {
+      "key": -18,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up_jx": {
+      "key": -18,
+      "event": "KEY_UP"
+    },
+    "ptt_down_qhjf": {
+      "key": -19,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up_qhjf": {
+      "key": -19,
+      "event": "KEY_UP"
+    },
+    "ptt_down_tp": {
+      "key": -20,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up_tp": {
+      "key": -20,
+      "event": "KEY_UP"
+    },
+    "ptt_down_xsj": {
+      "key": -21,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up_xsj": {
+      "key": -21,
+      "event": "KEY_UP"
+    },
+    "ptt_down_qs": {
+      "key": -22,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up_qs": {
+      "key": -22,
+      "event": "KEY_UP"
+    },
+    "ptt_down_bf": {
+      "key": -23,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up_bf": {
+      "key": -23,
+      "event": "KEY_UP"
+    },
+    "ptt_down_aoroM5": {
+      "key": -24,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up_aoroM5": {
+      "key": -24,
+      "event": "KEY_UP"
+    },
+    "ptt_down_aoroM5_ear": {
+      "key": -25,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up_aoroM5_ear": {
+      "key": -25,
+      "event": "KEY_UP"
+    },
+    "video_pass_back": {
+      "event": "KEY_DOWN",
+      "key": -26
+    },
+    "ptt_down_hytera": {
+      "key": -27,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up_hytera": {
+      "key": -27,
+      "event": "KEY_UP"
+    },
+    "down_sos_hytera": {
+      "key": -28,
+      "event": "KEY_DOWN"
+    },
+    "up_sos_hytera": {
+      "key": -28,
+      "event": "KEY_UP"
+    },
+    "sos": {
+      "key": -28,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    },
+
+    "sos_yinda": {
+      "event": "KEY_DOWN",
+      "key": -128
+    },
+    "ptt_down_bv9200" : {
+      "key" : -29 ,
+      "event" : "KEY_DOWN"
+    } ,
+    "ptt_up_bv9200" : {
+      "key" : -29 ,
+      "event" : "KEY_UP"
+    },
+    "ptt_down_C66": {
+      "key": -30,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up_C66": {
+      "key": -30,
+      "event": "KEY_UP"
+    },
+    "ptt_down_C66_2": {
+      "key": -31,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up_C66_2": {
+      "key": -31,
+      "event": "KEY_UP"
+    },
+    "ptt_down_z15": {
+      "key": -32,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up_z15": {
+      "key": -32,
+      "event": "KEY_UP"
+    },
+    "ptt_down_t2": {
+      "event": "KEY_DOWN",
+      "key": -33
+    },
+    "ptt_up_t2": {
+      "event": "KEY_UP",
+      "key": -33
+    }
+  },
+  "custom": [
+    "join_next_group",
+    "switch_group_name_tts",
+    "switch_group_click",
+    "join_prev_group",
+    "new_call_in"
+  ],
+  "action": {
+    "-3_KEY_DOWN": {
+      "normal": [
+        {
+          "command": {
+            "name": "join_next_group",
+            "id": "ENTER_CUSTOM_STATUS",
+            "timeout": 30000
+          }
+        }
+      ]
+    },
+    "ptt_down": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "-4_KEY_DOWN": {
+      "normal": [
+        {
+          "command": {
+            "name": "join_prev_group",
+            "id": "ENTER_CUSTOM_STATUS",
+            "timeout": 30000
+          }
+        }
+      ]
+    },
+    "ptt_up": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_down_bt": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up_bt": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_down_s21": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up_s21": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_down_s28": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up_s28": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_down_Runbo": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up_Runbo": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_down_sonim": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up_sonim": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_down_TID": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up_TID": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_down_TYT": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up_TYT": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_down_tlsj": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up_tlsj": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_down_sjty": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up_sjty": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_down_zx": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up_zx": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_down_ysf": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up_ysf": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_down_jx": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up_jx": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_down_qhjf": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up_qhjf": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_down_tp": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up_tp": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_down_xsj": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up_xsj": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_down_qs": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up_qs": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_down_bf": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up_bf": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_down_aoroM5": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up_aoroM5": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_down_aoroM5_ear": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up_aoroM5_ear": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_down_hytera": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ],
+      "member": [
+      ],
+      "new_call_in": [
+        {
+          "command": {
+            "id": "ACCEPT_LAST_CALL_INVITE"
+          }
+        },
+        {
+          "command": {
+            "id": "LEAVE_CUSTOM_STATUS",
+            "name": "new_call_in"
+          }
+        }
+      ]
+    },
+    "ptt_up_hytera": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ],
+      "member": [
+      ],
+      "new_call_in": [
+      ]
+    },
+    "ptt_down_bv9200" : {
+      "default" : [
+        {
+          "command" : { "id" : "START_SPEAK" }
+        }
+      ] ,
+      "member" : [
+      ],
+      "new_call_in": [
+        {
+          "command": {
+            "id": "ACCEPT_LAST_CALL_INVITE"
+          }
+        },
+        {
+          "command": {
+            "id": "LEAVE_CUSTOM_STATUS",
+            "name": "new_call_in"
+          }
+        }
+      ]
+    } ,
+    "ptt_up_bv9200" : {
+      "default" : [
+        {
+          "command" : { "id" : "STOP_SPEAK" }
+        }
+      ] ,
+      "member" : [
+      ],
+      "new_call_in": [
+      ]
+    },
+    "ptt_down_C66": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up_C66": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_down_C66_2": {
+      "default": [{
+        "command": {
+          "id": "START_SPEAK"
+        }
+      }]
+    },
+    "ptt_up_C66_2": {
+      "default": [{
+        "command": {
+          "id": "STOP_SPEAK"
+        }
+      }]
+    },
+    "ptt_down_z15": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ],
+      "member": [
+      ]
+    },
+    "ptt_up_z15": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ],
+      "member": [
+      ]
+    },
+    "ptt_down_t2": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up_t2": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    }
+  },
+  "intent": {
+    "ptt_down_t2": {
+      "action": "com.android.action.ptt",
+      "extra": {
+        "keycode": "1"
+      }
+    },
+    "ptt_up_t2": {
+      "action": "com.android.action.ptt",
+      "extra": {
+        "keycode": "3"
+      }
+    },
+    "-3_KEY_DOWN": {
+      "action": "android.intent.action.CHANNELUP.down"
+    },
+    "ptt_down": {
+      "action": "android.intent.action.PTT.down"
+    },
+    "ptt_down_s21": {
+      "action": "com.chivin.action.MEDIA_PTT_DOWN"
+    },
+    "ptt_down_s28": {
+      "action": "yt.intent.action.START_PTT"
+    },
+    "ptt_up_s28": {
+      "action": "yt.intent.action.STOP_PTT"
+    },
+    "-2_KEY_UP": {
+      "as_key": true,
+      "action": "com.aoro.sos.key.up"
+    },
+    "-4_KEY_DOWN": {
+      "action": "android.intent.action.CHANNELDOWN.down"
+    },
+    "-2_KEY_DOWN": {
+      "as_key": true,
+      "action": "com.aoro.sos.key.down"
+    },
+    "ptt_up": {
+      "action": "android.intent.action.PTT.up"
+    },
+    "ptt_up_s21": {
+      "action": "com.chivin.action.MEDIA_PTT_UP"
+    },
+    "ptt_down_bt": {
+      "action": "com.shli.pocstar.bluetooth.PTT_DOWN"
+    },
+    "ptt_up_bt": {
+      "action": "com.shli.pocstar.bluetooth.PTT_UP"
+    },
+    "ptt_down_Runbo": {
+      "action": "com.android.ptt.key.down"
+    },
+    "ptt_up_Runbo": {
+      "action": "com.android.ptt.key.up"
+    },
+    "ptt_down_sonim": {
+      "action": "com.sonim.intent.action.PTT_KEY_DOWN"
+    },
+    "ptt_up_sonim": {
+      "action": "com.sonim.intent.action.PTT_KEY_UP"
+    },
+    "ptt_down_TID": {
+      "action": "unipro.hotkey.ptt.down"
+    },
+    "ptt_up_TID": {
+      "action": "unipro.hotkey.ptt.up"
+    },
+    "ptt_down_TYT": {
+      "action": "unipro.hotkey.ptt.down"
+    },
+    "ptt_up_TYT": {
+      "action": "unipro.hotkey.ptt.up"
+    },
+    "ptt_down_tlsj": {
+      "action": "android.intent.action.side_key.keydown.PTT"
+    },
+    "ptt_up_tlsj": {
+      "action": "android.intent.action.side_key.keyup.PTT"
+    },
+    "ptt_down_sjty": {
+      "action": "com.android.ctyon.PTT.KEY_DOWN"
+    },
+    "ptt_up_sjty": {
+      "action": "com.android.ctyon.PTT.KEY_UP"
+    },
+    "ptt_down_zx": {
+      "action": "alk.hotkey.ptt.down"
+    },
+    "ptt_up_zx": {
+      "action": "alk.hotkey.ptt.up"
+    },
+    "ptt_down_ysf": {
+      "action": "com.dfl.a9.camdown"
+    },
+    "ptt_up_ysf": {
+      "action": "com.dfl.a9.camup"
+    },
+    "ptt_down_jx": {
+      "action": "unipro.hotkey.ptt.down"
+    },
+    "ptt_up_jx": {
+      "action": "unipro.hotkey.ptt.up"
+    },
+    "ptt_down_qhjf": {
+      "action": "com.hebs.action.ACTION_START_PTT"
+    },
+    "ptt_up_qhjf": {
+      "action": "com.hebs.action.ACTION_STOP_PTT"
+    },
+    "ptt_down_tp": {
+      "action": "com.talkpod.ptt.down"
+    },
+    "ptt_up_tp": {
+      "action": "com.talkpod.ptt.up"
+    },
+    "ptt_down_xsj": {
+      "action": "com.simware.action.KEY_DOWN_F1"
+    },
+    "ptt_up_xsj": {
+      "action": "com.simware.action.KEY_UP_F1"
+    },
+    "ptt_down_qs": {
+      "action": "BOPTT.privkey.ptt.down"
+    },
+    "ptt_up_qs": {
+      "action": "BOPTT.privkey.ptt.up"
+    },
+    "ptt_down_bf": {
+      "action": "unipro.hotkey.vb.down"
+    },
+    "ptt_up_bf": {
+      "action": "unipro.hotkey.vb.up"
+    },
+    "ptt_down_aoroM5": {
+      "action": "com.aoro.ptt.key.down"
+    },
+    "ptt_up_aoroM5": {
+      "action": "com.aoro.ptt.key.up"
+    },
+    "ptt_down_aoroM5_ear": {
+      "action": "com.aoro.poc.key.down"
+    },
+    "ptt_up_aoroM5_ear": {
+      "action": "com.aoro.poc.key.up"
+    },
+    "video_pass_back": {
+      "action": "com.aoro.camera.key.down"
+    },
+    "ptt_down_hytera": {
+      "action": "key.intent.action.onkeyevent",
+      "extra": {
+        "keycode": 142,
+        "action": 0
+      }
+    },
+    "ptt_up_hytera": {
+      "action": "key.intent.action.onkeyevent",
+      "extra": {
+        "keycode": 142,
+        "action": 1
+      }
+    },
+    "down_sos_hytera": {
+      "as_key": true,
+      "action": "key.intent.action.onkeyevent",
+      "extra": {
+        "keycode": 132,
+        "action": 0
+      }
+    },
+    "up_sos_hytera": {
+      "as_key": true,
+      "action": "key.intent.action.onkeyevent",
+      "extra": {
+        "keycode": 132,
+        "action": 1
+      }
+    },
+
+    "sos_yinda": {
+      "action": "android.intent.action.iTalk_SOS"
+    },
+    "ptt_down_bv9200" : {
+      "action" : "com.blackview.PTT_INTERCOM_ACTION",
+      "extra" : {
+        "code" : 131,
+        "action" : 0
+      }
+    } ,
+    "ptt_up_bv9200" : {
+      "action" : "com.blackview.PTT_INTERCOM_ACTION",
+      "extra" : {
+        "code" : 131,
+        "action" : 1
+      }
+    },
+    "ptt_down_C66": {
+      "action" : "com.rscja.sys.action.KEY_PTT_DOWN",
+      "extra" : {
+        "keycode" : 310
+      }
+    },
+    "ptt_up_C66": {
+      "action" : "com.rscja.sys.action.KEY_PTT_UP",
+      "extra" : {
+        "keycode" : 310
+      }
+    },
+    "ptt_down_C66_2": {
+      "action": "com.rscja.android.PTT_DOWN"
+    },
+    "ptt_up_C66_2": {
+      "action": "com.rscja.android.PTT_UP"
+    },
+    "ptt_down_z15": {
+      "action": "android.intent.action.stdIntent",
+      "extra": {
+        "keyCode": 104,
+        "action": 0
+      }
+    },
+    "ptt_up_z15": {
+      "action": "android.intent.action.stdIntent",
+      "extra": {
+        "keyCode": 104,
+        "action": 1
+      }
+    }
+  }
+}

@@ -1,0 +1,208 @@
+{
+    "stdkey": {
+        "ptt_down": {
+            "key": -1,
+            "event": "KEY_DOWN"
+        },
+        "ptt_up": {
+            "key": -1,
+            "event": "KEY_UP"
+        },
+        "ptt_down_bt": {
+            "key": -8,
+            "event": "KEY_DOWN"
+        },
+        "ptt_up_bt": {
+            "key": -8,
+            "event": "KEY_UP"
+        },
+        "ptt_down_s21": {
+            "key": -9,
+            "event": "KEY_DOWN"
+        },
+        "ptt_up_s21": {
+            "key": -9,
+            "event": "KEY_UP"
+        },
+        "sos": {
+            "key": -17,
+            "event": "KEY_LONG_PRESS",
+            "time": 3000
+        },
+        "-2_KEY_DOWN": {
+            "key": -2,
+            "event": "KEY_DOWN"
+        },
+        "-3_KEY_DOWN": {
+            "key": -3,
+            "event": "KEY_DOWN"
+        }
+    },
+    "intent": {
+        "ptt_down_s21": {
+            "action": "com.chivin.action.MEDIA_PTT_DOWN"
+        },
+        "ptt_up_s21": {
+            "action": "com.chivin.action.MEDIA_PTT_UP"
+        },
+        "ptt_down": {
+            "action": "android.intent.action.PTT.down"
+        },
+        "ptt_up": {
+            "action": "android.intent.action.PTT.up"
+        },
+        "ptt_down_bt": {
+            "action": "com.shli.pocstar.bluetooth.PTT_DOWN"
+        },
+        "ptt_up_bt": {
+            "action": "com.shli.pocstar.bluetooth.PTT_UP"
+        },
+        "sos": {
+            "action": "com.ruggear.intent.action.SOS"
+        },
+        "-2_KEY_DOWN": {
+            "action": "com.ruggear.intent.action.PTT.CHANNEL.next"
+        },
+        "-3_KEY_DOWN": {
+            "action": "com.ruggear.intent.action.PTT.CHANNEL.prev"
+        }
+    },
+    "custom": [
+        "new_call_in","join_next_group" , "join_prev_group" , "switch_group_name_tts"
+    ],
+    "action": {
+        "-3_KEY_DOWN":{
+            "normal" : [
+                {
+                    "command" : {
+                        "id" : "ENTER_CUSTOM_STATUS" ,
+                        "name" : "join_prev_group" ,
+                        "timeout" : 30000
+                    }
+                }
+            ]
+        },
+        "-2_KEY_DOWN":{
+            "normal" : [
+                {
+                    "command" : {
+                        "id" : "ENTER_CUSTOM_STATUS" ,
+                        "name" : "join_next_group" ,
+                        "timeout" : 30000
+                    }
+                }
+            ]
+        },
+        "ptt_down": {
+            "default": [
+                {
+                    "command": {
+                        "id": "START_SPEAK"
+                    }
+                }
+            ],
+            "member": [
+            ],
+            "new_call_in": [
+                {
+                    "command": {
+                        "id": "ACCEPT_LAST_CALL_INVITE"
+                    }
+                },
+                {
+                    "command": {
+                        "id": "LEAVE_CUSTOM_STATUS",
+                        "name": "new_call_in"
+                    }
+                }
+            ]
+        },
+        "ptt_up": {
+            "default": [
+                {
+                    "command": {
+                        "id": "STOP_SPEAK"
+                    }
+                }
+            ],
+            "member": [
+            ],
+            "new_call_in": [
+            ]
+        },
+        "ptt_down_s21": {
+            "default": [
+                {
+                    "command": {
+                        "id": "START_SPEAK"
+                    }
+                }
+            ],
+            "member": [
+            ],
+            "new_call_in": [
+                {
+                    "command": {
+                        "id": "ACCEPT_LAST_CALL_INVITE"
+                    }
+                },
+                {
+                    "command": {
+                        "id": "LEAVE_CUSTOM_STATUS",
+                        "name": "new_call_in"
+                    }
+                }
+            ]
+        },
+        "ptt_up_s21": {
+            "default": [
+                {
+                    "command": {
+                        "id": "STOP_SPEAK"
+                    }
+                }
+            ],
+            "member": [
+            ],
+            "new_call_in": [
+            ]
+        },
+        "ptt_down_bt": {
+            "default": [
+                {
+                    "command": {
+                        "id": "START_SPEAK"
+                    }
+                }
+            ],
+            "member": [
+            ],
+            "new_call_in": [
+                {
+                    "command": {
+                        "id": "ACCEPT_LAST_CALL_INVITE"
+                    }
+                },
+                {
+                    "command": {
+                        "id": "LEAVE_CUSTOM_STATUS",
+                        "name": "new_call_in"
+                    }
+                }
+            ]
+        },
+        "ptt_up_bt": {
+            "default": [
+                {
+                    "command": {
+                        "id": "STOP_SPEAK"
+                    }
+                }
+            ],
+            "member": [
+            ],
+            "new_call_in": [
+            ]
+        }
+    }
+}

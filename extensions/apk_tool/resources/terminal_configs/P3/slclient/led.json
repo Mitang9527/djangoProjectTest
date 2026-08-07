@@ -1,0 +1,71 @@
+{
+    "control" : {
+            "red": {
+                "intent": {
+                    "action": "com.intent.redled.on"
+                }
+            },
+            "red_off": {
+                "intent": {
+                    "action": "com.intent.redled.off"
+                }
+            },
+            "green": {
+                "intent": {
+                    "action": "com.intent.greenled.on"
+                }
+            },
+            "green_off": {
+                "intent": {
+                    "action": "com.intent.greenled.off"
+                }
+            },
+            "blue": {
+                "intent": {
+                    "action": "com.intent.blueled.on"
+                }
+            },
+            "blue_off": {
+                "intent": {
+                    "action": "com.intent.blueled.off"
+                }
+            },
+            "red_strobe_on": {
+                "intent": {
+                    "action": "com.intent.red_strobe.on"
+                }
+            },
+            "red_strobe_off": {
+                "intent": {
+                    "action": "com.intent.red_strobe.off"
+                }
+            },
+            "blue_strobe_on": {
+                "intent": {
+                    "action": "com.intent.blue_strobe.on"
+                }
+            },
+            "blue_strobe_off": {
+                "intent": {
+                    "action": "com.intent.blue_strobe.off"
+                }
+            },
+            "off": {
+                "intent": {
+                    "action": "com.android.action.led.close"
+                }
+            }
+    },
+    "theme" : {
+        "ON_STANDBY": ["off",3000,"green",1000],
+        "WHEN_RECEIVING_VOICE": ["green",1000],
+        "WHEN_SENDING_VOICE": ["red",1000],
+        "WHEN_DISCONNECTED": ["red",3000,"off",500],
+        "SOS_SEND_SUCCESSFULLY": ["green", 3000, "off",1000],
+        "SOS_SEND_FAILED": ["red", 3000, "off",1000],
+        "SOS_RECEIVED": ["red",1000],
+        "POLICE_LED_ON": ["blue_strobe_on",500,"red_strobe_on",500],
+        "POLICE_LED_OFF": ["red_strobe_off","blue_strobe_off"]
+    } ,
+    "enabled" : true
+}

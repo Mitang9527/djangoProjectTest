@@ -1,0 +1,73 @@
+{
+  "stdkey": {
+    "ptt_down": {
+      "key": -285,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up": {
+      "key": -285,
+      "event": "KEY_UP"
+    },
+    "sos": {
+      "event": "KEY_LONG_PRESS",
+      "key": -284,
+      "time": 3000
+    },
+    "recorder_capture_video": {
+      "key": -135,
+      "event": "KEY_CLICK",
+      "time": 3000
+    },
+    "recorder_capture_audio": {
+      "key": -25,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    },
+    "recorder_capture_image": {
+      "key": -27,
+      "event": "KEY_CLICK",
+      "time": 3000
+    }
+  },
+  "intent": {
+    "ptt_down": {
+      "action": "com.yl.ptt.keydown"
+    },
+    "ptt_up": {
+      "action": "com.yl.ptt.keyup"
+    },
+    "sos": {
+      "action": "com.yl.sos.alert"
+    },
+    "recorder_capture_video": {
+      "action": "zzx_action_record"
+    },
+    "recorder_capture_audio": {
+      "action": "zzx_action_mic"
+    },
+    "recorder_capture_image": {
+      "action": "zzx_action_capture"
+    }
+  },
+
+  "action": {
+    "ptt_down": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    }
+  }
+}

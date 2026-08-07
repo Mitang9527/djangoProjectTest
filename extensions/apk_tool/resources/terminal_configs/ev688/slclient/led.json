@@ -1,0 +1,48 @@
+{
+    "control":{
+        "red":{
+            "intent":{
+                "action":"com.intent.redled.on"
+            }
+        },
+        "green":{
+            "intent":{
+                "action":"com.intent.greenled.on"
+            }
+        },
+        "off":{
+            "intent":{
+                "action":"com.intent.led.off"
+            }
+        },
+
+        "ir_led_on":{
+            "intent":{
+                "action":"com.intent.ir.on"
+            }
+        },
+        "ir_led_off":{
+            "intent":{
+                "action":"com.intent.ir.off"
+            }
+        },
+        "ir_cut_led_on":{
+            "intent":{
+                "action":"com.intent.icut.on"
+            }
+        },
+        "ir_cut_led_off":{
+            "intent":{
+                "action":"com.intent.icut.off"
+            }
+        }
+    },
+    "enabled":true,
+    "theme":{
+        "ON_STANDBY":["off"],
+        "WHEN_RECEIVING_VOICE":["green"],
+        "WHEN_SENDING_VOICE":["red"],
+        "RED_LED_ON": ["ir_led_on","ir_cut_led_on"],
+        "RED_LED_OFF": ["ir_led_off","ir_cut_led_off"]
+    }
+}

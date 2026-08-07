@@ -1,0 +1,113 @@
+{
+  "stdkey": {
+    "ptt_down": {
+      "key": -1,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up": {
+      "key": -1,
+      "event": "KEY_UP"
+    },
+    "sos":{
+      "time":3000,
+      "event":"KEY_LONG_PRESS",
+      "key":-2
+    },
+    "join_next_group": {
+      "key": -3,
+      "event": "KEY_DOWN"
+    },
+    "join_prev_group": {
+      "key": -4,
+      "event": "KEY_DOWN"
+    },
+    "capture_image_media": {
+      "key": -5,
+      "event": "KEY_DOWN"
+    },
+    "video_pass_back": {
+      "key": -6,
+      "event": "KEY_DOWN"
+    },
+    "enter_member_list":{
+      "time":500,
+      "event":"KEY_CLICK",
+      "key":-7
+    },
+    "enter_group_list":{
+      "time":500,
+      "event":"KEY_CLICK",
+      "key":-8
+    }
+  },
+  "intent": {
+    "ptt_down": {
+      "action": "com.yl.ptt.keydown"
+    },
+    "ptt_up": {
+      "action": "com.yl.ptt.keyup"
+    },
+    "sos":{
+      "action":"com.yl.sos.alert"
+    },
+    "join_next_group": {
+      "action": "com.yl.dmr.next"
+    },
+    "join_prev_group": {
+      "action": "com.yl.dmr.last"
+    },
+    "capture_image_media": {
+      "action": "zzx_action_capture"
+    },
+    "video_pass_back": {
+      "action": "zzx_action_record"
+    },
+    "enter_member_list": {
+      "action": "zzx_action_P1"
+    },
+    "enter_group_list": {
+      "action": "zzx_action_P2"
+    }
+  },
+  "custom": [
+    "new_call_in",
+    "join_next_group",
+    "join_prev_group"
+  ],
+  "action": {
+    "ptt_down": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ],
+      "member": [],
+      "new_call_in": [
+        {
+          "command": {
+            "id": "ACCEPT_LAST_CALL_INVITE"
+          }
+        },
+        {
+          "command": {
+            "id": "LEAVE_CUSTOM_STATUS",
+            "name": "new_call_in"
+          }
+        }
+      ]
+    },
+    "ptt_up": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ],
+      "member": [],
+      "new_call_in": []
+    }
+  }
+}

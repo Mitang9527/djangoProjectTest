@@ -1,0 +1,143 @@
+{
+  "stdkey": {
+    "ptt_down": {
+      "key": -1,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up": {
+      "key": -1,
+      "event": "KEY_UP"
+    },
+    "sos": {
+      "event": "KEY_LONG_PRESS",
+      "key": -3,
+      "time": 3000
+    },
+    "-4_KEY_DOWN": {
+      "key": -4,
+      "event": "KEY_DOWN"
+    },
+    "-4_KEY_UP": {
+      "key": -4,
+      "event": "KEY_UP"
+    },
+    "enter_group_list": {
+      "key": -4,
+      "event": "KEY_CLICK",
+      "time": 500
+    },
+    "-4_KEY_LONG_PRESS": {
+      "key": -4,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    },
+    "-5_KEY_DOWN": {
+      "key": -5,
+      "event": "KEY_DOWN"
+    },
+    "-5_KEY_UP": {
+      "key": -5,
+      "event": "KEY_UP"
+    },
+    "enter_member_list": {
+      "key": -5,
+      "event": "KEY_CLICK",
+      "time": 500
+    },
+    "-5_KEY_LONG_PRESS": {
+      "key": -5,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    },
+    "call_up": {
+      "key": -6,
+      "event": "KEY_DOWN"
+    }
+  },
+  "intent": {
+    "ptt_down": {
+      "action": "unipro.hotkey.ptt.down"
+    },
+    "ptt_up": {
+      "action": "unipro.hotkey.ptt.up"
+    },
+    "sos": {
+      "action": "unipro.hotkey.help.long"
+    },
+    "-4_KEY_DOWN": {
+      "as_key" : true,
+      "action": "unipro.hotkey.sos.down"
+    },
+    "-4_KEY_UP": {
+      "as_key" : true,
+      "action": "unipro.hotkey.sos.up"
+    },
+    "-5_KEY_DOWN": {
+      "as_key" : true,
+      "action": "unipro.hotkey.vb.down"
+    },
+    "-5_KEY_UP": {
+      "as_key" : true,
+      "action": "unipro.hotkey.vb.up"
+    },
+    "call_up": {
+      "action": "unipro.hotkey.call.down"
+    }
+  },
+  "custom": [
+    "join_prev_group",
+    "join_next_group",
+    "switch_group_name_tts",
+    "switch_group_click",
+    "system_setting"
+  ],
+  "action": {
+    "ptt_down": {
+      "default": [{
+        "command": {
+          "id": "START_SPEAK"
+        }
+      }]
+    },
+    "ptt_up": {
+      "default": [{
+        "command": {
+          "id": "STOP_SPEAK"
+        }
+      }]
+    },
+    "enter_group_list" : {
+      "default" : [
+        {
+          "command" : {
+            "id" : "PLAY_TTS" ,
+            "priority" : 4 ,
+            "content" : "$current_group_temp$%group_name%"
+          }
+        }
+      ]
+    } ,
+    "-4_KEY_LONG_PRESS" : {
+      "default": [
+        {
+          "command": {
+            "id": "PLAY_TTS",
+            "priority": 4,
+            "content": "%tts_battery%,,$current_user_temp$%my_name%"
+          }
+        }
+      ]
+    },
+    "-5_KEY_LONG_PRESS" : {
+      "normal": [
+        {
+          "command": {
+            "id": "ENTER_CUSTOM_STATUS",
+            "name": "system_setting",
+            "timeout": 30000
+          }
+        }
+      ]
+    }
+  }
+}

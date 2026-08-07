@@ -1,0 +1,158 @@
+{
+    "stdkey": {
+        "ptt_down": {
+            "key": -285,
+            "event": "KEY_DOWN"
+        },
+        "ptt_up": {
+            "key": -285,
+            "event": "KEY_UP"
+        },
+        "sos": {
+            "event": "KEY_LONG_PRESS",
+            "key": -284,
+            "time": 3000
+        },
+        "recorder_capture_video": {
+            "key": -135,
+            "event": "KEY_CLICK",
+            "time": 3000
+        },
+        "-3_KEY_DOWN": {
+            "key": -26,
+            "event": "KEY_DOWN"
+        },
+        "-3_KEY_UP": {
+            "key": -26,
+            "event": "KEY_UP"
+        },
+        "recorder_capture_audio": {
+            "key": -26,
+            "event": "KEY_CLICK",
+            "time": 500
+        },
+        "system_volume_down": {
+            "key": -25,
+            "event": "KEY_CLICK",
+            "time": 3000
+        },
+        "system_volume_up": {
+            "key": -24,
+            "event": "KEY_CLICK",
+            "time": 3000
+        },
+        "recorder_capture_image": {
+            "key": -28,
+            "event": "KEY_CLICK",
+            "time": 500
+        },
+        "-4_KEY_DOWN": {
+            "key": -28,
+            "event": "KEY_DOWN"
+        },
+        "-4_KEY_UP": {
+            "key": -28,
+            "event": "KEY_UP"
+        },
+        "flash_light": {
+            "key": -27,
+            "event": "KEY_LONG_PRESS",
+            "time": 3000
+        },
+        "irc_led_control": {
+            "key": -133,
+            "event": "KEY_CLICK",
+            "time": 3000
+        },
+        "recorder_police_led": {
+            "key": -133,
+            "event": "KEY_LONG_PRESS",
+            "time": 3000
+        },
+        "enter_group_list": {
+            "key": -26,
+            "event": "KEY_LONG_PRESS",
+            "time": 2000
+        },
+        "enter_member_list":{
+            "key":-28,
+            "event":"KEY_LONG_PRESS",
+            "time":2000
+        }
+    },
+    "intent": {
+        "ptt_down": {
+            "action": "BOPTT.privkey.ptt.down"
+        },
+        "ptt_up": {
+            "action": "BOPTT.privkey.ptt.up"
+        },
+        "sos": {
+            "action": "BOPTT.privkey.sos.long"
+        },
+        "recorder_capture_video": {
+            "action": "BOPTT.privkey.video.down"
+        },
+        "-3_KEY_DOWN": {
+            "as_key" : true,
+            "action": "BOPTT.privkey.record.down"
+        },
+        "-3_KEY_UP": {
+            "as_key" : true,
+            "action": "BOPTT.privkey.record.up"
+        },
+        "-4_KEY_DOWN": {
+            "as_key" : true,
+            "action": "BOPTT.privkey.camera.down"
+        },
+        "-4_KEY_UP": {
+            "as_key" : true,
+            "action": "BOPTT.privkey.camera.up"
+        },
+        "flash_light": {
+            "action": "android.intent.action.SIDE_KEY_INTENT",
+            "extra": {
+                "key_code": 27,
+                "key_event": 1,
+                "key_status": 0
+            }
+        },
+        "irc_led_control": {
+            "action": "android.intent.action.SIDE_KEY_INTENT",
+            "extra": {
+                "key_code": 133,
+                "key_event": 0,
+                "key_status": 1
+            }
+        },
+        "recorder_police_led": {
+            "action": "android.intent.action.SIDE_KEY_INTENT",
+            "extra": {
+                "key_code": 133,
+                "key_event": 1,
+                "key_status": 1
+            }
+        }
+    },
+
+    "action": {
+        "ptt_down": {
+            "default": [
+                {
+                    "command": {
+                        "id": "START_SPEAK"
+                    }
+                }
+            ]
+        },
+        "ptt_up": {
+            "default": [
+                {
+                    "command": {
+                        "id": "STOP_SPEAK"
+                    }
+                }
+            ]
+        }
+    }
+}

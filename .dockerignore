@@ -1,0 +1,32 @@
+# ================================================================
+# .dockerignore —— 同时作用于 Django 镜像与 Nginx(前端) 镜像的构建上下文
+# ================================================================
+
+# 依赖与 Python 缓存
+**/node_modules
+**/__pycache__
+*.pyc
+.venv
+**/.venv
+
+# 前端构建产物（构建期重新生成，不应带入上下文）
+django_vue/web/dist
+
+# 运行时 / 数据目录（均由 volume 挂载，不打包进镜像）
+db.sqlite3
+media
+logs
+htmlcov
+coverage.xml
+
+# 版本控制与 CI
+.git
+.github
+
+# 本地开发 / 临时文件
+tmp_*.py
+**/*.log
+
+# 大体积扩展产物（按需放开）
+extensions/**/*.apk
+extensions/**/*.keystore

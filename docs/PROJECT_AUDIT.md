@@ -9,7 +9,7 @@
 ### 1. 架构设计良好
 - 分环境配置（base/dev/prod）- 企业级最佳实践
 - 应用隔离在 apps/ 目录
-- 工具模块独立在 utils/ 目录
+- 工具模块独立在 framework/ 目录
 - Pydantic 类型校验配置
 
 ### 2. 功能完整
@@ -47,7 +47,7 @@
 
 **修改**:
 - 创建统一的 `.env.template` 配置模板
-- 添加 `utils/env_loader.py` 统一环境加载工具
+- 添加 `framework/env_loader.py` 统一环境加载工具
 - 更新 `manage.py` 和 `asgi.py` 使用统一工具
 
 #### 4. 缺少 static 目录
@@ -60,7 +60,7 @@
 **状态**: ✅ 已修复
 
 **修改**:
-- 统一使用 `utils.env_loader` 管理环境加载
+- 统一使用 `framework.env_loader` 管理环境加载
 - 消除了重复代码
 
 ## ⚠️ 待优化问题（按优先级）
@@ -80,7 +80,7 @@
 
 ### 🟢 低优先级问题
 
-#### 4. utils 目录命名规范可以改进
+#### 4. framework 目录命名规范可以改进
 （按要求暂不修改）
 - `noticUtils/` → `notifications/`
 - `logUtils/` → `logging/`

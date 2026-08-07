@@ -1,0 +1,100 @@
+{
+  "stdkey": {
+    "ptt_down": {
+      "key": -1,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up": {
+      "key": -1,
+      "event": "KEY_UP"
+    },
+    "-2_KEY_DOWN": {
+      "key": -2,
+      "event": "KEY_DOWN"
+    },
+    "-2_KEY_UP": {
+      "key": -2,
+      "event": "KEY_UP"
+    },
+    "sos": {
+      "key": -2,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    },
+    "join_prev_group": {
+      "key": -4,
+      "event": "KEY_DOWN"
+    },
+    "join_next_group": {
+      "key": -5,
+      "event": "KEY_DOWN"
+    }
+  },
+  "intent": {
+    "ptt_down": {
+      "action": "com.hebs.action.ACTION_START_PTT"
+    },
+    "ptt_up": {
+      "action": "com.hebs.action.ACTION_STOP_PTT"
+    },
+    "-2_KEY_DOWN": {
+      "as_key": true,
+      "action": "com.hebs.action.ACTION_SOS"
+    },
+    "-2_KEY_UP": {
+      "as_key": true,
+      "action": "com.hebs.action.ACTION_SOS_UP"
+    },
+    "join_prev_group": {
+      "action": "com.hebs.spinbtn.left.reduce.action"
+    },
+    "join_next_group": {
+      "action": "com.hebs.spinbtn.right.add.action"
+    }
+  },
+  "custom": [
+    "new_call_in"
+  ],
+  "action": {
+    "ptt_down": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ]
+    },
+    "ptt_up": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ]
+    },
+    "join_prev_group": {
+      "normal": [
+        {
+          "command": {
+            "id": "ENTER_CUSTOM_STATUS",
+            "name": "join_prev_group",
+            "timeout": 30000
+          }
+        }
+      ]
+    },
+    "join_next_group": {
+      "normal": [
+        {
+          "command": {
+            "id": "ENTER_CUSTOM_STATUS",
+            "name": "join_next_group",
+            "timeout": 30000
+          }
+        }
+      ]
+    }
+  }
+}

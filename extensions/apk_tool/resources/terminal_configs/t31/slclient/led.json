@@ -1,0 +1,29 @@
+{
+    "control" : {
+        "red" : {
+            "intent" : {
+                "action" : "android.led.ptt.red"
+            }
+        } ,
+        "green" : {
+            "intent" : {
+                "action" : "android.led.ptt.green"
+            }
+        } ,
+        "off" : {
+            "intent" : {
+                "action" : "android.led.ptt.turn_off"
+            }
+        }
+    },
+    "enabled" : true,
+    "theme": {
+        "ON_STANDBY": ["off",4000,"green",1000],
+        "WHEN_RECEIVING_VOICE": ["green",1000],
+        "WHEN_SENDING_VOICE": ["red",1000],
+        "WHEN_DISCONNECTED": ["red",500,"off",500],
+        "SOS_SEND_SUCCESSFULLY": ["green", 3000, "off",1000],
+        "SOS_SEND_FAILED": ["red", 3000, "off",1000],
+        "SOS_RECEIVED": ["red",1000]
+    }
+}

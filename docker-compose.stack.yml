@@ -1,0 +1,305 @@
+# ================================================================
+# 全栈 Docker 编排（后端）
+#   主平台 (Django/Gunicorn)  +  AI 创作服务 (Daphne)  +  通知服务 (Daphne+Celery)  +  RabbitMQ 解耦
+#   - 主平台把生成请求经 RabbitMQ 投递到 ai_studio.generate 队列，AI 服务 worker 消费并执行；
+#     结果存 AI 服务库，前端经 WS 主动查询。
+#   - 主平台把通知经 RabbitMQ 投递到 notice.send 队列，通知服务 worker 消费并分发到
+#     钉钉/飞书/邮件/企微等渠道（无状态，不落库）。
+#
+# 启动:
+#   docker compose --env-file .env.stack -f docker-compose.stack.yml up -d --build
+#
+# 说明:
+#   - rabbitmq 为两服务共享 broker（镜像已本地缓存）
+#   - 主平台 broker 通过 CELERY_BROKER_URL 指向同一 rabbitmq
+#   - JWT_SIGNING_KEY 各服务必须一致（来自 .env.stack）
+#   - 前端 Vue 由独立 vite/容器运行，本编排只覆盖后端全栈
+# ================================================================
+
+name: saas-fullstack
+
+x-django-common: &django-common
+  build:
+    context: .
+    dockerfile: Dockerfile
+    target: runtime
+  env_file: .env.docker
+  environment:
+    DJANGO_SETTINGS_MODULE: djangoProjectTest.settings.prod
+    # 跨服务 broker：主平台经此投递 ai_studio.generate 任务
+    CELERY_BROKER_URL: "amqp://rabbitmq:5672//"
+    CELERY_RESULT_BACKEND: "rpc://"
+    # 共享 JWT 验签密钥（必须与 AI 服务一致）
+    JWT_SIGNING_KEY: ${JWT_SIGNING_KEY}
+    # Redis 密码与下方 redis 容器 --requirepass 保持一致
+    REDIS_ENABLED: "True"
+    REDIS_PASSWORD: ${REDIS_PASSWORD}
+    # PostgreSQL 密码（覆盖 .env.docker 的占位值，需与 postgres 容器一致）
+    DB_PASSWORD: ${DB_PASSWORD}
+    # 容器间服务名调用（web / ai_api）需列入白名单，否则触发 DisallowedHost
+    ALLOWED_HOSTS: "localhost,127.0.0.1,web,ai_api,0.0.0.0"
+  volumes:
+    - .:/app
+    - django_media:/app/media
+    - django_logs:/app/logs
+    - django_static:/app/static_root
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+    rabbitmq:
+      condition: service_healthy
+  networks:
+    - backend
+
+services:
+
+  # ---------------- 共享 RabbitMQ（跨服务解耦 broker）----------------
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: saas_rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - backend
+    restart: unless-stopped
+
+  # ---------------- 主平台 PostgreSQL ----------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: saas_postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME:-saas_db}
+      POSTGRES_USER: ${DB_USER:-saas_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-saas_pass}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-saas_user} -d ${DB_NAME:-saas_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ---------------- 主平台 Redis ----------------
+  redis:
+    image: redis:7-alpine
+    container_name: saas_redis
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --save 60 1
+      --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------- 主平台 Web (Gunicorn WSGI；WebSocket 在 AI 服务侧) ----------------
+  web:
+    <<: *django-common
+    container_name: saas_web
+    command: gunicorn
+    ports:
+      - "8300:8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ---------------- 主平台 Celery Worker ----------------
+  celery-worker:
+    <<: *django-common
+    container_name: saas_celery_worker
+    command: celery-worker
+    restart: unless-stopped
+
+  # ---------------- 主平台 Celery Beat ----------------
+  celery-beat:
+    <<: *django-common
+    container_name: saas_celery_beat
+    command: celery-beat
+    restart: unless-stopped
+
+  # ================= AI 创作工作室独立服务 =================
+
+  ai_postgres:
+    image: postgres:16-alpine
+    container_name: saas_ai_postgres
+    environment:
+      POSTGRES_DB: ${AI_POSTGRES_DB:-ai_studio}
+      POSTGRES_USER: ${AI_POSTGRES_USER:-ai_studio}
+      POSTGRES_PASSWORD: ${AI_POSTGRES_PASSWORD:-ai_studio_pass}
+    volumes:
+      - ai_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AI_POSTGRES_USER:-ai_studio}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - backend
+    restart: unless-stopped
+
+  ai_api:
+    build:
+      context: .
+      dockerfile: services/ai_studio/Dockerfile
+    container_name: saas_ai_api
+    command: ["daphne", "-b", "0.0.0.0", "-p", "8000", "ai_studio_service.asgi:application"]
+    environment:
+      DEBUG: "0"
+      DJANGO_SECRET_KEY: ${AI_DJANGO_SECRET_KEY}
+      POSTGRES_DB: ${AI_POSTGRES_DB:-ai_studio}
+      POSTGRES_USER: ${AI_POSTGRES_USER:-ai_studio}
+      POSTGRES_PASSWORD: ${AI_POSTGRES_PASSWORD:-ai_studio_pass}
+      POSTGRES_HOST: ai_postgres
+      POSTGRES_PORT: "5432"
+      CELERY_BROKER_URL: "amqp://rabbitmq:5672//"
+      CELERY_RESULT_BACKEND: "rpc://"
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY}
+      CORS_ALLOWED_ORIGINS: "http://localhost:5273"
+      AI_STUDIO_SYNC: "1"
+    ports:
+      - "8400:8000"
+    depends_on:
+      ai_postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - backend
+
+  ai_worker:
+    build:
+      context: .
+      dockerfile: services/ai_studio/Dockerfile
+    container_name: saas_ai_worker
+    command: ["worker"]
+    environment:
+      DJANGO_SECRET_KEY: ${AI_DJANGO_SECRET_KEY}
+      POSTGRES_DB: ${AI_POSTGRES_DB:-ai_studio}
+      POSTGRES_USER: ${AI_POSTGRES_USER:-ai_studio}
+      POSTGRES_PASSWORD: ${AI_POSTGRES_PASSWORD:-ai_studio_pass}
+      POSTGRES_HOST: ai_postgres
+      POSTGRES_PORT: "5432"
+      CELERY_BROKER_URL: "amqp://rabbitmq:5672//"
+      CELERY_RESULT_BACKEND: "rpc://"
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY}
+      CELERY_WORKER_QUEUES: "ai_studio.generate"
+      AI_STUDIO_SYNC: "0"
+    depends_on:
+      ai_postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - backend
+
+  # ================= 通知服务（独立服务，RabbitMQ 异步解耦，无状态）=================
+  notice_api:
+    build:
+      context: .
+      dockerfile: services/notice_service/Dockerfile
+    container_name: saas_notice_api
+    command: ["daphne", "-b", "0.0.0.0", "-p", "8000", "notice_service.asgi:application"]
+    environment:
+      DEBUG: "0"
+      DJANGO_SECRET_KEY: ${NOTICE_DJANGO_SECRET_KEY:-notice-insecure-secret-change-me}
+      CELERY_BROKER_URL: "amqp://rabbitmq:5672//"
+      CELERY_RESULT_BACKEND: "rpc://"
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY}
+      DINGTALK_WEBHOOK: ${DINGTALK_WEBHOOK:-}
+      DINGTALK_SECRET: ${DINGTALK_SECRET:-}
+      FEISHU_WEBHOOK: ${FEISHU_WEBHOOK:-}
+      FEISHU_SECRET: ${FEISHU_SECRET:-}
+      WECHAT_WEBHOOK: ${WECHAT_WEBHOOK:-}
+      EMAIL_SEND_USER: ${EMAIL_SEND_USER:-}
+      EMAIL_HOST: ${EMAIL_HOST:-}
+      EMAIL_PORT: ${EMAIL_PORT:-25}
+      EMAIL_STAMP_KEY: ${EMAIL_STAMP_KEY:-}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-true}
+      EMAIL_USE_SSL: ${EMAIL_USE_SSL:-false}
+      EMAIL_SEND_LIST: ${EMAIL_SEND_LIST:-}
+      EMAIL_SENDER_NAME: ${EMAIL_SENDER_NAME:-Admin}
+    ports:
+      - "8500:8000"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - backend
+
+  notice_worker:
+    build:
+      context: .
+      dockerfile: services/notice_service/Dockerfile
+    container_name: saas_notice_worker
+    command: ["worker"]
+    environment:
+      DEBUG: "0"
+      DJANGO_SECRET_KEY: ${NOTICE_DJANGO_SECRET_KEY:-notice-insecure-secret-change-me}
+      CELERY_BROKER_URL: "amqp://rabbitmq:5672//"
+      CELERY_RESULT_BACKEND: "rpc://"
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY}
+      CELERY_WORKER_QUEUES: "notice.send"
+      DINGTALK_WEBHOOK: ${DINGTALK_WEBHOOK:-}
+      DINGTALK_SECRET: ${DINGTALK_SECRET:-}
+      FEISHU_WEBHOOK: ${FEISHU_WEBHOOK:-}
+      FEISHU_SECRET: ${FEISHU_SECRET:-}
+      WECHAT_WEBHOOK: ${WECHAT_WEBHOOK:-}
+      EMAIL_SEND_USER: ${EMAIL_SEND_USER:-}
+      EMAIL_HOST: ${EMAIL_HOST:-}
+      EMAIL_PORT: ${EMAIL_PORT:-25}
+      EMAIL_STAMP_KEY: ${EMAIL_STAMP_KEY:-}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-true}
+      EMAIL_USE_SSL: ${EMAIL_USE_SSL:-false}
+      EMAIL_SEND_LIST: ${EMAIL_SEND_LIST:-}
+      EMAIL_SENDER_NAME: ${EMAIL_SENDER_NAME:-Admin}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - backend
+
+volumes:
+  postgres_data:
+  redis_data:
+  django_media:
+  django_logs:
+  django_static:
+  ai_pgdata:
+
+networks:
+  backend:
+    driver: bridge

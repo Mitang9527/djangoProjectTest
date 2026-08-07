@@ -1,0 +1,34 @@
+{
+    "control":{
+        "red": {
+            "serial": {
+                "dev": "/sys/bus/platform/devices/soc:zzxcomm-drv/breath_led",
+                "at": "1"
+            }
+        },
+        "led_off": {
+            "serial": {
+                "dev": "/sys/bus/platform/devices/soc:zzxcomm-drv/breath_led",
+                "at": "0"
+            }
+        },
+        "green": {
+            "serial": {
+                "dev": "/sys/bus/platform/devices/soc:zzxcomm-drv/breath_led",
+                "at": "2"
+            }
+        }
+    },
+    "theme":{
+        "ON_STANDBY":[
+            "led_off"
+        ],
+        "WHEN_RECEIVING_VOICE":[
+            "green"
+        ],
+        "WHEN_SENDING_VOICE":[
+            "red"
+        ]
+    },
+    "enabled":true
+}

@@ -11,7 +11,7 @@ import os
 from django.core.wsgi import get_wsgi_application
 
 # 统一加载环境变量
-from utils.env_loader import load_env_file, get_env_type
+from framework.core.env_loader import load_env_file, get_env_type
 load_env_file()
 
 # 获取环境类型，决定加载哪个 settings
@@ -22,5 +22,6 @@ else:
     default_settings = "djangoProjectTest.settings.dev"
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", default_settings)
+os.environ.setdefault("WORKER_TYPE", "wsgi")
 
 application = get_wsgi_application()

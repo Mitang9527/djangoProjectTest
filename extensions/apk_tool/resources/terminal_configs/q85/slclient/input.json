@@ -1,0 +1,154 @@
+{
+  "stdkey" : {
+    "ptt_down" : {
+      "key" : -1 ,
+      "event" : "KEY_DOWN"
+    } ,
+    "ptt_up" : {
+      "key" : -1 ,
+      "event" : "KEY_UP"
+    } ,
+    "sos" : {
+      "key" : -2 ,
+      "event" : "KEY_LONG_PRESS" ,
+      "time" : 3000
+    },
+    "group_prev" : {
+      "key" : -3 ,
+      "event" : "KEY_UP"
+    },
+    "group_next" : {
+      "key" : -4 ,
+      "event" : "KEY_UP"
+    },
+    "enter_member_list": {
+      "key" : -5,
+      "event": "KEY_DOWN"
+    },
+    "enter_group_list": {
+      "key" : -6,
+      "event": "KEY_DOWN"
+    },
+    "ptt_down_ear" : {
+      "key" : -7 ,
+      "event" : "KEY_DOWN"
+    } ,
+    "ptt_up_ear" : {
+      "key" : -7 ,
+      "event" : "KEY_UP"
+    }
+  } ,
+  "intent" : {
+    "ptt_down" : {
+      "action" : "com.ptt.start"
+    } ,
+    "ptt_up" : {
+      "action" : "com.ptt.end"
+    } ,
+    "ptt_down_ear" : {
+      "action" : "alk.hotkey.ear.ptt.down"
+    } ,
+    "ptt_up_ear" : {
+      "action" : "alk.hotkey.ear.ptt.up"
+    } ,
+    "sos" : {
+      "action" : "alk.hotkey.sos.long"
+    },
+    "enter_member_list": {
+      "action": "alk.hotkey.p1.down"
+    },
+    "enter_group_list": {
+      "action": "alk.hotkey.p2.long"
+    },
+    "group_prev" : {
+      "action" : "alk.hotkey.rotary.left"
+    },
+    "group_next" : {
+      "action" : "alk.hotkey.rotary.right"
+    }
+  },
+  "custom" : ["join_next_group" , "join_prev_group" , "switch_group_name_tts"] ,
+  "action" : {
+    "ptt_down" : {
+      "default" : [
+        {
+          "command" : { "id" : "START_SPEAK" }
+        }
+      ] ,
+      "member" : [
+      ]
+    } ,
+    "ptt_up" : {
+      "default" : [
+        {
+          "command" : { "id" : "STOP_SPEAK" }
+        }
+      ] ,
+      "member" : [
+      ]
+    },
+    "ptt_down_ear" : {
+      "default" : [
+        {
+          "command" : { "id" : "START_SPEAK" }
+        }
+      ] ,
+      "member" : [
+      ]
+    } ,
+    "ptt_up_ear" : {
+      "default" : [
+        {
+          "command" : { "id" : "STOP_SPEAK" }
+        }
+      ] ,
+      "member" : [
+      ]
+    },
+    "group_prev":{
+      "normal" : [
+        {
+          "command" : {
+            "id" : "ENTER_CUSTOM_STATUS" ,
+            "name" : "join_prev_group" ,
+            "timeout" : 30000
+          }
+        }
+      ]
+    },
+    "group_next":{
+      "normal" : [
+        {
+          "command" : {
+            "id" : "ENTER_CUSTOM_STATUS" ,
+            "name" : "join_next_group" ,
+            "timeout" : 30000
+          }
+        }
+      ]
+    },
+    "enter_member_list": {
+      "default": [
+        {
+          "command": {
+            "id": "PLAY_TTS",
+            "priority": 4,
+            "content": "$current_user_temp$%my_name%"
+          }
+        }
+      ]
+    },
+    "enter_group_list": {
+      "default": [
+        {
+          "command": {
+            "id": "PLAY_TTS",
+            "priority": 4,
+            "content": "$current_group_temp$%group_name%"
+          }
+        }
+      ]
+    }
+
+  }
+}

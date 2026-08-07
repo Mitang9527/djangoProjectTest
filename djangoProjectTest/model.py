@@ -57,18 +57,6 @@ class RedisConfig(BaseModel):
     socket_timeout: int = Field(10, validation_alias=AliasChoices("REDIS_TIMEOUT"))
     enabled: bool = Field(False, validation_alias=AliasChoices("REDIS_ENABLED"))
 
-class RabbitMQConfig(BaseModel):
-    """RabbitMQ 配置"""
-    host: str = Field("localhost", validation_alias=AliasChoices("RABBITMQ_HOST"))
-    port: int = Field(5672, validation_alias=AliasChoices("RABBITMQ_PORT"))
-    username: str = Field("guest", validation_alias=AliasChoices("RABBITMQ_USER"))
-    password: str = Field("guest", validation_alias=AliasChoices("RABBITMQ_PASSWORD"))
-    virtual_host: str = Field("/", validation_alias=AliasChoices("RABBITMQ_VHOST"))
-    heartbeat: int = Field(300, validation_alias=AliasChoices("RABBITMQ_HEARTBEAT"))
-    connection_attempts: int = Field(3, validation_alias=AliasChoices("RABBITMQ_ATTEMPTS"))
-    retry_delay: int = Field(5, validation_alias=AliasChoices("RABBITMQ_RETRY_DELAY"))
-    enabled: bool = Field(False, validation_alias=AliasChoices("RABBITMQ_ENABLED"))
-
 class NotificationConfig(BaseModel):
     """通知配置"""
     # 使用 Any 绕过 pydantic-settings 的强制 JSON 解析
@@ -93,9 +81,48 @@ class ProjectSettings(BaseSettings):
     DEBUG: bool = False
     SECRET_KEY: str = Field(..., min_length=10)
     
+    # JWT 签名密钥（独立于 SECRET_KEY，生产环境必须单独设置）
+    JWT_SIGNING_KEY: str = Field("", validation_alias=AliasChoices("JWT_SIGNING_KEY"))
+    
     # Token 有效期（单位：小时），默认 24 小时
     TOKEN_EXPIRE_HOURS: int = 24
-    
+
+    # Refresh Token 有效期（单位：天），默认 1 天
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 1
+
+    # 滑动会话（Sliding Session）：access token 临近过期时自动续期
+    # 是否启用滑动续期（默认关闭，需前端配合读取 X-Access-Token 响应头）
+    SLIDING_SESSION_ENABLED: bool = False
+    # 触发续期的剩余有效期阈值（秒），默认 300 秒（5 分钟）
+    SLIDING_REFRESH_THRESHOLD_SECONDS: int = 300
+
+    # 会话空闲超时（秒）：已登录用户超过该时长无任何操作则强制登出；0 表示禁用
+    SESSION_IDLE_TIMEOUT_SECONDS: int = 1800
+
+    # 空闲超时排除路径前缀：这些路径不参与空闲计时（逗号分隔字符串或列表均可）。
+    # 默认覆盖健康检查 / 静态 / 媒体 / 登录页 / SSO 流程，避免误踢或干扰探活。
+    SESSION_IDLE_TIMEOUT_EXEMPT_PATHS: list[str] = Field(
+        default_factory=lambda: [
+            "/api/health",
+            "/static",
+            "/media",
+            "/admin/login",
+            "/api/users/login",
+            "/api/users/oidc",
+            "/favicon.ico",
+        ]
+    )
+
+    # 页面请求空闲超时后的重定向地址（API 请求始终返回 401，不受此影响）
+    SESSION_IDLE_TIMEOUT_REDIRECT_URL: str = "/admin/login/"
+
+    @field_validator("SESSION_IDLE_TIMEOUT_EXEMPT_PATHS", mode="before")
+    @classmethod
+    def parse_exempt_paths(cls, v):
+        if isinstance(v, str):
+            return [p.strip() for p in v.split(",") if p.strip()]
+        return v
+
     # 使用 Any 绕过 pydantic-settings 的强制 JSON 解析
     ALLOWED_HOSTS: Any = Field(default=["*"])
     
@@ -126,7 +153,21 @@ class ProjectSettings(BaseSettings):
     wechat: WeChatConfig = Field(default_factory=WeChatConfig)
     notification: NotificationConfig = Field(default_factory=NotificationConfig)
     redis: RedisConfig = Field(default_factory=RedisConfig)
-    rabbitmq: RabbitMQConfig = Field(default_factory=RabbitMQConfig)
+
+    # --- OIDC 单点登录配置（顶层字段，确保 OIDC_* 环境变量可直接注入）---
+    OIDC_ENABLED: bool = Field(False, validation_alias=AliasChoices("OIDC_ENABLED"))
+    OIDC_RP_CLIENT_ID: str = Field("", validation_alias=AliasChoices("OIDC_RP_CLIENT_ID"))
+    OIDC_RP_CLIENT_SECRET: str = Field("", validation_alias=AliasChoices("OIDC_RP_CLIENT_SECRET"))
+    OIDC_OP_AUTHORIZATION_ENDPOINT: str = Field("", validation_alias=AliasChoices("OIDC_OP_AUTHORIZATION_ENDPOINT"))
+    OIDC_OP_TOKEN_ENDPOINT: str = Field("", validation_alias=AliasChoices("OIDC_OP_TOKEN_ENDPOINT"))
+    OIDC_OP_USER_ENDPOINT: str = Field("", validation_alias=AliasChoices("OIDC_OP_USER_ENDPOINT"))
+    OIDC_OP_JWKS_ENDPOINT: str = Field("", validation_alias=AliasChoices("OIDC_OP_JWKS_ENDPOINT"))
+    OIDC_OP_LOGOUT_ENDPOINT: str = Field("", validation_alias=AliasChoices("OIDC_OP_LOGOUT_ENDPOINT"))
+    OIDC_RP_SIGN_ALGO: str = Field("RS256", validation_alias=AliasChoices("OIDC_RP_SIGN_ALGO"))
+    OIDC_CREATE_USER: bool = Field(True, validation_alias=AliasChoices("OIDC_CREATE_USER"))
+    OIDC_USERNAME_CLAIM: str = Field("email", validation_alias=AliasChoices("OIDC_USERNAME_CLAIM"))
+    OIDC_FRONTEND_REDIRECT_URL: str = Field("", validation_alias=AliasChoices("OIDC_FRONTEND_REDIRECT_URL"))
+    OIDC_LOGOUT_REDIRECT_URL: str = Field("", validation_alias=AliasChoices("OIDC_LOGOUT_REDIRECT_URL"))
     
     # 安全配置
     SECURE_SSL_REDIRECT: bool = False

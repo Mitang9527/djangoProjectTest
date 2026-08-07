@@ -1,0 +1,16 @@
+[
+    {
+        "id": 1,
+        "name": "B01",
+        "type": "Inrico",
+        "blueType": 1,
+        "config": "ble/inrico/b01.json"
+    },
+    {
+        "id": 2,
+        "name": "B02",
+        "type": "Inrico",
+        "blueType": 1,
+        "config": "ble/inrico/b01.json"
+    }
+]

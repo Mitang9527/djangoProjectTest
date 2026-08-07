@@ -1,0 +1,50 @@
+{
+    "control" : {
+        "red" : {
+            "intent" : {
+                "action" : "android.intent.action.rgb.red.on" ,
+                "package": "com.yinka.core.service"
+            }
+        } ,
+        "red_off" : {
+            "intent" : {
+                "action" : "android.intent.action.rgb.red.off" ,
+                "package": "com.yinka.core.service"
+            }
+        } ,
+        "green" : {
+            "intent" : {
+                "action" : "android.intent.action.rgb.green.on" ,
+                "package": "com.yinka.core.service"
+            }
+        } ,
+        "green_off" : {
+            "intent" : {
+                "action" : "android.intent.action.rgb.green.off" ,
+                "package": "com.yinka.core.service"
+            }
+        } ,
+        "blue" : {
+            "intent" : {
+                "action" : "android.intent.action.rgb.blue.on" ,
+                "package": "com.yinka.core.service"
+            }
+        } ,
+        "blue_off" : {
+            "intent" : {
+                "action" : "android.intent.action.rgb.blue.off" ,
+                "package": "com.yinka.core.service"
+            }
+        }
+    },
+    "theme" : {
+        "ON_STANDBY": ["blue_off","green_off","red_off",3000,"green",1000],
+        "WHEN_RECEIVING_VOICE": ["green",1000],
+        "WHEN_SENDING_VOICE": ["red",1000],
+        "WHEN_DISCONNECTED": ["red",3000,"red_off",500],
+        "SOS_SEND_SUCCESSFULLY": ["green", 3000, "green_off",1000],
+        "SOS_SEND_FAILED": ["red", 3000, "red_off",1000],
+        "SOS_RECEIVED": ["red",1000]
+    } ,
+    "enabled" : true
+}

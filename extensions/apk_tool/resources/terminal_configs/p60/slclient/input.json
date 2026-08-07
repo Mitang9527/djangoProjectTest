@@ -1,0 +1,11 @@
+{
+	"stdkey":{
+		"-1_KEY_DOWN":{
+			"event":"KEY_DOWN",
+			"key":-1
+		}
+	},
+	"custom":[],
+	"action":{},
+	"intent":{}
+}

@@ -1,0 +1,97 @@
+{
+  "stdkey": {
+    "many_ptt_down": {
+      "key": -1,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up": {
+      "key": -1,
+      "event": "KEY_UP"
+    },
+    "video_pass_back": {
+      "key": -3,
+      "event": "KEY_DOWN"
+    },
+    "capture_image_media": {
+      "key": -4,
+      "event": "KEY_DOWN"
+    },
+    "f3_sos_down": {
+      "event": "KEY_DOWN",
+      "key": 205
+    },
+    "f3_sos_up": {
+      "event": "KEY_UP",
+      "key": 205
+    },
+    "sos": {
+      "key": 205,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    },
+    "sos_short": {
+      "key": 205,
+      "event": "KEY_CLICK",
+      "time": 3000
+    }
+  },
+  "intent": {
+    "many_ptt_down": {
+      "action": "com.hebs.action.ACTION_START_PTT"
+    },
+    "ptt_up": {
+      "action": "com.hebs.action.ACTION_STOP_PTT"
+    },
+    "video_pass_back": {
+      "action": "com.hebs.action.ACTION_START_VIDEO_RECORD"
+    },
+    "capture_image_media": {
+      "action": "com.hebs.action.ACTION_SHUTTER_NOW"
+    },
+    "f3_sos_down": {
+      "as_key": true,
+      "action": "com.hebs.action.ACTION_SOS"
+    },
+    "f3_sos_up": {
+      "as_key": true,
+      "action": "com.hebs.action.ACTION_SOS_UP"
+    }
+  },
+  "custom": [
+    "new_call_in"
+  ],
+  "action": {
+    "many_ptt_down": {
+      "default": [
+      ],
+      "member": [
+      ],
+      "new_call_in": [
+        {
+          "command": {
+            "id": "ACCEPT_LAST_CALL_INVITE"
+          }
+        },
+        {
+          "command": {
+            "id": "LEAVE_CUSTOM_STATUS",
+            "name": "new_call_in"
+          }
+        }
+      ]
+    },
+    "ptt_up": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ],
+      "member": [
+      ],
+      "new_call_in": [
+      ]
+    }
+  }
+}

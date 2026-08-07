@@ -1,0 +1,36 @@
+{
+    "control" : {
+        "red": {
+            "device": {
+                "r" : 255,
+                "g" : 0,
+                "b" : 0,
+                "flag": 1
+            }
+        },
+        "green": {
+            "device": {
+                "r": 0,
+                "g": 255,
+                "b": 0,
+                "flag": 1
+            }
+        },
+        "off": {
+            "device": {
+                "off": 0,
+                "flag": 1
+            }
+        }
+    },
+    "theme" : {
+        "ON_STANDBY": ["off",3000,"green",1000],
+        "WHEN_RECEIVING_VOICE": ["green",1000],
+        "WHEN_SENDING_VOICE": ["red",1000],
+        "WHEN_DISCONNECTED": ["red",3000,"off",500],
+        "SOS_SEND_SUCCESSFULLY": ["green", 3000, "off",1000],
+        "SOS_SEND_FAILED": ["red", 3000, "off",1000],
+        "SOS_RECEIVED": ["red",1000]
+    } ,
+    "enabled" : true
+}

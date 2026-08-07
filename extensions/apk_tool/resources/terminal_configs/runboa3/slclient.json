@@ -1,0 +1,314 @@
+{
+  "profile": {
+    "context": "pocstar",
+    "dns": [
+      "sgdns.shanlipoc.com:10200",
+      "usdns.shanlipoc.com:10200"
+    ],
+    "upgrade_url": "upgrade.pocstar.com",
+    "login_mode": "account",
+    "autologin": false,
+    "ro_path": "<RO_PATH>",
+    "rw_path": "<RW_PATH>",
+    "language": "default",
+    "serial_slot": "auto",
+    "sim_slot": "auto",
+    "media": "",
+    "sos": "",
+    "video": "",
+    "session": "",
+    "gps": "",
+    "sgw": ""
+  },
+  "ui": {
+    "type": "noscreen",
+    "layout": "default",
+    "skin": "default",
+    "service_desk": 2,
+    "account_cache": true,
+    "account_screen_light": true,
+    "account_time_reminder": true,
+    "account_watch_group": true,
+    "account_sos_relevant": true,
+    "account_set_disturb": true,
+    "account_auto_answer": true,
+    "middleScreenFontScale": 1.2,
+    "launcherModule": "middle",
+    "fontEnlargeVisible": false,
+    "show_custom_ptt": false,
+    "design_width_dp": 320
+  },
+  "connection": {
+    "connect_timeout_sec": 10,
+    "connect_expired_sec": 90,
+    "reconnect_period_sec": 1,
+    "reconnect_max_times": 3,
+    "reconnect_expired_sec": 30,
+    "udp_expired_sec": 60
+  },
+  "device": {
+    "name": "Phone",
+    "manufacturer": "SL",
+    "provider": "SL",
+    "model": "SL",
+    "brand": "SL",
+    "get_device_info_timeout": 20
+  },
+  "power": {
+    "model": "auto",
+    "period_sec": 40,
+    "draft_alarm": false,
+    "active_to_idle_second": 10,
+    "speak_to_idle_second": 10,
+    "listen_to_idle_second": 10
+  },
+  "sound": {
+    "tone_enabled": true,
+    "codec": "amrnb",
+    "quality": "auto",
+    "amr_mode": 4,
+    "evrc_minrate": 1,
+    "evrc_maxrate": 4,
+    "save_last_play_pcm": false,
+    "save_last_record_pcm": false,
+    "save_last_play_process_pcm": false,
+    "save_last_record_process_pcm": false,
+    "volume": 15,
+    "max_volume": 15,
+    "comfno_frame": true,
+    "volume_system_device": true
+  },
+  "rtp": {
+    "packet_frames": 5,
+    "watermark_ms": 40,
+    "watermark_pkg": 2,
+    "latency_factor": 1.0,
+    "jb_max_late_rate": 0.01,
+    "jb_inc_buffer_factor": 1.0,
+    "jb_dec_buffer_factor": 1.0,
+    "jb_continuous": false
+  },
+  "dsp": {
+    "provider": "oem",
+    "play_stream": "music",
+    "record_stream": "communication",
+    "play_denoise_enabled": false,
+    "play_process_enabled": false,
+    "play_denoise_dB": 0,
+    "play_agc_step_inc_dB": 12,
+    "play_agc_enabled": false,
+    "play_agc_max_gain_dB": 60,
+    "play_agc_step_dec_dB": 40,
+    "play_agc_level": 24000,
+    "record_process_enabled": false,
+    "record_agc_enabled": false,
+    "record_agc_level": 24000,
+    "record_agc_step_inc_dB": 12,
+    "record_agc_step_dec_dB": 40,
+    "record_agc_max_gain_dB": 60,
+    "record_denoise_enabled": true,
+    "record_denoise_dB": 20,
+    "record_drop_frames": 0,
+    "record_rnnoise_enable": true,
+    "amprate_enabled": false,
+    "amprate_level": 1.2,
+    "low_latency": true,
+    "oem_record_engine": "delay",
+    "oem_record_delay": 20
+  },
+  "tts": {
+    "enabled": false,
+    "provider": "default",
+    "language": "",
+    "engine": ""
+  },
+  "lbs": {
+    "enabled": true,
+    "report": true,
+    "map_type": "baidu",
+    "provider": "baidu",
+    "coor": "wgs84",
+    "update_period_sec": 40,
+    "report_period_sec": 40
+  },
+  "sos": {
+    "enabled": true,
+    "snd_priority": 1000,
+    "max_record": 20,
+    "expired_seconds": 1800
+  },
+  "broadcast": {
+    "enabled": true,
+    "snd_priority": 200,
+    "max_record": 20
+  },
+  "mms": {
+    "enabled": true
+  },
+  "video": {
+    "enabled": true,
+    "color_format": 0,
+    "encode": 1,
+    "decode": 1
+  },
+  "poc": {
+    "tempgroup_enabled": true,
+    "tempgroup_auto_dissolve": true,
+    "tempgroup_expired_sec": 60,
+    "watchgroup_enabled": true,
+    "default_watchgroup_enabled": true,
+    "cloud_watchgroup_enabled": true,
+    "call_dispatcher_enabled": true,
+    "dnd_enabled": false,
+    "whisper_invite_enabled": true,
+    "autoanswer_enabled": false,
+    "can_leave_when_speaking": false,
+    "store_watchgroup_on_server": true,
+    "speak_snd_priority": 100,
+    "invite_max_record": 5000,
+    "group_speech_max_record": 20,
+    "contact_req_max_record": 20,
+    "speech_min_ms": 400,
+    "i_am_bad": false,
+    "lost_rate": 0.10,
+    "delay_rate": 0.2,
+    "delay_millisecond": 1000,
+    "multi_incoming_invite": false,
+    "incoming_invite_expired_seconds": 30,
+    "call_when_invite_accept": true,
+    "invite_expired_seconds": 30,
+    "refuse_invite_in_temporary_group": true,
+    "refuse_invite_when_outgoing_invite": true,
+    "call_if_remote_not_support_invited": true,
+    "whisper_without_invite": false,
+    "ptt_call": false,
+    "synch_when_join_group": true,
+    "synch_when_watch_group": true,
+    "query_member_when_login": false,
+    "query_contact_when_login": false,
+    "record_speech_stream": false,
+    "speech_stream_evasive_sec": 30,
+    "speech_stream_path": "/storage/emulated/0/slrecord"
+  },
+  "coreui": {
+    "enabled": true
+  },
+  "log": {
+    "enabled": true,
+    "level": "DEBUG",
+    "max_filesize": 5242880,
+    "max_files": 2,
+    "app_log_enable": true,
+    "app_log_upload_duration_minute": 60
+  },
+  "report": {
+    "enabled": false,
+    "piece_bytes": 8192,
+    "piece_sec": 600,
+    "max_keep": 100,
+    "compressed": true,
+    "report_command": true,
+    "report_event": true
+  },
+  "busy": {
+    "hot_to_cold_second": 180,
+    "cold_to_freeze_second": 900,
+    "hot_disconnect_notify_min_second": 30,
+    "cold_disconnect_notify_min_second": 120,
+    "freeze_notify": true,
+    "freeze_disconnect_notify_min_second": 300,
+    "active_notify_priority": 200,
+    "non_active_notify_priority": 100
+  },
+  "audio_priority": {
+    "electronic_fence_alarm": 170,
+    "received_new_message": 6,
+    "received_voice_invite": 130,
+    "received_video_invite": 9,
+    "send_voice_invite": 130,
+    "send_video_invite": 9,
+    "generate_single_group_success": 10,
+    "sos_received": 200,
+    "msg_voice": 8,
+    "tts_app_version": 4,
+    "call_invite_reminder": 3
+  },
+  "cloud": {
+    "single_call_come_tone": true,
+    "single_call_send_tone": true,
+    "sos_send_success_tone": true,
+    "sos_receiver_other_tone": true,
+    "sos_operate_enable": true,
+    "new_message_tone": true,
+    "down_mic_tone": true,
+    "up_mic_tone": true,
+    "not_speak_tone": true,
+    "volume_tts_enable": false,
+    "vibrate_enable": true,
+    "receiver_light_enable": true,
+    "send_light_enable": true,
+    "time_reminder_enable": false,
+    "time_reminder_duration": 5,
+    "switch_group_type": 2,
+    "go_launch_enable": false,
+    "automatic_enable": true,
+    "switch_login_type_enable": true,
+    "watch_system_volume": true,
+    "push_stream_camera_id": 0,
+    "welcome_tts": "",
+    "led_theme_loop": 0,
+    "switch_group_recycle_mode": true,
+    "switch_group_std_type": 1,
+    "switch_group_delay": 1000,
+    "switch_group_reset": 15000,
+    "switch_group_tts_type": 1,
+    "settings_group_name": "",
+    "settings_user_name": ""
+  },
+  "install_intent": {
+    "install_type": 0,
+    "action": "unipro.install.pack",
+    "extra": [
+      {
+        "name": "apkPath",
+        "value": "$file$",
+        "type": "3"
+      }
+    ],
+    "process": true,
+    "component": {
+      "enable": true,
+      "pkg": "com.ctyon.install",
+      "cls": "com.ctyon.install.InstallService"
+    },
+    "type": 3
+  },
+  "system_setting": {
+    "enable": false,
+    "action": "android.intent.action.MAIN",
+    "component_pkg": "com.android.settings",
+    "component_cls": "com.android.settings.Settings",
+    "category": "android.intent.category.LAUNCHER",
+    "flag": 31654698308
+  },
+  "video_params": {
+    "agc_enable": true,
+    "agc_level": 16000
+  },
+  "recorder": {
+    "enable": false,
+    "goto_capture_page": false,
+    "file_length": 600000,
+    "photo_size": 4000000,
+    "video_size": "high",
+    "video_bps": "high"
+  },
+  "mandown": {
+    "enable": true,
+    "high_threshold": 15,
+    "low_threshold": 5,
+    "different_time_millisecond": 500,
+    "wait_time_millisecond": 2000,
+    "log": false
+  }
+}

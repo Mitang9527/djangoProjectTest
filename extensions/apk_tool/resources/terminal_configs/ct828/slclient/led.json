@@ -1,0 +1,36 @@
+{
+	"control":{
+		"4czRpk":{
+			"intent":{
+				"action":"android.led.ptt.green"
+			}
+		},
+		"sVLAm8":{
+			"intent":{
+				"action":"android.led.ptt.red"
+			}
+		},
+		"6F1vBd":{
+			"intent":{
+				"action":"android.led.ptt.turn_off"
+			}
+		},
+		"ZoI4HE":{
+			"intent":{
+				"action":"android.led.ptt.green"
+			}
+		}
+	},
+	"theme":{
+		"ON_STANDBY":[
+			"6F1vBd"
+		],
+		"WHEN_RECEIVING_VOICE":[
+			"4czRpk"
+		],
+		"WHEN_SENDING_VOICE":[
+			"sVLAm8"
+		]
+	},
+	"enabled":true
+}

@@ -1,0 +1,27 @@
+# ================================================================
+# 多阶段构建：构建 Vue SPA，并打包进轻量 Nginx 镜像
+# ----------------------------------------------------------------
+# 生产环境由 Nginx 同时负责：
+#   1) 托管前端静态资源（Vue dist）
+#   2) 反向代理 /api、/admin、/ws 到 Django（gunicorn）
+# 部署后不再依赖 Vite dev server。
+# 构建: docker build -f Dockerfile.nginx -t djangosaas-nginx:latest .
+# ================================================================
+
+# ---------- Stage 1: 构建前端 ----------
+FROM node:22-alpine AS build
+WORKDIR /build
+# 先装依赖（利用层缓存，仅 package*.json 变化时重新安装）
+COPY django_vue/web/package*.json ./
+RUN npm ci
+# 再拷源码并构建
+COPY django_vue/web/ ./
+RUN npm run build
+
+# ---------- Stage 2: Nginx 运行时 ----------
+FROM nginx:1.27-alpine
+# 移除官方默认站点，避免与我们的配置冲突
+RUN rm -f /etc/nginx/conf.d/default.conf
+COPY deploy/nginx/nginx.conf /etc/nginx/nginx.conf
+COPY deploy/nginx/conf.d /etc/nginx/conf.d
+COPY --from=build /build/dist /usr/share/nginx/html

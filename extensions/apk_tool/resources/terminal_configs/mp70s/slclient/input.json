@@ -1,0 +1,103 @@
+{
+  "stdkey": {
+    "h11_ptt_down": {
+      "key": -1,
+      "event": "KEY_DOWN"
+    },
+    "ptt_up": {
+      "key": -1,
+      "event": "KEY_UP"
+    },
+    "call_dispatcher": {
+      "key": -3,
+      "event": "KEY_LONG_PRESS",
+      "time": 3000
+    },
+    "h11_join_prev_group": {
+      "key": -4,
+      "event": "KEY_DOWN"
+    },
+    "h11_join_next_group": {
+      "key": -5,
+      "event": "KEY_DOWN"
+    },
+    "recorder_capture_image": {
+      "key": -2,
+      "event": "KEY_DOWN"
+    }
+  },
+  "intent": {
+    "h11_ptt_down": {
+      "action": "BOPTT.privkey.ptt.down"
+    },
+    "ptt_up": {
+      "action": "BOPTT.privkey.ptt.up"
+    },
+    "call_dispatcher": {
+      "action": "BOPTT.privkey.m2.long"
+    },
+    "h11_join_prev_group": {
+      "action": "BOPTT.privkey.chup.up"
+    },
+    "h11_join_next_group": {
+      "action": "BOPTT.privkey.chdown.up"
+    },
+    "recorder_capture_image": {
+      "action": "BOPTT.privkey.fun2.down"
+    }
+  },
+  "custom": [
+    "new_call_in",
+    "join_next_group",
+    "join_prev_group"
+  ],
+  "action": {
+    "h11_ptt_down": {
+      "default": [
+        {
+          "command": {
+            "id": "START_SPEAK"
+          }
+        }
+      ],
+      "member": [],
+      "new_call_in": [
+      ]
+    },
+    "ptt_up": {
+      "default": [
+        {
+          "command": {
+            "id": "STOP_SPEAK"
+          }
+        }
+      ],
+      "member": [
+      ],
+      "new_call_in": [
+      ]
+    },
+    "h11_join_prev_group": {
+      "normal": [
+        {
+          "command": {
+            "id": "ENTER_CUSTOM_STATUS",
+            "name": "join_prev_group",
+            "timeout": 30000
+          }
+        }
+      ]
+    },
+    "h11_join_next_group": {
+      "normal": [
+        {
+          "command": {
+            "id": "ENTER_CUSTOM_STATUS",
+            "name": "join_next_group",
+            "timeout": 30000
+          }
+        }
+      ]
+    }
+  }
+}

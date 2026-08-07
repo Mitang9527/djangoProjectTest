@@ -1,0 +1,144 @@
+{
+    "stdkey" : {
+        "ptt_down": {
+            "key": -1,
+            "event": "KEY_DOWN"
+        },
+        "ptt_up": {
+            "key": -1,
+            "event": "KEY_UP"
+        },
+        "ptt_right_down": {
+            "key": -2,
+            "event": "KEY_DOWN"
+        },
+        "ptt_right_up": {
+            "key": -2,
+            "event": "KEY_UP"
+        },
+        "sos" : {
+            "key" : -3 ,
+            "event" : "KEY_LONG_PRESS" ,
+            "time" : 3000
+        },
+        "answer_phone":{
+            "time":500,
+            "event":"KEY_CLICK",
+            "key":-4
+        },
+        "hang_up_phone":{
+            "time":500,
+            "event":"KEY_CLICK",
+            "key":-5
+        },
+        "recorder_police_led": {
+            "key": -6,
+            "event": "KEY_CLICK",
+            "time": 3000
+        },
+        "flash_light": {
+            "key": -7,
+            "event": "KEY_LONG_PRESS",
+            "time" : 3000
+        }
+    } ,
+    "intent" : {
+        "ptt_down" : {
+            "action" : "android.intent.action.POC.down"
+        } ,
+        "ptt_up" : {
+            "action" : "android.intent.action.POC.up"
+        } ,
+        "ptt_right_down" : {
+            "action" : "android.intent.action.PTTR.down"
+        } ,
+        "ptt_right_up" : {
+            "action" : "android.intent.action.PTTR.up"
+        } ,
+        "sos" : {
+            "action" : "android.intent.action.DOWN_SOS_KEY"
+        },
+        "answer_phone" : {
+            "action" : "android.intent.action.INCALL_KEY.down"
+        },
+        "hang_up_phone" : {
+            "action" : "android.intent.action.ENDCALL_KEY.down"
+        },
+        "recorder_police_led": {
+            "action" : "android.intent.action.POC.down"
+        },
+        "flash_light": {
+            "action": "android.intent.action.POC.longpress"
+        }
+
+    } ,
+    "custom" : [  "new_call_in" ] ,
+    "action" : {
+        "ptt_down" : {
+            "default" : [
+                {
+                    "command" : { "id" : "START_SPEAK" }
+                }
+            ] ,
+            "member" : [
+            ],
+            "new_call_in": [
+                {
+                    "command": {
+                        "id": "ACCEPT_LAST_CALL_INVITE"
+                    }
+                },
+                {
+                    "command": {
+                        "id": "LEAVE_CUSTOM_STATUS",
+                        "name": "new_call_in"
+                    }
+                }
+            ]
+        } ,
+        "ptt_up" : {
+            "default" : [
+                {
+                    "command" : { "id" : "STOP_SPEAK" }
+                }
+            ] ,
+            "member" : [
+            ],
+            "new_call_in": [
+            ]
+        },
+        "ptt_right_down" : {
+            "default" : [
+                {
+                    "command" : { "id" : "START_SPEAK" }
+                }
+            ] ,
+            "member" : [
+            ],
+            "new_call_in": [
+                {
+                    "command": {
+                        "id": "ACCEPT_LAST_CALL_INVITE"
+                    }
+                },
+                {
+                    "command": {
+                        "id": "LEAVE_CUSTOM_STATUS",
+                        "name": "new_call_in"
+                    }
+                }
+            ]
+        } ,
+        "ptt_right_up" : {
+            "default" : [
+                {
+                    "command" : { "id" : "STOP_SPEAK" }
+                }
+            ] ,
+            "member" : [
+            ],
+            "new_call_in": [
+            ]
+        }
+    }
+}

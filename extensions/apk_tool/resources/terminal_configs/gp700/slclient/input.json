@@ -1,0 +1,138 @@
+{
+    "stdkey" : {
+        "ptt_down" : {
+            "key" : -1 ,
+            "event" : "KEY_DOWN"
+        } ,
+        "ptt_up" : {
+            "key" : -1 ,
+            "event" : "KEY_UP"
+        } ,
+        "-2_KEY_DOWN" : {
+            "key" : -2 ,
+            "event" : "KEY_DOWN"
+        } ,
+        "-2_KEY_UP" : {
+            "key" : -2 ,
+            "event" : "KEY_UP"
+        } ,
+        "sos" : {
+            "key" : -2 ,
+            "event" : "KEY_LONG_PRESS" ,
+            "time" : 3000
+        },
+        "group_prev" : {
+            "key" : -3 ,
+            "event" : "KEY_UP"
+        },
+        "group_next" : {
+            "key" : -4 ,
+            "event" : "KEY_UP"
+        },
+        "enter_member_list": {
+            "key" : -5,
+            "event": "KEY_DOWN"
+        },
+        "enter_group_list": {
+            "key" : -6,
+            "event": "KEY_DOWN"
+        },
+        "call_up": {
+            "key" : 132,
+            "event": "KEY_UP"
+        }
+    } ,
+    "intent" : {
+        "ptt_down" : {
+            "action" : "android.intent.action.EXT_PTT.down"
+        } ,
+        "ptt_up" : {
+            "action" : "android.intent.action.EXT_PTT.up"
+        } ,
+        "-2_KEY_DOWN" : {
+            "as_key" : true,
+            "action" : "android.intent.action.EXT_P3.down"
+        } ,
+        "-2_KEY_UP" : {
+            "as_key" : true,
+            "action" : "android.intent.action.EXT_P3.up"
+        } ,
+        "enter_member_list": {
+            "action": "android.intent.action.EXT_P2.down"
+        },
+        "enter_group_list": {
+            "action": "android.intent.action.EXT_P1.down"
+        },
+        "group_prev" : {
+            "action" : "android.intent.action.group.down"
+        },
+        "group_next" : {
+            "action" : "android.intent.action.group.up"
+        }
+    },
+    "custom" : ["join_next_group" , "join_prev_group" , "switch_group_name_tts"] ,
+    "action" : {
+        "ptt_down" : {
+            "default" : [
+                {
+                    "command" : { "id" : "START_SPEAK" }
+                }
+            ] ,
+            "member" : [
+            ]
+        } ,
+        "ptt_up" : {
+            "default" : [
+                {
+                    "command" : { "id" : "STOP_SPEAK" }
+                }
+            ] ,
+            "member" : [
+            ]
+        },
+        "group_prev":{
+            "normal" : [
+                {
+                    "command" : {
+                        "id" : "ENTER_CUSTOM_STATUS" ,
+                        "name" : "join_prev_group" ,
+                        "timeout" : 30000
+                    }
+                }
+            ]
+        },
+        "group_next":{
+            "normal" : [
+                {
+                    "command" : {
+                        "id" : "ENTER_CUSTOM_STATUS" ,
+                        "name" : "join_next_group" ,
+                        "timeout" : 30000
+                    }
+                }
+            ]
+        },
+        "enter_member_list": {
+            "default": [
+                {
+                    "command": {
+                        "id": "PLAY_TTS",
+                        "priority": 4,
+                        "content": "$current_user_temp$%my_name%"
+                    }
+                }
+            ]
+        },
+        "enter_group_list": {
+            "default": [
+                {
+                    "command": {
+                        "id": "PLAY_TTS",
+                        "priority": 4,
+                        "content": "$current_group_temp$%group_name%"
+                    }
+                }
+            ]
+        }
+    }
+}

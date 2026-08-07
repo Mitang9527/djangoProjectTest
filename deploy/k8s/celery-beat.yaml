@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-beat
+  namespace: django-saas
+  labels:
+    app.kubernetes.io/name: django-saas
+    app.kubernetes.io/component: celery-beat
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: django-saas
+      app.kubernetes.io/component: celery-beat
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: django-saas
+        app.kubernetes.io/component: celery-beat
+    spec:
+      containers:
+        - name: celery-beat
+          image: djangosaas:latest
+          command:
+            - celery
+            - -A
+            - djangoProjectTest
+            - beat
+            - --loglevel=info
+          envFrom:
+            - configMapRef:
+                name: django-config
+            - secretRef:
+                name: django-secret
+          resources:
+            limits:
+              cpu: 250m
+              memory: 256Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          livenessProbe:
+            exec:
+              command:
+                - celery
+                - -A
+                - djangoProjectTest
+                - inspect
+                - ping
+            initialDelaySeconds: 30
+            periodSeconds: 60
+            timeoutSeconds: 10
+            failureThreshold: 3
