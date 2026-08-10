@@ -1,0 +1,38 @@
+{
+  "_说明": "渠道生成配置文件。key 为配置档案名(profile)，在 ApiChannel.config 里用 {\"profile\": \"档案名\"} 引用；渠道 config 为空时按渠道名称匹配；都找不到则用 default。真实密钥一律放环境变量，api_key_env 只存变量名。",
+  "default": {
+    "provider": "mock"
+  },
+  "flux_siliconflow": {
+    "provider": "openai",
+    "base_url": "https://api.siliconflow.cn/v1",
+    "api_key_env": "AI_STUDIO_API_KEY",
+    "model": "black-forest-labs/FLUX.1-schnell",
+    "pass_quality": false,
+    "response_format": "url",
+    "timeout": 60,
+    "size_map": {
+      "1:1": "1024x1024",
+      "16:9": "1344x768",
+      "9:16": "768x1344"
+    }
+  },
+  "openai_dalle3": {
+    "provider": "openai",
+    "base_url": "https://api.openai.com/v1",
+    "api_key_env": "OPENAI_API_KEY",
+    "model": "dall-e-3",
+    "one_per_request": true,
+    "response_format": "url",
+    "timeout": 120
+  },
+  "google_gemini": {
+    "provider": "google",
+    "api_key_env": "GOOGLE_API_KEY",
+    "image_model": "gemini-3.1-flash-image-preview",
+    "video_model": "veo-3.1-generate-preview",
+    "video_timeout": 300,
+    "video_poll_interval": 10,
+    "auto_first_frame": true
+  }
+}

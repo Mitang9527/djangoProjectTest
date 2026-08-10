@@ -1,8 +1,11 @@
 """AI 创作工作室路由（由主路由自动发现，前缀为 /api/ai_studio/）"""
 from django.urls import path
 
+# 全局演示登录统一走 system.core，ai_studio 仅保留路由兼容（旧路径仍可访问）
+from system.core.auth import DemoLoginView
+
 from .views import (
-    DemoLoginView, GenerateView, QuotaView, TaskListView, MeView,
+    GenerateView, QuotaView, TaskListView, MeView,
     RechargeView, AdminGrantView, AdminUsersView,
     ChannelListView, ChannelDetailView, GrantView, MyChannelsView, AdminDashboardView,
 )

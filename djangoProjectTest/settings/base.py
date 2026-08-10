@@ -626,6 +626,8 @@ API_SIGNATURE_EXCLUDE_PATHS = [
     # 第一方 Web SPA（带 JWT 的浏览器客户端）走 JWT 鉴权，不做签名校验
     "/api/ai_studio/*",
     "/api/ai_gateway/*",
+    # 全局演示登录（前后端联调用，生产需关闭 ALLOW_DEMO_LOGIN）
+    "/api/demo-login/",
 ]
 
 # 时间戳容忍度（秒）

@@ -104,6 +104,11 @@ class GenerationTask(models.Model):
     kind = models.CharField(max_length=10, choices=KIND, default='IMAGE', verbose_name='类型')
     prompt = models.TextField(blank=True, verbose_name='描述需求')
     ref_image = models.TextField(blank=True, null=True, verbose_name='参考图(base64/url)')
+    first_frame = models.ImageField(
+        upload_to='ai_studio/first_frames/', blank=True, null=True,
+        verbose_name='视频首帧(上传)',
+        help_text='视频生成时由用户上传的首帧图像（image-to-video），优先于 ref_image 与自动出图',
+    )
     style = models.CharField(max_length=30, blank=True, default='', verbose_name='风格')
     size = models.CharField(max_length=10, blank=True, default='1:1', verbose_name='尺寸')
     resolution = models.CharField(max_length=10, blank=True, default='standard', verbose_name='分辨率')
@@ -112,7 +117,15 @@ class GenerationTask(models.Model):
     status = models.CharField(max_length=10, choices=STATUS, default='PENDING', verbose_name='状态')
     result_urls = models.JSONField(default=list, blank=True, verbose_name='生成结果')
     error_msg = models.TextField(blank=True, null=True, verbose_name='错误信息')
+    error_code = models.CharField(
+        max_length=64, blank=True, null=True, verbose_name='错误码',
+        help_text='标准化错误码（如 API_KEY_INVALID/QUOTA_EXCEEDED/NO_FIRST_FRAME），对应 error 对象',
+    )
     celery_task_id = models.CharField(max_length=64, blank=True, null=True, verbose_name='Celery任务ID')
+    external_task_id = models.CharField(
+        max_length=255, blank=True, null=True, verbose_name='第三方任务ID',
+        help_text='第三方异步任务标识（如 Veo operation name），便于回调/查询',
+    )
     channel = models.ForeignKey(
         'ApiChannel',
         on_delete=models.SET_NULL,

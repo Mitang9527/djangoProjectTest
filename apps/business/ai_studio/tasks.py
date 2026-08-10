@@ -1,8 +1,8 @@
 """AI 创作工作室 - Celery 异步任务
 
 仅在 settings.AI_STUDIO_SYNC=False 时由 create_generation_task 调度。
-mock 阶段直接复用 services.run_mock_generation；接入真实模型时在
-run_mock_generation 内替换推理调用即可（成功 confirm / 失败 refund）。
+具体生成逻辑由 services.run_generation 按渠道 provider 分发
+（成功 confirm / 失败由本模块兜底 refund）。
 
 重试与熔断统一使用 framework.reliability（替代手写 max_retries/self.retry）。
 """
@@ -10,7 +10,7 @@ from celery import shared_task
 from framework.reliability import retry, circuit_breaker, CircuitOpenError
 from loguru import logger
 
-from .services import run_mock_generation
+from .services import run_generation
 
 
 @circuit_breaker(
@@ -28,7 +28,7 @@ from .services import run_mock_generation
 )
 def _run_generation(task_id: str) -> None:
     """带重试 + 熔断的生成执行（失败由外层任务负责返还额度）。"""
-    run_mock_generation(task_id)
+    run_generation(task_id)
 
 
 @shared_task(name="ai_studio.generate_task")

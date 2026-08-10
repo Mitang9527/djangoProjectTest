@@ -1,0 +1,150 @@
+{
+  "info": {
+    "name": "AI Studio 调试集合",
+    "description": "ai_studio 接口调试用。先跑「1.演示登录(全局)」自动写入 token，后续请求带上 Authorization。\n- api_base = http://127.0.0.1:8000/api（全局前缀，demo-login 已挪到这里）\n- base_url = http://127.0.0.1:8000/api/ai_studio（ai_studio 业务前缀）\n演示登录也可用旧路径 {{base_url}}/demo-login/（兼容，指向同一实现）。\n生成接口 kind 只能小写 image/video。channel_id 不传走 mock 占位；传 1 走真实 FLUX 渠道（需在 .env 配置 AI_STUDIO_API_KEY）。",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "api_base", "value": "http://127.0.0.1:8000/api" },
+    { "key": "base_url", "value": "http://127.0.0.1:8000/api/ai_studio" },
+    { "key": "access_token", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. 演示登录(全局,获取token)",
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Content-Type", "value": "application/json" } ],
+        "url": { "raw": "{{api_base}}/demo-login/", "host": [ "{{api_base}}" ], "path": [ "demo-login", "" ] },
+        "body": { "mode": "raw", "raw": "{\n  \"username\": \"admin\"\n}", "options": { "raw": { "language": "json" } } }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "var json = pm.response.json();",
+              "// 兼容信封格式(data.access)与裸响应(access)",
+              "var access = (json.data && json.data.access) || json.access;",
+              "pm.collectionVariables.set('access_token', access);",
+              "console.log('token 已写入集合变量 access_token');"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. 生成-占位(mock,不带channel)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": { "raw": "{{base_url}}/generate/", "host": [ "{{base_url}}" ], "path": [ "generate", "" ] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"kind\": \"image\",\n  \"prompt\": \"一只戴帽子的橘猫\",\n  \"count\": 1\n}",
+          "options": { "raw": { "language": "json" } }
+        }
+      }
+    },
+    {
+      "name": "3. 生成-真实渠道(channel_id=1)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": { "raw": "{{base_url}}/generate/", "host": [ "{{base_url}}" ], "path": [ "generate", "" ] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"kind\": \"image\",\n  \"prompt\": \"一只戴帽子的橘猫\",\n  \"count\": 1,\n  \"channel_id\": 1\n}",
+          "options": { "raw": { "language": "json" } }
+        }
+      }
+    },
+    {
+      "name": "3b. 生成-Google图片(channel_id=2)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": { "raw": "{{base_url}}/generate/", "host": [ "{{base_url}}" ], "path": [ "generate", "" ] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"kind\": \"image\",\n  \"prompt\": \"一只戴帽子的橘猫，Studio Ghibli 风格\",\n  \"count\": 1,\n  \"channel_id\": 2\n}",
+          "options": { "raw": { "language": "json" } }
+        }
+      }
+    },
+    {
+      "name": "3c. 生成-Google视频(上传首帧,channel_id=2)",
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Authorization", "value": "Bearer {{access_token}}" } ],
+        "url": { "raw": "{{base_url}}/generate/", "host": [ "{{base_url}}" ], "path": [ "generate", "" ] },
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            { "key": "kind", "value": "video", "type": "text" },
+            { "key": "channel_id", "value": "2", "type": "text" },
+            { "key": "prompt", "value": "镜头缓慢推进，画面有轻微呼吸感", "type": "text" },
+            { "key": "first_frame", "type": "file", "src": null }
+          ]
+        }
+      }
+    },
+    {
+      "name": "3d. 生成-Google视频(自动出首帧,channel_id=2)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": { "raw": "{{base_url}}/generate/", "host": [ "{{base_url}}" ], "path": [ "generate", "" ] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"kind\": \"video\",\n  \"prompt\": \"一只戴帽子的橘猫在草地上奔跑\",\n  \"count\": 1,\n  \"channel_id\": 2\n}",
+          "options": { "raw": { "language": "json" } }
+        }
+      }
+    },
+    {
+      "name": "4. 任务列表",
+      "request": {
+        "method": "GET",
+        "header": [ { "key": "Authorization", "value": "Bearer {{access_token}}" } ],
+        "url": { "raw": "{{base_url}}/tasks/", "host": [ "{{base_url}}" ], "path": [ "tasks", "" ] }
+      }
+    },
+    {
+      "name": "5. 额度查询",
+      "request": {
+        "method": "GET",
+        "header": [ { "key": "Authorization", "value": "Bearer {{access_token}}" } ],
+        "url": { "raw": "{{base_url}}/quota/", "host": [ "{{base_url}}" ], "path": [ "quota", "" ] }
+      }
+    },
+    {
+      "name": "6. 我的可用渠道",
+      "request": {
+        "method": "GET",
+        "header": [ { "key": "Authorization", "value": "Bearer {{access_token}}" } ],
+        "url": { "raw": "{{base_url}}/my-channels/", "host": [ "{{base_url}}" ], "path": [ "my-channels", "" ] }
+      }
+    },
+    {
+      "name": "7. 渠道管理(admin)",
+      "request": {
+        "method": "GET",
+        "header": [ { "key": "Authorization", "value": "Bearer {{access_token}}" } ],
+        "url": { "raw": "{{base_url}}/channels/", "host": [ "{{base_url}}" ], "path": [ "channels", "" ] }
+      }
+    }
+  ]
+}

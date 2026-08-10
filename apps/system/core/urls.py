@@ -5,6 +5,7 @@ from .views import (
     SystemStatusView, HealthCheckView, LivenessCheckView, ReadinessCheckView,
     FileUploadView, ImageUploadView, AuditLogViewSet, PingView
 )
+from .auth import DemoLoginView
 
 app_name = 'core'
 
@@ -22,4 +23,6 @@ urlpatterns = [
     path('api/upload/file/', FileUploadView.as_view(), name='upload-file'),
     path('api/upload/image/', ImageUploadView.as_view(), name='upload-image'),
     path('api/ping/', PingView.as_view(), name='ping'),
+    # 全局演示登录（前后端联调用，生产需关闭 ALLOW_DEMO_LOGIN）
+    path('api/demo-login/', DemoLoginView.as_view(), name='demo-login'),
 ]

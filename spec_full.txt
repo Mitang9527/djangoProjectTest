@@ -1,1 +1,0 @@
-[32m2026-07-31 11:21:41.912[0m | [1mINFO    [0m | [36mframework.core.env_loader[0m:[36mload_env_file[0m:[36m44[0m - [1m已加载环境文件: D:\Code\djangoProjectTest\.env[0m

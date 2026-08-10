@@ -16,12 +16,24 @@ class GenerationCreateSerializer(serializers.Serializer):
 
 
 class GenerationTaskSerializer(serializers.ModelSerializer):
+    error = serializers.SerializerMethodField()
+
     class Meta:
         model = GenerationTask
         fields = [
             'id', 'kind', 'prompt', 'style', 'size', 'resolution', 'count',
-            'cost', 'status', 'result_urls', 'error_msg', 'created_at', 'finished_at',
+            'cost', 'status', 'result_urls', 'error_code', 'error',
+            'created_at', 'finished_at',
         ]
+
+    def get_error(self, obj):
+        # 仅在失败态返回结构化错误对象，与 generate 接口响应保持一致
+        if obj.status != 'FAILED':
+            return None
+        return {
+            'code': obj.error_code or 'UNKNOWN',
+            'message': obj.error_msg or '生成失败，原因未知',
+        }
 
 
 class QuotaSerializer(serializers.ModelSerializer):

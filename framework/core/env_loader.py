@@ -79,7 +79,6 @@ def is_production() -> bool:
     """是否为生产环境"""
     return get_env_type() == "PROD"
 
-
 def is_development() -> bool:
     """是否为开发环境"""
     return get_env_type() == "DEV"

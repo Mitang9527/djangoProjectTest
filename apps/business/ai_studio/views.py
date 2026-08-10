@@ -16,10 +16,11 @@ from django.http import HttpResponse, HttpResponseRedirect
 from django.utils.html import escape
 from django.views import View
 from rest_framework import status
-from rest_framework.permissions import AllowAny, IsAuthenticated, BasePermission
+from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
+from rest_framework.permissions import IsAuthenticated, BasePermission
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework_simplejwt.tokens import RefreshToken
+from loguru import logger
 
 from .models import GenerationTask, RechargeOrder, ApiChannel, UserChannelGrant, UserQuota
 from .serializers import (
@@ -57,40 +58,84 @@ class IsPlatformAdmin(BasePermission):
 
 class GenerateView(APIView):
     permission_classes = [IsAuthenticated]
+    # 同时支持 JSON 与 multipart：视频首帧需通过文件上传（first_frame）
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def post(self, request):
+        user = request.user
+        channel_id = request.data.get('channel_id')
+        first_frame_file = request.FILES.get('first_frame')
+        logger.info(
+            f"[GENERATE] 收到请求 user={user.username} channel_id={channel_id} "
+            f"kind={request.data.get('kind')} prompt={request.data.get('prompt')!r} "
+            f"count={request.data.get('count')} has_first_frame_file={bool(first_frame_file)}"
+        )
+
         ser = GenerationCreateSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
 
+        # 上传的视频首帧：透传给 service，由模型 ImageField 落盘
+        if first_frame_file:
+            ser.validated_data['first_frame'] = first_frame_file
+
         channel = None
-        channel_id = request.data.get('channel_id')
         if channel_id:
             channel = ApiChannel.objects.filter(id=channel_id).first()
             if not channel:
+                logger.warning(
+                    f"[GENERATE] 渠道不存在 user={user.username} channel_id={channel_id}"
+                )
                 return Response({'detail': '渠道/Agent 不存在'}, status=400)
-            if not can_use_channel(request.user, channel):
+            if not can_use_channel(user, channel):
+                logger.warning(
+                    f"[GENERATE] 无权使用渠道 user={user.username} channel={channel.name}"
+                )
                 return Response({'detail': '无权使用该渠道/Agent'}, status=403)
 
         try:
             idempotency_key = request.headers.get('Idempotency-Key') or request.data.get('idempotency_key')
             task = create_generation_task(
-                request.user, ser.validated_data, channel=channel,
+                user, ser.validated_data, channel=channel,
                 idempotency_key=idempotency_key,
             )
         except PermissionError as e:
+            logger.warning(f"[GENERATE] 权限拦截 user={user.username} reason={e}")
             return Response({'detail': str(e)}, status=403)
         except ValueError as e:
+            logger.warning(f"[GENERATE] 参数错误 user={user.username} reason={e}")
             return Response({'detail': str(e)}, status=400)
 
-        quota = get_or_create_quota(request.user)
-        return Response({
+        quota = get_or_create_quota(user)
+        logger.info(
+            f"[GENERATE] 任务已创建 user={user.username} task_id={task.id} "
+            f"channel={channel.name if channel else None} cost={task.cost} "
+            f"frozen={quota.frozen} balance={quota.balance}"
+        )
+        # 失败原因统一收敛到 error 对象：{code, message}（替代旧的错误扁平字段 error_msg）
+        error_block = None
+        if task.status == 'FAILED':
+            error_block = {
+                'code': task.error_code or 'UNKNOWN',
+                'message': task.error_msg or '生成失败，原因未知',
+            }
+        payload = {
             'task_id': task.id,
             'status': task.status,
             'cost': task.cost,
             'channel': channel.name if channel else None,
             'result_urls': task.result_urls,
+            'error': error_block,
             'quota': {'balance': quota.balance, 'frozen': quota.frozen},
-        })
+        }
+        # 同步生成失败时，把失败原因透传给调用方（key 无效 / 配额不足 / 缺首帧等）。
+        # 注意：统一响应渲染器在成功态会清空顶层 errors，因此失败原因放在
+        # data.error 对象中，前端通过 data.status == 'FAILED' 判断并展示 data.error.message。
+        if task.status == 'FAILED':
+            logger.warning(
+                f"[GENERATE] 同步生成失败 user={user.username} task_id={task.id} "
+                f"code={task.error_code} reason={task.error_msg}"
+            )
+        return Response(payload)
 
 
 class QuotaView(APIView):
@@ -109,45 +154,6 @@ class TaskListView(APIView):
         return Response({
             'tasks': GenerationTaskSerializer(tasks, many=True).data,
             'count': tasks.count(),
-        })
-
-
-class DemoLoginView(APIView):
-    """演示用登录：生产环境应改用正式注册 + OIDC SSO。
-
-    默认禁用，需设置环境变量 ALLOW_DEMO_LOGIN=True 才启用，避免生产环境
-    任意用户名即可签发 JWT 的无认证风险。
-    """
-
-    permission_classes = [AllowAny]
-
-    def post(self, request):
-        if not getattr(settings, "ALLOW_DEMO_LOGIN", False):
-            return Response(
-                {"detail": "演示登录已禁用，请使用正式登录方式（注册 / OIDC SSO）"},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-        username = (request.data.get('username') or '').strip()
-        if not username:
-            return Response({'detail': '请输入用户名'}, status=status.HTTP_400_BAD_REQUEST)
-
-        user, _ = User.objects.get_or_create(username=username)
-        if not user.email and '@' in username:
-            user.email = username
-            user.save(update_fields=['email'])
-
-        quota = get_or_create_quota(user)
-        refresh = RefreshToken.for_user(user)
-        return Response({
-            'access': str(refresh.access_token),
-            'refresh': str(refresh),
-            'user': {
-                'id': user.id,
-                'username': user.username,
-                'is_staff': user.is_staff,
-                'is_superuser': user.is_superuser,
-            },
-            'quota': {'balance': quota.balance, 'frozen': quota.frozen},
         })
 
 
@@ -174,18 +180,28 @@ class RechargeView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        user = request.user
+        amount = request.data.get('amount')
+        method = request.data.get('method', 'mock')
+        logger.info(f"[RECHARGE] 充值请求 user={user.username} amount={amount} method={method}")
+
         ser = RechargeSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         try:
             order = recharge(
-                request.user,
+                user,
                 ser.validated_data['amount'],
                 ser.validated_data.get('method', 'mock'),
             )
         except ValueError as e:
+            logger.warning(f"[RECHARGE] 充值失败 user={user.username} reason={e}")
             return Response({'detail': str(e)}, status=400)
 
-        quota = get_or_create_quota(request.user)
+        quota = get_or_create_quota(user)
+        logger.info(
+            f"[RECHARGE] 充值成功 user={user.username} order_no={order.order_no} "
+            f"quota_amount={order.quota_amount} balance={quota.balance} frozen={quota.frozen}"
+        )
         return Response({
             'order_no': order.order_no,
             'quota_amount': order.quota_amount,
@@ -201,6 +217,7 @@ class AdminGrantView(APIView):
     permission_classes = [IsPlatformAdmin]
 
     def post(self, request):
+        admin = request.user
         ser = AdminGrantSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
@@ -213,15 +230,29 @@ class AdminGrantView(APIView):
             return Response({'detail': '需提供 user_id 或 username'}, status=400)
 
         if not target:
+            logger.warning(
+                f"[GRANT] 目标用户不存在 operator={admin.username} "
+                f"user_id={data.get('user_id')} username={data.get('username')}"
+            )
             return Response({'detail': '目标用户不存在'}, status=404)
 
+        logger.info(
+            f"[GRANT] 额度调整 operator={admin.username} -> target={target.username} "
+            f"amount={data['amount']} reason={data.get('reason', '')}"
+        )
         try:
-            quota = admin_grant(request.user, target, data['amount'], data.get('reason', ''))
+            quota = admin_grant(admin, target, data['amount'], data.get('reason', ''))
         except PermissionError as e:
+            logger.warning(f"[GRANT] 权限拦截 operator={admin.username} reason={e}")
             return Response({'detail': str(e)}, status=403)
         except ValueError as e:
+            logger.warning(f"[GRANT] 参数错误 operator={admin.username} reason={e}")
             return Response({'detail': str(e)}, status=400)
 
+        logger.info(
+            f"[GRANT] 调整完成 target={target.username} amount={data['amount']} "
+            f"balance={quota.balance} frozen={quota.frozen}"
+        )
         return Response({
             'user_id': target.id,
             'username': target.username,

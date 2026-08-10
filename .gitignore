@@ -119,6 +119,7 @@ celerybeat.pid
 !.env.template
 !.env.docker
 !.env.test
+!.env.example
 .venv
 env/
 venv/

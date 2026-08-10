@@ -6,10 +6,7 @@
 3. 任务失败 -> 返还（frozen -= cost, balance += cost）
 每笔变动均写入不可变流水账 QuotaTransaction。
 """
-import base64
 import contextlib
-import random
-import time
 
 from django.conf import settings
 from django.db import transaction
@@ -30,16 +27,6 @@ SIGNUP_GIFT = 50
 RES_COST = {'standard': 5, 'hd': 8, '4k': 12}
 # 视频相对图片的成本倍率（模拟按秒计费）
 VIDEO_MULTIPLIER = 4
-
-# 占位结果渐变色（mock 生成用，离线可预览）
-_GRADIENTS = [
-    ('#7c5cff', '#37c6ff'),
-    ('#ff7eb3', '#ff758c'),
-    ('#43e97b', '#38f9d7'),
-    ('#fa709a', '#fee140'),
-    ('#30cfd0', '#330867'),
-    ('#a8edea', '#fed6e3'),
-]
 
 
 def compute_cost(kind: str, resolution: str, count: int) -> int:
@@ -144,40 +131,22 @@ def refund(quota: UserQuota, task) -> None:
             )
 
 
-def _make_placeholder(seed: int, label: str) -> str:
-    c1, c2 = _GRADIENTS[seed % len(_GRADIENTS)]
-    svg = (
-        '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600">'
-        '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">'
-        f'<stop offset="0%" stop-color="{c1}"/>'
-        f'<stop offset="100%" stop-color="{c2}"/>'
-        '</linearGradient></defs>'
-        '<rect width="600" height="600" fill="url(#g)"/>'
-        '<text x="50%" y="50%" font-size="140" text-anchor="middle" '
-        'dominant-baseline="middle">🛍️</text>'
-        f'<text x="50%" y="92%" font-size="22" fill="rgba(255,255,255,.85)" '
-        'text-anchor="middle">{label}</text></svg>'
-    )
-    encoded = base64.b64encode(svg.encode('utf-8')).decode('ascii')
-    return 'data:image/svg+xml;base64,' + encoded
+def run_generation(task_id: str) -> None:
+    """执行生成任务：按任务关联渠道的 config['provider'] 分发到具体适配器。
 
-
-def run_mock_generation(task_id: str) -> None:
-    """mock 生成：模拟推理耗时并产出占位结果（离线可预览）。
-
-    接入真实模型时，将本函数替换为调用图像/视频生成 API，
-    并在完成后调用 confirm()；失败则调用 refund()。
+    - 无渠道 / config 未指定 provider 时回退 mock（离线可预览）；
+    - 成功：写入结果并 confirm() 确认扣减；
+    - 失败：抛异常，由调用方（同步入口或 Celery 任务）负责标记 FAILED + refund()。
     """
+    from .providers import get_provider
+
     task = GenerationTask.objects.get(id=task_id)
     task.status = 'RUNNING'
     task.save(update_fields=['status'])
 
-    time.sleep(random.uniform(1.2, 3.0))  # 模拟推理耗时
+    provider = get_provider(task.channel)
+    results = provider.generate(task)
 
-    results = [
-        _make_placeholder(i, (task.prompt or 'AI')[:10])
-        for i in range(task.count)
-    ]
     task.result_urls = results
     task.status = 'SUCCESS'
     task.finished_at = timezone.now()
@@ -229,6 +198,7 @@ def _create_generation_task(user, params: dict, channel=None) -> GenerationTask:
         kind=kind,
         prompt=params.get('prompt', ''),
         ref_image=params.get('ref_image'),
+        first_frame=params.get('first_frame'),
         style=params.get('style', ''),
         size=params.get('size', '1:1'),
         resolution=resolution,
@@ -239,9 +209,20 @@ def _create_generation_task(user, params: dict, channel=None) -> GenerationTask:
     )
     freeze(quota, cost, task)
 
-    # 默认同步 mock 执行（便于 demo 开箱即跑）；配置 AI_STUDIO_SYNC=False 走 Celery 异步
+    # 默认同步执行（便于 demo 开箱即跑）；配置 AI_STUDIO_SYNC=False 走 Celery 异步
     if getattr(settings, 'AI_STUDIO_SYNC', True):
-        run_mock_generation(task.id)
+        try:
+            run_generation(task.id)
+        except Exception as exc:
+            # 同步模式下第三方失败：标记失败并返还额度，避免冻结额度卡死
+            logger.exception("生成任务 %s 同步执行失败", task.id)
+            task.refresh_from_db()
+            task.status = 'FAILED'
+            task.error_msg = str(exc)
+            task.error_code = getattr(exc, 'code', None) or 'UNKNOWN'
+            task.finished_at = timezone.now()
+            task.save(update_fields=['status', 'error_msg', 'error_code', 'finished_at'])
+            refund(quota, task)
     else:
         from .tasks import generate_task
         res = generate_task.delay(task.id)
