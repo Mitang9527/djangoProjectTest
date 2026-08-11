@@ -1,7 +1,7 @@
 """
 loguru 日志管理器 — 接管 Django 标准 logging, 支持多 Logger 分离。
 
-12 项优化:
+13 项优化:
  1. 文件命名用 {time:YYYY-MM-DD} 动态日期 (修复跨天轮转 bug)
  2. enqueue=True 异步写入 (线程安全 + 不阻塞请求)
  3. InterceptHandler 保留原始 logger name
@@ -14,6 +14,7 @@ loguru 日志管理器 — 接管 Django 标准 logging, 支持多 Logger 分离
 10. Sentry event_id 关联 (ERROR+ 自动转发, request_id tag 贯穿)
 11. 日志采样 (高频同源日志限流, ERROR+ 不限)
 12. filter 提取为方法 (消除内联 lambda)
+13. 控制台超链接跳转 (OSC 8, 支持 VSCode/iTerm2/Windows Terminal 点击 file:line 跳转源码)
 
 日志文件 (logs/ 子目录):
     logs/app/{time:YYYY-MM-DD}.log      — 通用应用日志
@@ -239,6 +240,127 @@ def _json_serializer(message):
 
 
 # ---------------------------------------------------------------
+# #14 — 控制台超链接跳转 (OSC 8 hyperlinks)
+# ---------------------------------------------------------------
+
+# loguru 默认 level 颜色 (raw ANSI), 用于自绘控制台格式
+_LEVEL_ANSI = {
+    "TRACE":    "\x1b[36;1m",   # <cyan><bold>
+    "DEBUG":    "\x1b[34;1m",   # <blue><bold>
+    "INFO":     "\x1b[1m",      # <bold>
+    "SUCCESS":  "\x1b[32;1m",   # <green><bold>
+    "WARNING":  "\x1b[33;1m",   # <yellow><bold>
+    "ERROR":    "\x1b[31;1m",   # <red><bold>
+    "CRITICAL": "\x1b[91;1m",   # <RED><bold>
+    "FATAL":    "\x1b[91;1m",   # 自定义 FATAL
+}
+_ANSI_RESET = "\x1b[0m"
+
+
+def _osc8_link(url: str, text: str) -> str:
+    """生成 OSC 8 超链接 (file://... 等), 支持点击跳转的终端可点击。"""
+    return f"\x1b]8;;{url}\x1b\\{text}\x1b]8;;\x1b\\"
+
+
+def _normalize_file_uri(path: str, line: int) -> str:
+    """
+    将绝对路径规范为 file:// URI, 兼容 Windows 盘符 (D:\\x -> file:///D:/x)。
+    """
+    p = path.replace("\\", "/")
+    if len(p) > 1 and p[1] == ":":
+        p = "/" + p
+    return f"file://{p}:{line}"
+
+
+def _escape_markup(s: str) -> str:
+    """
+    转义 loguru Colorizer 标记: 仅 '<' 会被当作颜色标签解析, 转义为 '\\<'
+    (渲染后仍为 '<')。'>' 单独无歧义, 不必转义。
+    OSC8/ANSI 使用 ESC(\\x1b) 不受任何影响。
+    """
+    return s.replace("<", r"\<")
+
+
+def _console_supports_hyperlinks() -> bool:
+    """
+    检测当前 stdout 是否为支持 OSC 8 超链接的终端。
+    支持: VSCode 集成终端, iTerm2>=3.1, Windows Terminal, Konsole,
+    GNOME Terminal, Ghostty, WezTerm。
+    环境变量 FORCE_HYPERLINK=1 可强制开启 (优先于 isatty 检查)。
+    """
+    env = os.environ
+
+    if env.get("FORCE_HYPERLINK"):
+        return True
+    if not sys.stdout.isatty():
+        return False
+
+    if env.get("TERM_PROGRAM") in ("vscode", "ghostty", "WezTerm"):
+        return True
+    if env.get("TERM_PROGRAM") == "iTerm.app":
+        try:
+            ver = tuple(int(x) for x in env.get("TERM_PROGRAM_VERSION", "0").split("."))
+            return ver >= (3, 1)
+        except ValueError:
+            return True
+    if env.get("WT_SESSION") or env.get("WT_PROFILE_ID"):
+        return True
+    if env.get("KONSOLE_VERSION"):
+        return True
+    if env.get("GNOME_TERMINAL_ID") or env.get("GNOME_TERMINAL_SCREEN"):
+        return True
+    return False
+
+
+def _make_console_format(hyperlinks: bool):
+    """
+    生成控制台 sink 的 format 可调用对象。
+
+    关键: 必须用「可调用 format + colorize=False」自行拼装 ANSI/OSC8,
+    不能把 OSC8 直接内联进字符串模板 —— loguru 的 Colorizer 会把 OSC8 里的
+    '\\x1b\\\\' 反斜杠误当作转义符而解析失败; 且动态内容 (函数名 <module>、
+    消息正文里的 <tag>) 中的 '<' 也会被当成颜色标签报错。可调用 format 中我们对
+    动态文本转义 '<' 规避该问题。
+
+    当 hyperlinks=True 且终端支持时, 位置信息 file:line 包裹为可点击超链接。
+    """
+    def _fmt(record):
+        r = record
+        t = r["time"].strftime("%Y-%m-%d %H:%M:%S")
+        lvl = r["level"].name
+        lvl_color = _LEVEL_ANSI.get(lvl, "\x1b[1m")
+
+        time_s = f"\x1b[32m{t}\x1b[0m"                                  # green 时间
+        level_s = f"{lvl_color}{lvl:<8}{_ANSI_RESET}"                   # level 配色
+        rid = (
+            f"\x1b[34m{_escape_markup(str(r['extra'].get('request_id', '-')))}"
+            f"{_ANSI_RESET}"
+        )
+        # 可见位置: 保留 name:function:line 习惯, 并追加真实文件路径 file:line。
+        # 关键点: PyCharm 等 IDE 运行控制台不识别 OSC 8 超链接, 但它会自动把
+        # 文本中的 "绝对路径:行号" 渲染为可点击链接。因此可见文本里必须包含真实
+        # 文件路径 (而非仅模块点分名 name), 否则 PyCharm 无法跳转。
+        file_loc_text = f"{_escape_markup(r['file'].path)}:{r['line']}"
+        loc_text = (
+            f"{_escape_markup(r['name'])}:"
+            f"{_escape_markup(r['function'])}:"
+            f"{r['line']} {file_loc_text}"
+        )
+
+        if hyperlinks:
+            # URL 同样需转义: 个别环境 file.path 可能为 <string> 等含 '<' 的值
+            url = _escape_markup(_normalize_file_uri(r["file"].path, r["line"]))
+            loc = _osc8_link(url, f"\x1b[36m{loc_text}\x1b[0m")
+        else:
+            loc = f"\x1b[36m{loc_text}\x1b[0m"
+
+        msg = _escape_markup(r["message"])
+        return f"{time_s} | {level_s} | {rid} | {loc} - {msg}\n"
+
+    return _fmt
+
+
+# ---------------------------------------------------------------
 # LogManager — 统一初始化入口
 # ---------------------------------------------------------------
 
@@ -259,6 +381,7 @@ class LogManager:
       10. Sentry sink (ERROR+ 转发)
       11. 高频日志采样
       12. filter 方法化
+      13. 控制台超链接跳转 (OSC 8, 点击 file:line 跳转源码)
     """
 
     _initialized = False
@@ -284,7 +407,8 @@ class LogManager:
     # ---- 初始化 ----
 
     def __init__(self, log_dir: str = None, level: str = "INFO",
-                 json_output: Optional[bool] = None, debug: Optional[bool] = None):
+                 json_output: Optional[bool] = None, debug: Optional[bool] = None,
+                 console_hyperlinks: Optional[bool] = None):
         """
         初始化日志系统。
 
@@ -293,25 +417,29 @@ class LogManager:
             level:        文件日志级别 (控制台始终 DEBUG if debug=True)
             json_output:  是否输出 JSON 日志 (None=自动: 非 debug 时开启)
             debug:        是否 DEBUG 模式 (None=从 level 推断: level=="DEBUG" 则 True)
+            console_hyperlinks: 控制台 file:line 是否生成可点击超链接
+                                (None=自动探测终端; True/False=强制开/关)
         """
         with LogManager._lock:
             if LogManager._initialized:
                 return
-            self._setup(log_dir, level, json_output, debug)
+            self._setup(log_dir, level, json_output, debug, console_hyperlinks)
             LogManager._initialized = True
 
     @classmethod
     def reconfigure(cls, log_dir: str = None, level: str = "INFO",
-                    json_output: Optional[bool] = None, debug: Optional[bool] = None):
+                    json_output: Optional[bool] = None, debug: Optional[bool] = None,
+                    console_hyperlinks: Optional[bool] = None):
         """
         #7 — 重新配置日志系统。
 
         移除所有现有 sink，重新初始化。
-        可用于运行时动态调整日志级别。
+        可用于运行时动态调整日志级别 / 超链接开关。
 
         用法:
             from framework.log_utils import LogManager
             LogManager.reconfigure(level="DEBUG", debug=True)
+            LogManager.reconfigure(console_hyperlinks=True)   # 强制开启点击跳转
         """
         with cls._lock:
             # 移除所有现有 sink
@@ -324,13 +452,13 @@ class LogManager:
             cls._initialized = False
 
             instance = cls.__new__(cls)
-            instance._setup(log_dir, level, json_output, debug)
+            instance._setup(log_dir, level, json_output, debug, console_hyperlinks)
             cls._initialized = True
 
     # ---- 核心初始化 ----
 
     def _setup(self, log_dir: str, level: str, json_output: Optional[bool],
-               debug: Optional[bool]):
+               debug: Optional[bool], console_hyperlinks: Optional[bool] = None):
         """核心初始化逻辑 (被 __init__ 和 reconfigure 共用)"""
         # 推断 debug 模式
         if debug is None:
@@ -376,19 +504,16 @@ class LogManager:
         sentry_id = logger.add(_sentry_sink, level="ERROR")
         LogManager._sink_ids.append(sentry_id)
 
-        # ---- 2. 控制台输出 ---- (#8 分级, #5 request_id)
-        console_fmt = (
-            "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
-            "<level>{level: <8}</level> | "
-            "<blue>{extra[request_id]}</blue> | "
-            "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
-            "<level>{message}</level>"
-        )
+        # ---- 2. 控制台输出 ---- (#8 分级, #5 request_id, #14 超链接跳转)
+        # #14: 自动探测终端是否支持 OSC 8 超链接, 支持则 file:line 可点击跳转。
+        #      用可调用 format + colorize=False 自绘 ANSI, 避免 Colorizer 解析冲突。
+        if console_hyperlinks is None:
+            console_hyperlinks = _console_supports_hyperlinks()
         console_id = logger.add(
             sys.stdout,
             level=console_level,
-            format=console_fmt,
-            colorize=True,
+            format=_make_console_format(console_hyperlinks),
+            colorize=False,
         )
         LogManager._sink_ids.append(console_id)
 
@@ -465,7 +590,7 @@ class LogManager:
         )
         LogManager._sink_ids.append(error_id)
 
-        # ---- 7.5 ERROR 突增计数 sink ---- (#13 监控: 滑动窗口统计 ERROR+)
+        # ---- 7.5 ERROR 突增计数 sink ---- (#14 监控: 滑动窗口统计 ERROR+)
         try:
             from framework.log_utils.error_spike import _error_spike_sink
             error_spike_sink_id = logger.add(_error_spike_sink, level="ERROR")
