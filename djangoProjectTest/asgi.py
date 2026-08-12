@@ -29,6 +29,14 @@ else:
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", default_settings)
 os.environ.setdefault("WORKER_TYPE", "asgi")
 
+# 服务启动横幅: 标识当前启动的是主平台
+try:
+    from framework.log_utils.service_banner import emit_startup_banner
+except Exception:  # pragma: no cover - framework 不可用时降级
+    def emit_startup_banner(key, extra=None):
+        print(f"\n=== SERVICE START: {key} ===\n", flush=True)
+emit_startup_banner("main")
+
 from django.core.asgi import get_asgi_application
 from channels.routing import ProtocolTypeRouter, URLRouter
 from channels.auth import AuthMiddlewareStack
