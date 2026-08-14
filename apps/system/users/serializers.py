@@ -101,23 +101,66 @@ class TestApiSerializer(serializers.Serializer):
     msg = serializers.CharField(max_length=100, help_text="发送的消息内容")
     status = serializers.BooleanField(default=True, help_text="状态标识")
 
+def resolve_login_tenant(request, user) -> str | None:
+    """
+    登录时解析要写入 JWT 的 tenant_id（多租户上下文 claim）。
+
+    优先级：
+      1) 请求体显式携带 tenant_id / tenantId（必须已是该租户活跃成员）；
+      2) 否则取用户首个「活跃」租户成员关系；
+      3) 无成员关系（如超管 / 系统用户）返回 None。
+
+    仅在函数内惰性导入 saas 模型，避免模块加载期循环依赖。
+    """
+    from apps.system.saas.models import TenantMember
+
+    if request is not None:
+        try:
+            body = request.data or {}
+        except Exception:
+            body = {}
+        tid = body.get('tenant_id') or body.get('tenantId')
+        if tid and TenantMember.objects.filter(
+            tenant_id=tid, user=user, is_active=True
+        ).exists():
+            return str(tid)
+
+    member = (
+        TenantMember.objects
+        .filter(user=user, is_active=True, tenant__status='active')
+        .order_by('joined_at')
+        .first()
+    )
+    return str(member.tenant_id) if member else None
+
+
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     """自定义 JWT Token 序列化器，添加用户信息"""
-    
+
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
-        
+
         # 添加自定义声明
         token['username'] = user.username
         token['role_id'] = str(user.role.id) if user.role else None
         token['email'] = user.email
-        
+
         return token
-    
+
     def validate(self, attrs):
         data = super().validate(attrs)
-        
+
+        # 注入多租户上下文 claim：重新解码 refresh 并补 tenant_id，
+        # 再重建 access（simplejwt 刷新时会自动将该 claim 复制到新 access）。
+        request = self.context.get('request')
+        tenant_id = resolve_login_tenant(request, self.user)
+        if tenant_id:
+            refresh = RefreshToken(data['refresh'])
+            refresh['tenant_id'] = tenant_id
+            data['refresh'] = str(refresh)
+            data['access'] = str(refresh.access_token)
+
         # 添加用户信息到响应
         data['user'] = {
             'id': self.user.id,
@@ -126,8 +169,9 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             'nickname': getattr(self.user, 'nickname', ''),
             'role_id': str(self.user.role.id) if self.user.role else None,
             'role_name': self.user.role.name if self.user.role else None,
+            'tenant_id': tenant_id,
         }
-        
+
         return data
 
 class RefreshTokenSerializer(serializers.Serializer):

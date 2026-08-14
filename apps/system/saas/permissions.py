@@ -356,3 +356,266 @@ class ReadWriteTenantPermission(BasePermission):
                 "manage_slug": f"{module_prefix}.manage",
             },
         )
+
+
+# ---------------------------------------------------------------------------
+# 功能权限：自动映射（借鉴 wharttest HasModelPermission）+ 自定义 action 装饰器
+# ---------------------------------------------------------------------------
+def permission_required(slug: str):
+    """
+    为 DRF 自定义 @action 指定所需权限 slug，供 HasModelTenantPermission 读取。
+
+    用法：
+        class MyViewSet(viewsets.ModelViewSet):
+            permission_classes = [IsAuthenticated, HasModelTenantPermission]
+
+            @action(detail=True, methods=['post'])
+            @permission_required('billing.order.refund')
+            def refund(self, request, pk=None):
+                ...
+
+    装饰器与 @action 的顺序无关：无论先写 @action 还是先写 @permission_required，
+    该属性都会被 DRF 的 functools.wraps 保留到视图方法上。
+    """
+    def decorator(func):
+        func.permission_required = slug
+        return func
+    return decorator
+
+
+class HasModelTenantPermission(HasTenantPermission):
+    """
+    借鉴 wharttest HasModelPermission：按 DRF action / HTTP 方法自动推导所需权限 slug，
+    并兼容 @permission_required(slug) 装饰器为自定义 @action 指定权限。
+
+    与 wharttest 的差异：wharttest 用 Django 原生 perm（app_label.view_model），
+    本项目用 slug 制 RBAC（<module>.<action>），故推导公式不同：
+      - 模块前缀：类属性 MODULE 优先；未设置时自动从 view 的 model 推导为
+        '<app_label>.<model_name>'（请确认与种子权限 slug 命名一致）。
+      - 动作后缀：list/retrieve/GET→view，create/POST→add，
+                  update/partial_update/PUT/PATCH→change，destroy/DELETE→delete。
+      - 自定义 @action 上 @permission_required('x.y') 优先级最高。
+
+    安全策略：无法推导模型时放行（由其他权限类兜底，与 wharttest 行为一致）；
+              推导到 slug 但用户无此 slug → 拒绝（fail-closed）。
+    """
+
+    # 自定义模块前缀；None 时从 model 自动推导
+    MODULE: str | None = None
+
+    ACTION_SUFFIX = {
+        "list": "view",
+        "retrieve": "view",
+        "create": "add",
+        "update": "change",
+        "partial_update": "change",
+        "destroy": "delete",
+    }
+    METHOD_SUFFIX = {
+        "GET": "view",
+        "HEAD": "view",
+        "OPTIONS": "view",
+        "POST": "add",
+        "PUT": "change",
+        "PATCH": "change",
+        "DELETE": "delete",
+    }
+
+    def _derive_slug(self, request: "Request", view: "APIView") -> str | None:
+        # 1) 自定义 @action 上的 @permission_required 优先级最高
+        action = getattr(view, "action", None)
+        action_func = getattr(view, action, None) if action else None
+        if action_func is not None and hasattr(action_func, "permission_required"):
+            return action_func.permission_required
+
+        # 2) 类属性 required_slug 兜底
+        if self.required_slug:
+            return self.required_slug
+
+        # 3) 推导模块前缀
+        module = self.MODULE
+        if not module:
+            model_cls = self._get_model(view)
+            if model_cls is None:
+                return None
+            module = f"{model_cls._meta.app_label}.{model_cls._meta.model_name}"
+
+        # 4) 动作 → 后缀
+        suffix = self.ACTION_SUFFIX.get(action) or self.METHOD_SUFFIX.get(
+            request.method, "view"
+        )
+        return f"{module}.{suffix}"
+
+    @staticmethod
+    def _get_model(view):
+        """从 queryset / get_queryset / serializer_class 推导模型类（兼容 wharttest）。"""
+        qs = getattr(view, "queryset", None)
+        if qs is not None and hasattr(qs, "model"):
+            return qs.model
+        if hasattr(view, "get_queryset"):
+            try:
+                q = view.get_queryset()
+                if hasattr(q, "model"):
+                    return q.model
+            except Exception:
+                pass
+        sc = getattr(view, "serializer_class", None)
+        if sc is not None and hasattr(sc, "Meta") and hasattr(sc.Meta, "model"):
+            return sc.Meta.model
+        return None
+
+    def has_permission(self, request: "Request", view: "APIView") -> bool:
+        user = request.user
+        if _is_super_admin(user):
+            return True
+        if not user or not user.is_authenticated:
+            return False
+        slug = self._derive_slug(request, view)
+        if not slug:
+            # 无法推导模型 → 放行（由其他权限类兜底），与 wharttest 行为一致
+            return True
+        return self._user_has_slug(user, slug)
+
+    def has_object_permission(self, request: "Request", view: "APIView", obj) -> bool:
+        # 对象级同样按 slug 校验（行级隔离由 IsTenantMember* 负责）
+        return self.has_permission(request, view)
+
+
+# ---------------------------------------------------------------------------
+# 行级数据权限（成员关系隔离）
+# ---------------------------------------------------------------------------
+# 借鉴 wharttest 的 projects/permissions.py（IsProjectMember / IsProjectAdmin /
+# IsProjectOwner），但做了两点适配：
+#   1. 成员关系模型从 ProjectMember(role 为 char) 改为 TenantMember(role 为 FK→Role)，
+#      因此管理员/拥有者通过 role__slug 匹配，且 slug 集合可配置。
+#   2. 当前租户不再从 URL 参数(pk/project_pk)提取，而是优先读 TenantMiddleware 注入的
+#      request.tenant / request.tenant_id，并兼容 X-Tenant-Id 请求头（JWT / 跨服务场景）。
+#
+# 用法示例：
+#   class ProjectViewSet(viewsets.ModelViewSet):
+#       permission_classes = [IsAuthenticated, IsTenantMember]
+#
+#   class TenantBillingViewSet(viewsets.ModelViewSet):
+#       permission_classes = [IsAuthenticated, IsTenantAdmin]
+# ---------------------------------------------------------------------------
+class _TenantMembershipPermission(BasePermission):
+    """
+    行级数据权限基类：基于 TenantMember 的成员关系判定「用户能否访问某租户的数据」。
+
+    - 集合级 (has_permission)：依赖 request.tenant / request.tenant_id
+      （由 TenantMiddleware 注入，兼容 X-Tenant-Id 头）。
+    - 对象级 (has_object_permission)：依赖 obj.tenant / obj.tenant_id。
+    - 超级管理员直通（复用 _is_super_admin）。
+    - REQUIRED_ROLE_SLUGS 为 None 时仅校验「是否为活跃成员」；否则要求成员角色 slug 命中。
+    """
+
+    # 子类覆盖：需要匹配的角色 slug 集合；None 表示只校验成员关系、不限角色。
+    REQUIRED_ROLE_SLUGS = None
+
+    message = "您无权访问该租户的数据。"
+
+    # ------------------------------------------------------------------
+    # 租户解析
+    # ------------------------------------------------------------------
+    def _resolve_request_tenant_id(self, request: "Request"):
+        """
+        从请求中解析「当前租户 ID」，优先级：
+          1) TenantMiddleware 注入的 request.tenant（对象）
+          2) TenantMiddleware 注入的 request.tenant_id（字符串）
+          3) 请求头 X-Tenant-Id（JWT / 跨服务 P0 方向，向前兼容）
+        解析不到时返回 None。
+        """
+        tenant = getattr(request, "tenant", None)
+        if tenant is not None and getattr(tenant, "id", None):
+            return tenant.id
+
+        tid = getattr(request, "tenant_id", None)
+        if tid:
+            return tid
+
+        header = request.headers.get("X-Tenant-Id") or request.META.get("HTTP_X_TENANT_ID")
+        return header or None
+
+    @staticmethod
+    def _object_tenant_id(obj) -> str | None:
+        """
+        从业务对象中提取其所属租户 ID。
+        支持 obj.tenant_id（直接字段）或 obj.tenant（FK→Tenant）。
+        """
+        tid = getattr(obj, "tenant_id", None)
+        if tid:
+            return tid
+        tenant = getattr(obj, "tenant", None)
+        if tenant is not None:
+            return getattr(tenant, "id", None)
+        return None
+
+    # ------------------------------------------------------------------
+    # 核心：成员关系校验
+    # ------------------------------------------------------------------
+    def _check_membership(self, user, tenant_id: str | None) -> bool:
+        if not tenant_id:
+            return False
+        from .models import TenantMember  # 避免循环 import
+
+        qs = TenantMember.objects.filter(
+            tenant_id=tenant_id,
+            user=user,
+            is_active=True,
+        )
+        if self.REQUIRED_ROLE_SLUGS is not None:
+            qs = qs.filter(
+                role__slug__in=self.REQUIRED_ROLE_SLUGS,
+                role__is_active=True,
+            )
+        return qs.exists()
+
+    # ------------------------------------------------------------------
+    # DRF 接口
+    # ------------------------------------------------------------------
+    def has_permission(self, request: "Request", view: "APIView") -> bool:
+        user = request.user
+        # 超级管理员直通
+        if _is_super_admin(user):
+            return True
+        if not user or not user.is_authenticated:
+            return False
+        return self._check_membership(user, self._resolve_request_tenant_id(request))
+
+    def has_object_permission(self, request: "Request", view: "APIView", obj) -> bool:
+        user = request.user
+        # 超级管理员直通
+        if _is_super_admin(user):
+            return True
+        # 对象级：以「对象所属租户」为准，实现真正的行级隔离
+        obj_tenant_id = self._object_tenant_id(obj)
+        if obj_tenant_id:
+            return self._check_membership(user, obj_tenant_id)
+        # 对象无 tenant 字段时，退化为请求级租户校验
+        return self.has_permission(request, view)
+
+
+class IsTenantMember(_TenantMembershipPermission):
+    """行级数据权限：用户必须是「当前租户」的活跃成员（不限角色）。"""
+
+    REQUIRED_ROLE_SLUGS = None
+    message = "您不是该租户的成员，无权访问。"
+
+
+class IsTenantAdmin(_TenantMembershipPermission):
+    """
+    行级数据权限：用户必须是「当前租户」活跃成员，且角色为管理员或拥有者。
+
+    角色 slug 默认取 ('owner', 'admin')；若你的租户角色命名不同，
+    覆盖类属性 ADMIN_ROLE_SLUGS 即可（注意这里是父类约定的 REQUIRED_ROLE_SLUGS）。
+    """
+
+    REQUIRED_ROLE_SLUGS = ("owner", "admin")
+    message = "您不是该租户的管理员，无权执行此操作。"
+
+
+class IsTenantOwner(_TenantMembershipPermission):
+    """行级数据权限：用户必须是「当前租户」活跃成员，且角色为拥有者。"""
+
+    REQUIRED_ROLE_SLUGS = ("owner",)
+    message = "您不是该租户的拥有者，无权执行此操作。"

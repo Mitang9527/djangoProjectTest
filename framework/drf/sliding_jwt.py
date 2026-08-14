@@ -26,7 +26,7 @@ from rest_framework_simplejwt.settings import api_settings as jwt_settings
 from rest_framework_simplejwt.tokens import AccessToken
 
 # 滑动续期时需要从旧 token 复制到新 token 的声明（顺序无关）
-_SLIDE_CLAIMS = (jwt_settings.USER_ID_CLAIM, "username", "email", "role_id")
+_SLIDE_CLAIMS = (jwt_settings.USER_ID_CLAIM, "username", "email", "role_id", "tenant_id")
 
 
 class SlidingJWTAuthentication(JWTAuthentication):

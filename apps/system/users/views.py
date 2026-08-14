@@ -130,6 +130,12 @@ class UserLoginView(APIView):
             from rest_framework_simplejwt.tokens import RefreshToken
             refresh = RefreshToken.for_user(user)
 
+            # 注入多租户上下文 claim（tenant_id）
+            from apps.system.users.serializers import resolve_login_tenant
+            tenant_id = resolve_login_tenant(request, user)
+            if tenant_id:
+                refresh['tenant_id'] = tenant_id
+
             return Response({
                 'refresh': str(refresh),
                 'access': str(refresh.access_token),
@@ -139,6 +145,7 @@ class UserLoginView(APIView):
                     'email': user.email,
                     'nickname': getattr(user, 'nickname', ''),
                     'role': getattr(user, 'role', 'user'),
+                    'tenant_id': tenant_id,
                 }
             })
 
