@@ -36,6 +36,7 @@ class By:
     ID = "id"
     XPATH = "xpath"
     CSS = "css selector"
+    CSS_SELECTOR = "css selector"  # 兼容 selenium.webdriver.common.by.By 官方写法
     NAME = "name"
     CLASS_NAME = "class name"
     TAG_NAME = "tag name"
@@ -45,6 +46,10 @@ class By:
     IOS_PREDICATE = "-ios predicate string"
     IOS_CLASS_CHAIN = "-ios class chain"
     ACCESSIBILITY_ID = "accessibility id"
+    # 兼容 Playwright 常用策略名（在 By 层统一）
+    PLACEHOLDER = "placeholder"
+    LABEL = "label"
+    TEST_ID = "test-id"
 
 
 # ============================================================
