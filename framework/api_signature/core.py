@@ -21,8 +21,25 @@ from .exceptions import (
 
 
 # ==================== 配置常量 ====================
-DEFAULT_TIMESTAMP_TOLERANCE = 300  # 默认时间容忍度：5分钟
-DEFAULT_NONCE_TTL = 600  # 默认 nonce 有效期：10分钟
+# 以下为兜底默认值：当 settings 中未配置对应项时生效。
+# 正式配置请在 settings（base.py）中通过 API_TIMESTAMP_TOLERANCE / API_NONCE_TTL 设定，
+# 二者为唯一权威来源，运行时由 _resolve_* 解析。
+DEFAULT_TIMESTAMP_TOLERANCE = 300  # 兜底：时间容忍度 5分钟
+DEFAULT_NONCE_TTL = 600  # 兜底：nonce 有效期 10分钟
+
+
+def _resolve_timestamp_tolerance(value: Optional[int]) -> int:
+    """解析时间戳容忍度：显式值优先，否则读 settings.API_TIMESTAMP_TOLERANCE，兜底 DEFAULT。"""
+    if value is not None:
+        return value
+    return getattr(settings, 'API_TIMESTAMP_TOLERANCE', DEFAULT_TIMESTAMP_TOLERANCE)
+
+
+def _resolve_nonce_ttl(value: Optional[int]) -> int:
+    """解析 nonce 有效期：显式值优先，否则读 settings.API_NONCE_TTL，兜底 DEFAULT。"""
+    if value is not None:
+        return value
+    return getattr(settings, 'API_NONCE_TTL', DEFAULT_NONCE_TTL)
 
 
 # ==================== Redis 存储后端 ====================
@@ -190,7 +207,7 @@ def verify_signature(
     body: Optional[Dict[str, Any]] = None,
     timestamp: int = 0,
     nonce: str = "",
-    timestamp_tolerance: int = DEFAULT_TIMESTAMP_TOLERANCE,
+    timestamp_tolerance: int = None,
 ) -> bool:
     """
     验证 API 签名
@@ -213,6 +230,8 @@ def verify_signature(
         SignatureExpiredError: 签名已过期
         InvalidSignatureError: 签名无效
     """
+    timestamp_tolerance = _resolve_timestamp_tolerance(timestamp_tolerance)
+
     # 检查时间戳
     current_time = int(time.time())
     if abs(current_time - timestamp) > timestamp_tolerance:
@@ -243,8 +262,8 @@ class SignatureVerifier:
     def __init__(
         self,
         secret_key: Optional[str] = None,
-        timestamp_tolerance: int = DEFAULT_TIMESTAMP_TOLERANCE,
-        nonce_ttl: int = DEFAULT_NONCE_TTL,
+        timestamp_tolerance: int = None,
+        nonce_ttl: int = None,
         nonce_store: Optional[NonceStore] = None,
     ):
         """
@@ -257,8 +276,8 @@ class SignatureVerifier:
             nonce_store: nonce 存储后端（如果为 None，自动选择）
         """
         self.secret_key = secret_key or getattr(settings, 'API_SECRET_KEY', '')
-        self.timestamp_tolerance = timestamp_tolerance
-        self.nonce_ttl = nonce_ttl
+        self.timestamp_tolerance = _resolve_timestamp_tolerance(timestamp_tolerance)
+        self.nonce_ttl = _resolve_nonce_ttl(nonce_ttl)
 
         # 初始化 nonce 存储
         if nonce_store is not None:
