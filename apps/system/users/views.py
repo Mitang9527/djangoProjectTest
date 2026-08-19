@@ -16,12 +16,14 @@ from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiParamet
 
 User = get_user_model()
 
-class TestApiView(APIView):
+class TestApiView(generics.GenericAPIView):
     """
     规范化测试接口
-    
+
     演示如何编写一个符合 Swagger 规范和项目自动发现机制的接口。
     包括请求参数说明、序列化器关联以及响应示例。
+
+    注意：使用 get_serializer()/serializer_class 需要 GenericAPIView 基类
     """
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = TestApiSerializer
@@ -56,7 +58,6 @@ class TestApiView(APIView):
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        # 这里处理业务逻辑
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 class UserRegisterView(generics.CreateAPIView):
@@ -131,7 +132,7 @@ class UserLoginView(APIView):
             refresh = RefreshToken.for_user(user)
 
             # 注入多租户上下文 claim（tenant_id）
-            from apps.system.users.serializers import resolve_login_tenant
+            from system.users.serializers import resolve_login_tenant
             tenant_id = resolve_login_tenant(request, user)
             if tenant_id:
                 refresh['tenant_id'] = tenant_id
@@ -144,7 +145,7 @@ class UserLoginView(APIView):
                     'username': user.username,
                     'email': user.email,
                     'nickname': getattr(user, 'nickname', ''),
-                    'role': getattr(user, 'role', 'user'),
+                    'role': (user.role.name if user.role else None),
                     'tenant_id': tenant_id,
                 }
             })
@@ -416,7 +417,7 @@ class UserManageViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        from apps.system.saas.permissions import _is_super_admin
+        from system.saas.permissions import _is_super_admin
         is_super = _is_super_admin(user)
         
         if not is_super:
@@ -439,7 +440,7 @@ class UserManageViewSet(viewsets.ModelViewSet):
         - 读取操作 (list/retrieve) 需要 user.view 权限
         - 超管（super-admin / is_superuser）自动放行
         """
-        from apps.system.saas.permissions import UserManagePermission, UserViewPermission
+        from system.saas.permissions import UserManagePermission, UserViewPermission
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [permissions.IsAuthenticated(), UserManagePermission()]
         if self.action == 'list':

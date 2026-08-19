@@ -112,7 +112,7 @@ def resolve_login_tenant(request, user) -> str | None:
 
     仅在函数内惰性导入 saas 模型，避免模块加载期循环依赖。
     """
-    from apps.system.saas.models import TenantMember
+    from system.saas.models import TenantMember
 
     if request is not None:
         try:
@@ -142,6 +142,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         token = super().get_token(user)
 
         # 添加自定义声明
+        # 注入自定义 claims 到 token
         token['username'] = user.username
         token['role_id'] = str(user.role.id) if user.role else None
         token['email'] = user.email
@@ -149,7 +150,8 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         return token
 
     def validate(self, attrs):
-        data = super().validate(attrs)
+        # 生成 refresh/access + 拼 data.user
+        data = super().validate(attrs)      # SimpleJWT 父类在此生成 refresh/access
 
         # 注入多租户上下文 claim：重新解码 refresh 并补 tenant_id，
         # 再重建 access（simplejwt 刷新时会自动将该 claim 复制到新 access）。

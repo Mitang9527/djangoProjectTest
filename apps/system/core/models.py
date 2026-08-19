@@ -1,9 +1,12 @@
 import hashlib
 import json
+import secrets
+from datetime import timedelta
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
 from django.core.serializers.json import DjangoJSONEncoder
+from framework.drf.queryset import TimestampMixin
 
 
 class AuditLog(models.Model):
@@ -135,3 +138,82 @@ class AuditExcludeModel(models.Model):
 
     def __str__(self):
         return f"{self.app_label}.{self.model_name}"
+
+
+class APIKey(TimestampMixin, models.Model):
+    """
+    带时效性的访问密钥（Access Key）。
+
+    用于「先同步校验密钥正确性 + 时效性，再返回受保护信息」的接口：
+    - key        明文密钥，仅签发时可见一次，之后不再回显
+    - key_hash   SHA256 哈希，用于查询与比对（库内不保留可检索的明文）
+    - is_active  是否启用（可主动吊销，无需改密钥）
+    - expires_at 过期时间；None 表示永不过期（时效性由签发时 ttl 决定）
+    - last_used_at 最近一次成功使用时间
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="api_keys",
+        verbose_name="所属用户",
+    )
+    name = models.CharField(max_length=100, verbose_name="标识用途", help_text="例如：报表导出服务")
+    key = models.CharField(
+        max_length=128, unique=True,
+        verbose_name="明文密钥", help_text="仅签发时可见一次",
+    )
+    key_hash = models.CharField(
+        max_length=64, unique=True, db_index=True,
+        verbose_name="SHA256 哈希",
+    )
+    is_active = models.BooleanField(default=True, db_index=True, verbose_name="是否启用")
+    expires_at = models.DateTimeField(null=True, blank=True, verbose_name="过期时间")
+    last_used_at = models.DateTimeField(null=True, blank=True, verbose_name="最近使用时间")
+
+    class Meta:
+        db_table = "core_apikey"
+        verbose_name = "访问密钥"
+        verbose_name_plural = verbose_name
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.name} ({self.user})"
+
+    def is_expired(self) -> bool:
+        """是否已过期（expires_at 非空且已过当前时间）。"""
+        return self.expires_at is not None and timezone.now() > self.expires_at
+
+    def is_usable(self) -> bool:
+        """当前是否可用：启用且未过期。"""
+        return self.is_active and not self.is_expired()
+
+    @staticmethod
+    def hash_key(key: str) -> str:
+        """对明文密钥做 SHA256 哈希。"""
+        return hashlib.sha256(key.encode()).hexdigest()
+
+    @classmethod
+    def issue(cls, user, name: str, ttl_seconds: int = None, prefix: str = "sk-") -> "APIKey":
+        """
+        签发一个带时效性的密钥。
+
+        Args:
+            user:        所属用户实例
+            name:        用途标识
+            ttl_seconds: 有效秒数；None/0 表示永不过期
+            prefix:      密钥前缀
+        Returns:
+            APIKey 实例，实例.key 为明文（仅此处可见一次）
+        """
+        raw = f"{prefix}{secrets.token_hex(16)}"
+        expires_at = None
+        if ttl_seconds:
+            expires_at = timezone.now() + timedelta(seconds=ttl_seconds)
+        return cls.objects.create(
+            user=user,
+            name=name,
+            key=raw,
+            key_hash=cls.hash_key(raw),
+            expires_at=expires_at,
+        )

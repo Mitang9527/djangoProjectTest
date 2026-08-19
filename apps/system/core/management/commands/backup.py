@@ -4,7 +4,7 @@
 from django.core.management.base import BaseCommand, CommandError
 from loguru import logger
 
-from apps.system.core.backup import BackupManager
+from system.core.backup import BackupManager
 
 
 class Command(BaseCommand):

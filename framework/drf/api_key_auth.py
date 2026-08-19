@@ -128,7 +128,7 @@ class APIKeyAuthentication(authentication.BaseAuthentication):
     def _authenticate_by_model(self, api_key: str) -> Optional[User]:
         """从 APIKey 数据库模型中查找用户"""
         try:
-            from apps.system.core.models import APIKey as APIKeyModel
+            from system.core.models import APIKey as APIKeyModel
         except (ImportError, LookupError):
             return None
 

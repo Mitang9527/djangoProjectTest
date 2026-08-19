@@ -71,7 +71,10 @@ class Migration(migrations.Migration):
             "core",
             "0003_rename_core_audit_action_created_idx_core_audit__action_5c03c3_idx_and_more",
         ),
-        ("django_celery_beat", "0001_initial"),
+        # 必须等 beat 的 0016 把 crontabschedule.timezone 列加好，否则
+        # create_beat_schedules 里 CrontabSchedule.objects.get_or_create 会因
+        # "no such column: timezone" 失败（原依赖 0001_initial 会导致该迁移被提前执行）。
+        ("django_celery_beat", "0016_alter_crontabschedule_timezone"),
     ]
 
     operations = [

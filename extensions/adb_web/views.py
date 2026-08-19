@@ -21,7 +21,7 @@ from .serializers import (
     InstallApkSerializer,
     TabCompleteSerializer,
 )
-from apps.system.saas.permissions import AdbViewPermission, AdbOperatePermission
+from system.saas.permissions import AdbViewPermission, AdbOperatePermission
 
 
 _adb_service: AdbService | None = None

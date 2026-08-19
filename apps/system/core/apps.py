@@ -68,14 +68,14 @@ def _init_channels():
 
 def _init_audit_signals():
     """注册审计信号"""
-    from apps.system.core import audit  # noqa: F401  导入即注册
+    from system.core import audit  # noqa: F401  导入即注册
     return "审计信号已注册"
 
 
 def _init_request_capture():
     """注册请求捕获钩子"""
     from django.core.signals import request_started
-    from apps.system.core.audit import set_current_request
+    from system.core.audit import set_current_request
 
     def capture_request(sender, environ, **kwargs):
         from django.http import HttpRequest

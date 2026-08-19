@@ -1,5 +1,5 @@
 from rest_framework import permissions
-from apps.system.saas.permissions import _is_super_admin
+from system.saas.permissions import _is_super_admin
 
 
 class IsAdminOrSelf(permissions.BasePermission):

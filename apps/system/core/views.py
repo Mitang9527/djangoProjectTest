@@ -3,7 +3,10 @@ from loguru import logger
 from django.utils.translation import gettext_lazy as _
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework import status
 from framework.drf.renderer import CustomRenderer
+from framework.drf.timed_api_key_auth import TimedAPIKeyAuthentication
+from framework.drf.sliding_jwt import SlidingJWTAuthentication
 from rest_framework import permissions
 from django.conf import settings
 import os
@@ -13,8 +16,9 @@ from rest_framework import viewsets, mixins
 from framework.helpers.system_config import get_system_info
 from framework.helpers.time_utils import nowtime
 from framework.cache.view_cache import drf_cache_view, T_5_MINUTES
-from .models import AuditLog
-from .serializers import AuditLogSerializer, PingSerializer
+from .models import AuditLog, APIKey
+from .serializers import AuditLogSerializer, PingSerializer, CreateApiKeySerializer
+from .permissions import CanIssueApiKey
 from .health import HealthChecker
 
 from framework.files.upload.validators import safe_file_upload, FileValidator
@@ -97,7 +101,10 @@ class PingView(APIView):
         tags=["系统"],
     )
     def get(self, request):
-        return Response({"ping": "pong", "time": nowtime()})
+        return Response({
+            "ping": "pong",
+            "time": nowtime()
+        })
 
     @extend_schema(
         summary="连通性测试(POST)",
@@ -114,6 +121,164 @@ class PingView(APIView):
             "message": f"hello, {name}!",
             "received": serializer.validated_data,
         })
+
+
+class PingAuthView(APIView):
+    """
+    对照演示：把 authentication_classes 换成 JWT 后端后，请求如何被识别。
+
+    关键点：
+    - 与 PingView 一样用 permission_classes=[AllowAny]，所以「未带 token」也能 200；
+    - 但 authentication_classes=[SlidingJWTAuthentication] 后，DRF 会尝试解析
+      Authorization: Bearer <token>；带【有效】token 时 request.user 被填充为对应用户，
+      request.auth 为 token 对象；带【无效/过期】token 时由认证层直接 401 拒绝；
+      完全【不带】token 时则匿名通过（认证失败≠禁止，禁止由 permission_classes 决定）。
+    """
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = [SlidingJWTAuthentication]
+
+    def get(self, request):
+        return Response({
+            "ping": "pong1",
+            "auth_demo": {
+                "authentication_classes": [c.__name__ for c in self.authentication_classes],
+                "user": str(request.user),
+                "is_authenticated": bool(getattr(request.user, "is_authenticated", False)),
+                "auth": str(request.auth),
+            },
+        })
+
+
+class SecureInfoView(APIView):
+    """
+    受「时效性密钥」保护的接口示例。
+
+    请求必须携带**有效且未过期**的 API Key（X-API-Key 或 Authorization: Bearer）。
+    密钥的「正确性」与「时效性」由 TimedAPIKeyAuthentication 在视图执行前**同步**校验：
+    缺失 / 错误 / 禁用 / 过期 任一不满足都直接返回 401，绝不进入本方法返回受保护信息。
+
+    验证通过后才执行 get()，返回仅持有效密钥可见的数据，并附带密钥的时效信息。
+    """
+
+    authentication_classes = [TimedAPIKeyAuthentication]
+    permission_classes = [permissions.AllowAny]
+
+    @extend_schema(
+        summary="时效性密钥受保护信息",
+        description=(
+                "携带有效且未过期的 API Key 才能返回受保护信息；"
+                "密钥缺失 / 错误 / 已禁用 / 已过期 均返回 401。"
+        ),
+        tags=["系统"],
+    )
+    def get(self, request):
+        logger.info(f"[SecureInfo] 收到受保护信息请求 | IP: {request.META.get('REMOTE_ADDR')}")
+
+        api_key = getattr(request, "api_key", None)
+        remaining_seconds = None
+
+        if api_key and api_key.expires_at:
+            remaining_seconds = int((api_key.expires_at - timezone.now()).total_seconds())
+            logger.debug(
+                f"[SecureInfo] 密钥校验通过 | KeyName: {api_key.name} | "
+                f"Owner: {request.user.username} | 剩余有效时间: {remaining_seconds}s"
+            )
+        else:
+            logger.warning("[SecureInfo] 请求通过了认证，但未获取到有效的 api_key 或过期时间！")
+
+        logger.info(f"[SecureInfo] 成功返回受保护数据 | KeyName: {api_key.name if api_key else 'N/A'}")
+        return Response({
+            "message": "密钥校验通过，返回受保护信息",
+            "owner": request.user.username,
+            "key_name": api_key.name if api_key else None,
+            "expires_at": api_key.expires_at.isoformat() if (api_key and api_key.expires_at) else None,
+            "remaining_seconds": remaining_seconds,
+            "secret_data": {
+                "project": "djangoProjectTest",
+                "note": "此数据仅持有效密钥可见",
+            },
+        })
+
+
+class CreateApiKeyView(APIView):
+    """
+    签发带时效性的 API Key（接口版，等价于 `manage.py create_api_key`）。
+
+    权限决策：仅平台管理员(is_staff)可调用（见 CanIssueApiKey）。
+      - API Key 是绕过常规会话认证的机器凭证，发放凭证属敏感操作；
+      - 对齐原管理命令的 admin 默认身份，且普通用户一律禁止。
+    认证决策：必须用 JWT(SlidingJWTAuthentication) 表明真实操作人；
+      - 不允许用 API Key 自身来签发新 Key（防止凭证链式放大攻击面）。
+    """
+
+    authentication_classes = [SlidingJWTAuthentication]
+    permission_classes = [CanIssueApiKey]
+
+    @extend_schema(
+        summary="签发 API Key",
+        description=(
+            "管理员签发带时效性的 API Key。明文密钥仅本次返回，库内仅存 SHA256 哈希。"
+            "owner_username 省略时归属当前管理员；指定他人时要求管理员身份（本视图已强制）。"
+        ),
+        tags=["系统"],
+        request=CreateApiKeySerializer,
+    )
+    def post(self, request):
+        serializer = CreateApiKeySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        owner_username = data.get("owner_username")
+        if owner_username:
+            try:
+                owner = User.objects.get(username=owner_username)
+            except User.DoesNotExist:
+                return Response(
+                    {"detail": f"归属用户不存在: {owner_username}"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        else:
+            owner = request.user
+
+        ttl = data["ttl"] or None
+        key_obj = APIKey.issue(owner, data["name"], ttl_seconds=ttl)
+        is_permanent = key_obj.expires_at is None
+
+        logger.bind(source="app").info(
+            f"[APIKey] 签发密钥 | issuer={request.user.username} | "
+            f"owner={owner.username} | name={key_obj.name} | permanent={is_permanent}"
+        )
+        # 审计日志（敏感操作，不记录明文/哈希）
+        AuditLog.objects.create(
+            user=request.user,
+            action="CREATE",
+            log_type="SENSITIVE",
+            target_model="core_apikey",
+            target_id=str(key_obj.id),
+            action_info={
+                "name": key_obj.name,
+                "owner": owner.username,
+                "issuer": request.user.username,
+                "expires_at": key_obj.expires_at.isoformat() if key_obj.expires_at else None,
+                "is_permanent": is_permanent,
+            },
+            ip_address=request.META.get("REMOTE_ADDR"),
+            user_agent=request.META.get("HTTP_USER_AGENT", "")[:512],
+            request_path=request.path,
+            request_method=request.method,
+        )
+
+        return Response(
+            {
+                "key": key_obj.key,  # 明文仅此一次
+                "name": key_obj.name,
+                "owner": owner.username,
+                "expires_at": key_obj.expires_at.isoformat() if key_obj.expires_at else None,
+                "is_permanent": is_permanent,
+                "note": "明文密钥仅返回一次，请妥善保存；库内仅存哈希，无法再次查询。",
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class HealthCheckView(APIView):

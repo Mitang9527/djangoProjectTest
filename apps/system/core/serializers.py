@@ -35,3 +35,26 @@ class PingSerializer(serializers.Serializer):
     连通性测试 POST 参数校验器
     """
     name = serializers.CharField(max_length=50, help_text="你的名字，将用于回显问候")
+
+
+class CreateApiKeySerializer(serializers.Serializer):
+    """
+    签发 API Key 入参校验器（接口版，等价于 manage.py create_api_key）。
+    """
+    name = serializers.CharField(
+        max_length=100,
+        help_text="密钥用途标识，例如：报表导出服务",
+    )
+    owner_username = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        default=None,
+        help_text="归属用户名；省略则归属当前调用者。仅管理员可指定他人。",
+    )
+    ttl = serializers.IntegerField(
+        required=False,
+        default=3600,
+        min_value=0,
+        help_text="有效秒数；0 表示永不过期",
+    )

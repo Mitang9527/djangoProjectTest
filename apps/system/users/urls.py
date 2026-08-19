@@ -15,7 +15,7 @@ user_router.register(r'manage', UserManageViewSet, basename='user-manage')
 
 urlpatterns = [
     # 测试接口
-    path('api/test/', TestApiView.as_view(), name='test-api'),
+    path('test/', TestApiView.as_view(), name='test-api'),
     
     # 系统角色 API
     path('system-roles/', SystemRoleListView.as_view(), name='system-roles'),
@@ -36,10 +36,10 @@ urlpatterns = [
     # =====================================================
     # JWT 认证接口
     # =====================================================
-    path('api/jwt/login/', CustomTokenObtainPairView.as_view(), name='jwt-login'),
-    path('api/jwt/refresh/', CustomTokenRefreshView.as_view(), name='jwt-refresh'),
-    path('api/jwt/logout/', JWTLogoutView.as_view(), name='jwt-logout'),
-    path('api/jwt/verify/', VerifyTokenView.as_view(), name='jwt-verify'),
+    path('jwt/login/', CustomTokenObtainPairView.as_view(), name='jwt-login'),
+    path('jwt/refresh/', CustomTokenRefreshView.as_view(), name='jwt-refresh'),
+    path('jwt/logout/', JWTLogoutView.as_view(), name='jwt-logout'),
+    path('jwt/verify/', VerifyTokenView.as_view(), name='jwt-verify'),
     
     # 用户管理 API（供 SaaS 后台使用）
     path('api/', include(user_router.urls)),

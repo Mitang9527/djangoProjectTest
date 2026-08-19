@@ -287,7 +287,7 @@ class UserManageService:
     @staticmethod
     def get_queryset(request_user):
         """根据权限返回用户查询集"""
-        from apps.system.saas.permissions import _is_super_admin
+        from system.saas.permissions import _is_super_admin
 
         if _is_super_admin(request_user):
             return User.objects.select_related("role").all()
@@ -316,7 +316,7 @@ class UserManageService:
             except Exception as e:
                 logger.error(f"运行 init_permissions 失败: {e}")
                 # 兜底: 创建空壳 super-admin 角色
-                from apps.system.saas.models import Permission as PermModel
+                from system.saas.models import Permission as PermModel
                 admin_role = Role.objects.create(
                     tenant=None,
                     name="超级管理员",

@@ -131,6 +131,10 @@ MIDDLEWARE = [
     # 12. API 签名验证（在认证之后，业务逻辑之前拦截非法请求）
     'framework.api_signature.middleware.APISignatureMiddleware',
 
+    # 12.5 Authorization 头自动补全 Bearer 前缀（手动测试裸 token 免手敲 Bearer；
+    #      已带 Bearer/Basic 等方案的头不受影响，X-API-Key 独立头不受影响）
+    'framework.drf.auth_normalize.AuthorizationBearerMiddleware',
+
     # 13. SaaS 多租户上下文注入（必须在具体业务和日志记录之前）
     'system.saas.middleware.TenantMiddleware',
 
@@ -138,7 +142,7 @@ MIDDLEWARE = [
     'framework.gateway.middleware.GatewayMiddleware',
 
     # 15. 操作日志（放在业务中间件之后，确保能捕获完整的上下文）
-    'apps.system.core.middleware.OperationLogMiddleware',
+    'system.core.middleware.OperationLogMiddleware',
 
     # 16. 消息框架
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -584,7 +588,6 @@ API_KEYS = {
 
 # =====================================================
 # API 签名验证配置
-# =====================================================
 # 是否启用签名验证
 API_SIGNATURE_ENABLED = True
 
@@ -619,7 +622,6 @@ API_SIGNATURE_EXCLUDE_PATHS = [
     "/api/jwt/login/",
     "/api/jwt/refresh/",
     "/api/jwt/verify/",
-    "/api/docs/",
     "/api/health/",
     "/api/health/*",
     "/api/ping/",
@@ -628,6 +630,22 @@ API_SIGNATURE_EXCLUDE_PATHS = [
     "/api/ai_gateway/*",
     # 全局演示登录（前后端联调用，生产需关闭 ALLOW_DEMO_LOGIN）
     "/api/demo-login/",
+    # 时效性密钥受保护接口（自身用 API Key 鉴权，不走全局请求签名校验）
+    "/api/secure-info/",
+    # 签发 API Key（管理员专属，用 JWT 鉴权，不走全局请求签名校验）
+    "/api/api-keys/",
+    # users 应用（含 v1 镜像）整体走 JWT/Session 鉴权 —— 浏览器/前端 SPA 调用，
+    # 不做全局请求签名校验（签名面向无会话的服务端到服务端调用）。
+    # 注意：users 应用挂在 `api/users/` 与 `api/v1/users/` 下，真实路径带该前缀，
+    "/api/users/*",
+    "/api/v1/users/*",
+
+
+    "/api/upload/file/",
+    "/api/upload/image/",
+    "/api/alert_system/*",
+    "/api/soul/*",
+    "/api/adb_web/*",
 ]
 
 # 时间戳容忍度（秒）

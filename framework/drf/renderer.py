@@ -21,7 +21,6 @@
 from __future__ import annotations
 
 from rest_framework.renderers import JSONRenderer
-from rest_framework.settings import api_settings
 
 
 class CustomRenderer(JSONRenderer):

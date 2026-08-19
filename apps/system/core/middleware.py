@@ -29,7 +29,7 @@ from loguru import logger
 
 # API 请求日志使用专用 logger → api-{date}.log
 from framework.log_utils import api_logger
-from apps.system.core.audit import set_current_request
+from system.core.audit import set_current_request
 
 
 # ---- 配置 ----
