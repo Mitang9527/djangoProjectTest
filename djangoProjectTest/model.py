@@ -57,6 +57,32 @@ class RedisConfig(BaseModel):
     socket_timeout: int = Field(10, validation_alias=AliasChoices("REDIS_TIMEOUT"))
     enabled: bool = Field(False, validation_alias=AliasChoices("REDIS_ENABLED"))
 
+
+class OSSConfig(BaseModel):
+    """对象存储（OSS）配置。
+
+    支持三类后端：local（本地磁盘，默认）/ aliyun（阿里云 OSS）/ s3（AWS S3·MinIO·COS·OBS）。
+    仅当 ``enabled=True`` 且 ``backend!=local`` 时才会真正连接云端；否则回退本地。
+    """
+    enabled: bool = Field(False, validation_alias=AliasChoices("OSS_ENABLED"))
+    #: local | aliyun | s3（s3 兼容 MinIO/COS/OBS）
+    backend: str = Field("local", validation_alias=AliasChoices("OSS_BACKEND"))
+    bucket: str = Field("", validation_alias=AliasChoices("OSS_BUCKET"))
+    #: 阿里云=外网/内网域名；s3=endpoint_url（含或不含 http(s):// 均可）
+    endpoint: str = Field("", validation_alias=AliasChoices("OSS_ENDPOINT"))
+    region: str = Field("", validation_alias=AliasChoices("OSS_REGION"))
+    access_key: str = Field("", validation_alias=AliasChoices("OSS_ACCESS_KEY"))
+    secret_key: str = Field("", validation_alias=AliasChoices("OSS_SECRET_KEY"))
+    use_ssl: bool = Field(True, validation_alias=AliasChoices("OSS_USE_SSL"))
+    #: 绑定的自定义域名/CDN，公开对象优先使用
+    custom_domain: str = Field("", validation_alias=AliasChoices("OSS_CUSTOM_DOMAIN"))
+    #: 签名 URL 有效期（秒）
+    url_expire: int = Field(3600, validation_alias=AliasChoices("OSS_URL_EXPIRE"))
+    #: 本地后端根目录（相对 BASE_DIR），仅 backend=local 生效
+    local_root: str = Field("media/oss", validation_alias=AliasChoices("OSS_LOCAL_ROOT"))
+    #: 公开对象访问基础 URL（如 CDN 绝对地址），覆盖默认 media URL
+    public_base_url: str = Field("", validation_alias=AliasChoices("OSS_PUBLIC_BASE_URL"))
+
 class NotificationConfig(BaseModel):
     """通知配置"""
     # 使用 Any 绕过 pydantic-settings 的强制 JSON 解析
@@ -153,6 +179,7 @@ class ProjectSettings(BaseSettings):
     wechat: WeChatConfig = Field(default_factory=WeChatConfig)
     notification: NotificationConfig = Field(default_factory=NotificationConfig)
     redis: RedisConfig = Field(default_factory=RedisConfig)
+    oss: OSSConfig = Field(default_factory=OSSConfig)
 
     # --- OIDC 单点登录配置（顶层字段，确保 OIDC_* 环境变量可直接注入）---
     OIDC_ENABLED: bool = Field(False, validation_alias=AliasChoices("OIDC_ENABLED"))

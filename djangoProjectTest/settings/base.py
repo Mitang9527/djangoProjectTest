@@ -253,6 +253,23 @@ STATICFILES_DIRS = [
 MEDIA_URL = 'media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
+# =====================================================
+# 对象存储 (OSS) 配置 —— framework.storage
+# =====================================================
+# 与 Redis 接入方式一致：从 global_config.oss 读取校验后的配置。
+# backend: local(默认) | aliyun | s3(minio/cos/obs 等兼容)
+# 未启用 / SDK 缺失时自动降级为本地磁盘 (MEDIA_ROOT/oss)，业务不中断。
+OSS_CONFIG = global_config.oss.model_dump()
+STORAGE_BACKEND = os.environ.get("OSS_BACKEND", OSS_CONFIG.get("backend", "local"))
+
+# DEFAULT_FILE_STORAGE：如需让 Django 模型 FileField 默认落到 OSS，可设为：
+#   "framework.storage.django_storage.DjangoOSSStorage"
+# 默认为本地文件系统（与 Django 原生一致）。
+DEFAULT_FILE_STORAGE = os.environ.get(
+    "DJANGO_DEFAULT_FILE_STORAGE",
+    "django.core.files.storage.FileSystemStorage",
+)
+
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
