@@ -1,5 +1,5 @@
 """
-CreateApiKeyView 接口测试。
+ApiKeyViewSet 签发接口测试（POST /api/api-keys/，旧 CreateApiKeyView 的接口版）。
 覆盖：未认证 / 非管理员 / 管理员自签 / 管理员代发 / 永久密钥 / 未知归属用户 / 缺参。
 """
 import pytest

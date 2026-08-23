@@ -649,8 +649,9 @@ API_SIGNATURE_EXCLUDE_PATHS = [
     "/api/demo-login/",
     # 时效性密钥受保护接口（自身用 API Key 鉴权，不走全局请求签名校验）
     "/api/secure-info/",
-    # 签发 API Key（管理员专属，用 JWT 鉴权，不走全局请求签名校验）
-    "/api/api-keys/",
+    # API Key 生命周期管理（视图集，管理员专属签发，JWT 鉴权，不走全局请求签名校验）
+    # 通配覆盖 list / detail / rotate 子路由
+    "/api/api-keys/*",
     # users 应用（含 v1 镜像）整体走 JWT/Session 鉴权 —— 浏览器/前端 SPA 调用，
     # 不做全局请求签名校验（签名面向无会话的服务端到服务端调用）。
     # 注意：users 应用挂在 `api/users/` 与 `api/v1/users/` 下，真实路径带该前缀，

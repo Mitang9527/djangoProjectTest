@@ -4,7 +4,7 @@ from django.views.debug import default_urlconf
 from .views import (
     SystemStatusView, HealthCheckView, LivenessCheckView, ReadinessCheckView,
     FileUploadView, ImageUploadView, AuditLogViewSet, PingView, SecureInfoView,
-    PingAuthView, CreateApiKeyView
+    PingAuthView, ApiKeyViewSet
 )
 from .auth import DemoLoginView
 
@@ -12,6 +12,7 @@ app_name = 'core'
 
 router = DefaultRouter()
 router.register('audit-log', AuditLogViewSet, basename='audit-log')
+router.register('api-keys', ApiKeyViewSet, basename='api-keys')
 
 urlpatterns = [
     path('', default_urlconf, name='welcome'),
@@ -30,8 +31,9 @@ urlpatterns = [
     path('api/ping-auth/', PingAuthView.as_view(), name='ping-auth'),
     # 时效性密钥受保护接口（密钥校验通过才返回信息）
     path('api/secure-info/', SecureInfoView.as_view(), name='secure-info'),
-    # 签发 API Key（管理员专属，用 JWT 鉴权，不走全局请求签名校验）
-    path('api/api-keys/', CreateApiKeyView.as_view(), name='api-keys'),
+    # API Key 生命周期管理（视图集，挂在 /api/api-keys/ 下；管理员专属签发，
+    # 用 JWT 鉴权，不走全局请求签名校验；通配覆盖 detail / rotate 子路由）
+    # 路由注册见上方 DefaultRouter（router.register('api-keys', ...)）
 
 
     # 全局演示登录（前后端联调用，生产需关闭 ALLOW_DEMO_LOGIN）

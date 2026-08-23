@@ -188,6 +188,19 @@ class APIKey(TimestampMixin, models.Model):
         """当前是否可用：启用且未过期。"""
         return self.is_active and not self.is_expired()
 
+    @property
+    def masked_key(self) -> str:
+        """
+        脱敏展示：保留前缀与末 4 位，中间以 **** 掩码。
+
+        明文密钥仅在签发/轮换时一次性返回；列表与详情一律使用本属性，
+        绝不回显明文 ``key`` 字段。
+        """
+        raw = self.key or ""
+        if len(raw) <= 8:
+            return "****"
+        return f"{raw[:6]}{'*' * 6}{raw[-4:]}"
+
     @staticmethod
     def hash_key(key: str) -> str:
         """对明文密钥做 SHA256 哈希。"""

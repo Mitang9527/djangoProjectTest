@@ -12,13 +12,16 @@ from django.conf import settings
 import os
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import viewsets, mixins
+from rest_framework.decorators import action
 
 from framework.helpers.system_config import get_system_info
 from framework.helpers.time_utils import nowtime
 from framework.cache.view_cache import drf_cache_view, T_5_MINUTES
 from .models import AuditLog, APIKey
-from .serializers import AuditLogSerializer, PingSerializer, CreateApiKeySerializer
-from .permissions import CanIssueApiKey
+from .serializers import (
+    AuditLogSerializer, PingSerializer, CreateApiKeySerializer, ApiKeySerializer,
+)
+from .permissions import CanIssueApiKey, CanManageApiKey
 from .health import HealthChecker
 
 from framework.files.upload.validators import safe_file_upload, FileValidator
@@ -200,20 +203,46 @@ class SecureInfoView(APIView):
         })
 
 
-class CreateApiKeyView(APIView):
+class ApiKeyViewSet(viewsets.ModelViewSet):
     """
-    签发带时效性的 API Key（接口版，等价于 `manage.py create_api_key`）。
+    API Key 生命周期管理视图集（挂在 /api/ 路由下）。
 
-    权限决策：仅平台管理员(is_staff)可调用（见 CanIssueApiKey）。
-      - API Key 是绕过常规会话认证的机器凭证，发放凭证属敏感操作；
-      - 对齐原管理命令的 admin 默认身份，且普通用户一律禁止。
-    认证决策：必须用 JWT(SlidingJWTAuthentication) 表明真实操作人；
-      - 不允许用 API Key 自身来签发新 Key（防止凭证链式放大攻击面）。
+    路由：
+      POST   /api/api-keys/              签发（仅管理员，JWT 鉴权）
+      GET    /api/api-keys/              列表（管理员看全部，普通用户仅看自己名下）
+      GET    /api/api-keys/{pk}/         详情（脱敏）
+      PATCH  /api/api-keys/{pk}/         改名 / 吊销(is_active=false) / 重新启用
+      DELETE /api/api-keys/{pk}/         删除（吊销且从库移除）
+      POST   /api/api-keys/{pk}/rotate/  轮换（作废旧密钥，签发新密钥）
+
+    安全约定：
+      - 管理接口一律要求真实 JWT（SlidingJWTAuthentication），禁止用 API Key 自身管理，
+        防止凭证链式放大；
+      - 明文密钥仅在签发 / 轮换时一次性返回；列表与详情使用 masked_key 脱敏，
+        绝不回显明文 key 字段；
+      - 普通用户仅能操作自己名下的密钥（CanManageApiKey 对象级校验）；
+      - 签发(create) 单独由 CanIssueApiKey 管控（仅管理员）。
     """
 
+    serializer_class = ApiKeySerializer
     authentication_classes = [SlidingJWTAuthentication]
-    permission_classes = [CanIssueApiKey]
+    http_method_names = ["get", "post", "patch", "delete"]
 
+    def get_permissions(self):
+        # 签发仅管理员；其余生命周期动作归属人或管理员
+        if self.action == "create":
+            return [CanIssueApiKey()]
+        return [CanManageApiKey()]
+
+    def get_queryset(self):
+        qs = APIKey.objects.all()
+        if not self.request.user.is_staff:
+            qs = qs.filter(user=self.request.user)
+        return qs
+
+    # ------------------------------------------------------------------ #
+    # 签发（仅管理员）
+    # ------------------------------------------------------------------ #
     @extend_schema(
         summary="签发 API Key",
         description=(
@@ -223,7 +252,7 @@ class CreateApiKeyView(APIView):
         tags=["系统"],
         request=CreateApiKeySerializer,
     )
-    def post(self, request):
+    def create(self, request, *args, **kwargs):
         serializer = CreateApiKeySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -248,36 +277,128 @@ class CreateApiKeyView(APIView):
             f"[APIKey] 签发密钥 | issuer={request.user.username} | "
             f"owner={owner.username} | name={key_obj.name} | permanent={is_permanent}"
         )
-        # 审计日志（敏感操作，不记录明文/哈希）
-        AuditLog.objects.create(
-            user=request.user,
-            action="CREATE",
-            log_type="SENSITIVE",
-            target_model="core_apikey",
-            target_id=str(key_obj.id),
-            action_info={
-                "name": key_obj.name,
-                "owner": owner.username,
-                "issuer": request.user.username,
-                "expires_at": key_obj.expires_at.isoformat() if key_obj.expires_at else None,
-                "is_permanent": is_permanent,
-            },
-            ip_address=request.META.get("REMOTE_ADDR"),
-            user_agent=request.META.get("HTTP_USER_AGENT", "")[:512],
-            request_path=request.path,
-            request_method=request.method,
-        )
+        self._audit(request, key_obj, "CREATE", "SENSITIVE", {
+            "name": key_obj.name,
+            "owner": owner.username,
+            "issuer": request.user.username,
+            "expires_at": key_obj.expires_at.isoformat() if key_obj.expires_at else None,
+            "is_permanent": is_permanent,
+        })
 
         return Response(
             {
                 "key": key_obj.key,  # 明文仅此一次
+                "id": key_obj.id,
                 "name": key_obj.name,
                 "owner": owner.username,
+                "masked_key": key_obj.masked_key,
                 "expires_at": key_obj.expires_at.isoformat() if key_obj.expires_at else None,
                 "is_permanent": is_permanent,
                 "note": "明文密钥仅返回一次，请妥善保存；库内仅存哈希，无法再次查询。",
             },
             status=status.HTTP_201_CREATED,
+        )
+
+    # ------------------------------------------------------------------ #
+    # 轮换（作废旧密钥，签发新密钥）
+    # ------------------------------------------------------------------ #
+    @extend_schema(
+        summary="轮换 API Key",
+        description=(
+            "作废当前密钥并签发新密钥（沿用相同归属与剩余有效期）。"
+            "明文仅本次返回；旧密钥立即失效，请立即更换调用方配置。"
+        ),
+        tags=["系统"],
+    )
+    @action(detail=True, methods=["post"], url_path="rotate")
+    def rotate(self, request, *args, **kwargs):
+        old = self.get_object()  # 已校验对象级权限
+        # 沿用剩余有效期
+        ttl = None
+        if old.expires_at:
+            ttl = max(int((old.expires_at - timezone.now()).total_seconds()), 0)
+        # 作废旧密钥
+        old.is_active = False
+        old.save(update_fields=["is_active", "updated_at"])
+
+        key_obj = APIKey.issue(old.user, old.name, ttl_seconds=ttl)
+        is_permanent = key_obj.expires_at is None
+
+        logger.bind(source="app").info(
+            f"[APIKey] 轮换密钥 | operator={request.user.username} | "
+            f"old_id={old.id} | new_id={key_obj.id} | name={key_obj.name}"
+        )
+        self._audit(request, key_obj, "UPDATE", "SYSTEM", {
+            "action": "rotate",
+            "old_id": str(old.id),
+            "new_id": str(key_obj.id),
+            "name": key_obj.name,
+            "operator": request.user.username,
+            "expires_at": key_obj.expires_at.isoformat() if key_obj.expires_at else None,
+            "is_permanent": is_permanent,
+        })
+
+        return Response(
+            {
+                "key": key_obj.key,  # 明文仅此一次
+                "id": key_obj.id,
+                "name": key_obj.name,
+                "masked_key": key_obj.masked_key,
+                "expires_at": key_obj.expires_at.isoformat() if key_obj.expires_at else None,
+                "is_permanent": is_permanent,
+                "note": "旧密钥已作废，请立即更换调用方配置；明文密钥仅返回一次。",
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+    # ------------------------------------------------------------------ #
+    # 部分更新（改名 / 吊销 / 重新启用）
+    # ------------------------------------------------------------------ #
+    def perform_update(self, serializer):
+        old = serializer.instance
+        was_active = old.is_active
+        new = serializer.save()
+        changes = {}
+        if "is_active" in serializer.validated_data and was_active != new.is_active:
+            changes["is_active"] = new.is_active
+        if "name" in serializer.validated_data and old.name != new.name:
+            changes["name"] = new.name
+        if changes:
+            self._audit(self.request, new, "UPDATE", "SYSTEM", {
+                "action": "update",
+                "id": str(new.id),
+                "name": new.name,
+                "changes": changes,
+                "operator": self.request.user.username,
+            })
+
+    # ------------------------------------------------------------------ #
+    # 删除（吊销且移除）
+    # ------------------------------------------------------------------ #
+    def perform_destroy(self, instance):
+        self._audit(self.request, instance, "DELETE", "SENSITIVE", {
+            "action": "delete",
+            "id": str(instance.id),
+            "name": instance.name,
+            "operator": self.request.user.username,
+        })
+        instance.delete()
+
+    # ------------------------------------------------------------------ #
+    # 审计辅助
+    # ------------------------------------------------------------------ #
+    def _audit(self, request, key_obj, action, log_type, action_info):
+        AuditLog.objects.create(
+            user=request.user,
+            action=action,
+            log_type=log_type,
+            target_model="core_apikey",
+            target_id=str(key_obj.id),
+            action_info=action_info,
+            ip_address=request.META.get("REMOTE_ADDR"),
+            user_agent=request.META.get("HTTP_USER_AGENT", "")[:512],
+            request_path=request.path,
+            request_method=request.method,
         )
 
 
