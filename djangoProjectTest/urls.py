@@ -79,6 +79,7 @@ def discover_app_urls():
 from django.urls import path, include
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 from system.core.views import AdminRequiredMixin
+from framework.health.views import HealthView, ReadinessView
 # 创建带权限保护的视图类
 class AdminOnlySpectacularAPIView(AdminRequiredMixin, SpectacularAPIView):
     pass
@@ -91,7 +92,12 @@ class AdminOnlySpectacularRedocView(AdminRequiredMixin, SpectacularRedocView):
 
 urlpatterns = [
     # 健康检查（Docker / 负载均衡器使用，无需认证）
+    # - api/health/  : 轻量 DB 连通性（原端点，向后兼容）
+    # - healthz/     : 存活探针（framework.health，永远 200）
+    # - readyz/      : 就绪探针（检查 DB/Cache/Broker，失败 503）
     path('api/health/', health_check, name='health-check'),
+    path('healthz/', HealthView.as_view(), name='healthz'),
+    path('readyz/', ReadinessView.as_view(), name='readyz'),
 
     # Prometheus 指标导出（仅限内网访问，需在 nginx/ingress 层限制）
     path('', include('django_prometheus.urls')),
