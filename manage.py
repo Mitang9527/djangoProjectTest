@@ -19,7 +19,16 @@ def main():
         raise ValueError(f"未知的运行环境: {get_env_type()}")
 
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", default_settings)
-    
+
+    # 服务启动横幅 + 启动检查（本地开发命令 runserver/runworker 时触发；
+    # 生产 web 入口走 asgi/wsgi，worker 走 celery.py 信号，均已接入）
+    if len(sys.argv) > 1 and sys.argv[1] in ("runserver", "runworker"):
+        try:
+            from framework.log_utils.service_banner import startup_boot
+            startup_boot("main", extra="manage.py " + sys.argv[1])
+        except Exception:  # pragma: no cover - 检查失败不阻断开发命令
+            pass
+
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:

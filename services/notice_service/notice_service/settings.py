@@ -133,9 +133,46 @@ CELERY_TASK_ROUTES = {
     "notice_app.tasks.send_notification": {"queue": "notice.send"},
 }
 
+# ---------------------------------------------------------------------------
+# 日志：接入 loguru（与主平台 framework.log_utils 一致，含分文件落盘 + JSON）
+# framework 未挂载到 PYTHONPATH 时自动降级为标准 logging，不阻断启动。
+# ---------------------------------------------------------------------------
+LOGS_DIR = os.path.join(BASE_DIR, "logs")
+
+try:
+    from framework.log_utils.loguru_control import LogManager, InterceptHandler
+
+    LogManager(log_dir=LOGS_DIR, level="DEBUG" if DEBUG else "INFO", debug=DEBUG)
+    _HANDLERS = {"loguru": {"class": "framework.log_utils.loguru_control.InterceptHandler"}}
+    _LOGGER_HANDLERS = ["loguru"]
+except Exception:  # pragma: no cover - framework 不可用时降级
+    _HANDLERS = {"console": {"class": "logging.StreamHandler"}}
+    _LOGGER_HANDLERS = ["console"]
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
-    "handlers": {"console": {"class": "logging.StreamHandler"}},
-    "root": {"handlers": ["console"], "level": "INFO"},
+    "handlers": _HANDLERS,
+    "loggers": {
+        "django": {
+            "handlers": _LOGGER_HANDLERS,
+            "level": "INFO",
+            "propagate": True,
+        },
+        "django.server": {
+            "handlers": _LOGGER_HANDLERS,
+            "level": "INFO",
+            "propagate": False,
+        },
+        "django.request": {
+            "handlers": _LOGGER_HANDLERS,
+            "level": "INFO",
+            "propagate": False,
+        },
+        "django.db.backends": {
+            "handlers": _LOGGER_HANDLERS,
+            "level": "WARNING",
+            "propagate": False,
+        },
+    },
 }

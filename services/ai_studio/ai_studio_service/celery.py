@@ -70,26 +70,28 @@ def _on_task_postrun(sender, task_id, task, args, kwargs, state, **opts):
         _active_tasks = max(0, _active_tasks - 1)
 
 
-# 服务启动横幅: worker 启动时标识当前是哪一个 Celery worker。
+# 服务启动横幅 + 依赖/配置启动检查: worker 启动时标识当前是哪一个 Celery worker，
+# 并验证 DB / Redis / broker 连通性。
 # 仅在 worker 进程触发, 不影响 web 进程 (Daphne/runserver 不会触发这两个信号)。
 try:
-    from framework.log_utils.service_banner import emit_startup_banner
+    from framework.log_utils.service_banner import startup_boot
 except Exception:  # pragma: no cover - framework 不可用时降级
-    def emit_startup_banner(key, extra=None):
-        print(f"\n=== SERVICE START: {key} ===\n", flush=True)
+    def startup_boot(service, extra=None, checks=None, fatal=None):
+        print(f"\n=== SERVICE START: {service} ===\n", flush=True)
+        return True
 
 
 @_celery_signals.worker_init.connect
 def _on_celery_master_init(sender, **kwargs):
     os.environ.setdefault("WORKER_TYPE", "celery")
-    emit_startup_banner("celery_ai", extra=f"host={getattr(sender, 'hostname', '?')}")
+    startup_boot("celery_ai", extra=f"host={getattr(sender, 'hostname', '?')}")
     _start_heartbeat()
 
 
 @_celery_signals.worker_process_init.connect
 def _on_celery_worker_init(sender, **kwargs):
     os.environ.setdefault("WORKER_TYPE", "celery")
-    emit_startup_banner("celery_ai", extra=f"host={getattr(sender, 'hostname', '?')}")
+    startup_boot("celery_ai", extra=f"host={getattr(sender, 'hostname', '?')}")
     _start_heartbeat()
 
 

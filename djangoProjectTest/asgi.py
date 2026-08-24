@@ -29,13 +29,14 @@ else:
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", default_settings)
 os.environ.setdefault("WORKER_TYPE", "asgi")
 
-# 服务启动横幅: 标识当前启动的是主平台
+# 服务启动横幅 + 依赖/配置启动检查（framework 缺失时降级为简单打印，不阻断启动）
 try:
-    from framework.log_utils.service_banner import emit_startup_banner
+    from framework.log_utils.service_banner import startup_boot
 except Exception:  # pragma: no cover - framework 不可用时降级
-    def emit_startup_banner(key, extra=None):
-        print(f"\n=== SERVICE START: {key} ===\n", flush=True)
-emit_startup_banner("main")
+    def startup_boot(service, extra=None, checks=None, fatal=None):
+        print(f"\n=== SERVICE START: {service} ===\n", flush=True)
+        return True
+startup_boot("main")
 
 from django.core.asgi import get_asgi_application
 from channels.routing import ProtocolTypeRouter, URLRouter

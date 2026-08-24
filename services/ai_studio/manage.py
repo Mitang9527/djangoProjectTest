@@ -9,6 +9,16 @@ import sys
 
 if __name__ == "__main__":
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "ai_studio_service.settings")
+
+    # 服务启动横幅 + 启动检查（本地开发命令 runserver/runworker 时触发；
+    # 生产 web 入口走 asgi/wsgi，worker 走 celery.py 信号，均已接入）
+    if len(sys.argv) > 1 and sys.argv[1] in ("runserver", "runworker"):
+        try:
+            from framework.log_utils.service_banner import startup_boot
+            startup_boot("ai_studio", extra="manage.py " + sys.argv[1])
+        except Exception:  # pragma: no cover - 检查失败不阻断开发命令
+            pass
+
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:
