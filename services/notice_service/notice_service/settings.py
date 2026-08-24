@@ -138,11 +138,13 @@ CELERY_TASK_ROUTES = {
 # framework 未挂载到 PYTHONPATH 时自动降级为标准 logging，不阻断启动。
 # ---------------------------------------------------------------------------
 LOGS_DIR = os.path.join(BASE_DIR, "logs")
+# 日志级别可由 LOG_LEVEL 环境变量覆盖（DEBUG/INFO/WARNING/ERROR），默认 DEBUG 模式为 DEBUG、否则 INFO
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "DEBUG" if DEBUG else "INFO").upper()
 
 try:
     from framework.log_utils.loguru_control import LogManager, InterceptHandler
 
-    LogManager(log_dir=LOGS_DIR, level="DEBUG" if DEBUG else "INFO", debug=DEBUG)
+    LogManager(log_dir=LOGS_DIR, level=LOG_LEVEL, debug=DEBUG)
     _HANDLERS = {"loguru": {"class": "framework.log_utils.loguru_control.InterceptHandler"}}
     _LOGGER_HANDLERS = ["loguru"]
 except Exception:  # pragma: no cover - framework 不可用时降级
@@ -156,17 +158,17 @@ LOGGING = {
     "loggers": {
         "django": {
             "handlers": _LOGGER_HANDLERS,
-            "level": "INFO",
+            "level": LOG_LEVEL,
             "propagate": True,
         },
         "django.server": {
             "handlers": _LOGGER_HANDLERS,
-            "level": "INFO",
+            "level": LOG_LEVEL,
             "propagate": False,
         },
         "django.request": {
             "handlers": _LOGGER_HANDLERS,
-            "level": "INFO",
+            "level": LOG_LEVEL,
             "propagate": False,
         },
         "django.db.backends": {
@@ -176,3 +178,15 @@ LOGGING = {
         },
     },
 }
+
+# =====================================================
+# Sentry 错误追踪（可选：设置 SENTRY_DSN 后自动启用，未配置则跳过）
+# =====================================================
+SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
+if SENTRY_DSN and not DEBUG:
+    try:
+        from framework.core.sentry_init import init_sentry
+
+        init_sentry()
+    except Exception:  # pragma: no cover - Sentry 任何异常都不应阻断启动（init_sentry 内部已记录）
+        pass

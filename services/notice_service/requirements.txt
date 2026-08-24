@@ -8,3 +8,4 @@ gunicorn>=21.2
 dingtalkchatbot>=1.0
 requests>=2.28
 loguru>=0.7
+sentry-sdk>=1.40.0

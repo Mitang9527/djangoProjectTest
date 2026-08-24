@@ -389,12 +389,42 @@ if OIDC_ENABLED:
 SLIDING_SESSION_ENABLED = getattr(global_config, 'SLIDING_SESSION_ENABLED', False)
 SLIDING_REFRESH_THRESHOLD_SECONDS = getattr(global_config, 'SLIDING_REFRESH_THRESHOLD_SECONDS', 300)
 
+# 业务应用 Swagger 分组（顺序即展示顺序；未列出的应用自动追加到末尾）
+_API_TAG_DESCRIPTIONS = {
+    'users': '用户认证与账号管理（登录/JWT/注册/资料）',
+    'core': '系统核心能力（健康检查/API Key/系统配置）',
+    'saas': '多租户 SaaS 管理（租户/套餐/额度）',
+    'ai_studio': 'AI 创作服务（生成任务/结果拉取）',
+    'alert_system': '告警与通知系统（规则/历史/通知配置）',
+    'soul': 'Soul 业务模块',
+    'apk_tool': 'APK 工具（扩展）',
+    'adb_web': 'ADB Web 调试（扩展）',
+    'web_automation': 'Web 自动化（扩展）',
+}
+
 SPECTACULAR_SETTINGS = {
     'TITLE': f'{global_config.project.name} API Documentation',
     'DESCRIPTION': '企业级项目 API 接口文档',
     'VERSION': '2.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
-    # 其他配置...
+    # --- Swagger UI 增强 ---
+    'SWAGGER_UI_SETTINGS': {
+        'persistAuthorization': True,       # 刷新/复制链接后保留 JWT
+        'docExpansion': 'none',             # 默认折叠全部接口
+        'filter': True,                     # 顶部接口搜索框
+        'displayRequestDuration': True,     # 显示请求耗时
+        'tryItOutEnabled': True,            # 默认展开 Try it out
+    },
+    # --- 认证方式：全局 Bearer JWT（Authorize 按钮） ---
+    'SECURITY': [{'BearerAuth': []}],
+    'SECURITY_SCHEMES': {
+        'BearerAuth': {'type': 'http', 'scheme': 'bearer', 'bearerFormat': 'JWT'},
+    },
+    'COMPONENT_SPLIT_REQUEST': True,        # 请求体拆分 JSON / multipart 两类
+    'TAGS': [
+        {'name': name, 'description': desc}
+        for name, desc in _API_TAG_DESCRIPTIONS.items()
+    ],
 }
 
 # =====================================================
@@ -545,7 +575,9 @@ CSRF_COOKIE_SAMESITE = 'Lax'
 # --- 日志配置 ---
 from framework.log_utils.loguru_control import LogManager, InterceptHandler
 LOGS_DIR = os.path.join(BASE_DIR, 'logs')
-LogManager(log_dir=LOGS_DIR, level="DEBUG" if DEBUG else "INFO", debug=DEBUG)
+# 日志级别可由 LOG_LEVEL 环境变量覆盖（DEBUG/INFO/WARNING/ERROR），默认 DEBUG 时 DEBUG、否则 INFO
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "DEBUG" if DEBUG else "INFO").upper()
+LogManager(log_dir=LOGS_DIR, level=LOG_LEVEL, debug=DEBUG)
 
 # Django's own logging configuration - 所有日志都转发到 loguru
 LOGGING = {
@@ -559,17 +591,17 @@ LOGGING = {
     'loggers': {
         'django': {
             'handlers': ['loguru'],
-            'level': 'INFO',
+            'level': LOG_LEVEL,
             'propagate': True,
         },
         'django.server': {
             'handlers': ['loguru'],
-            'level': 'INFO',
+            'level': LOG_LEVEL,
             'propagate': False,
         },
         'django.request': {
             'handlers': ['loguru'],
-            'level': 'INFO',
+            'level': LOG_LEVEL,
             'propagate': False,
         },
         'django.db.backends': {
@@ -801,7 +833,7 @@ if SENTRY_DSN and not DEBUG:
     try:
         from framework.core.sentry_init import init_sentry
         init_sentry()
-    except ImportError:
+    except Exception:  # Sentry 任何异常都不应阻断启动（init_sentry 内部已记录）
         pass
 
 # =====================================================

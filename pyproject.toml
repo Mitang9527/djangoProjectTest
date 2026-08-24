@@ -228,6 +228,11 @@ exclude = [
 module = ["apps.*.migrations.*"]
 ignore_errors = true
 
+# requests 无官方类型桩，避免 import-untyped 噪音
+[[tool.mypy.overrides]]
+module = ["requests", "requests.*"]
+disable_error_code = ["import-untyped"]
+
 [[tool.mypy.overrides]]
 module = ["framework.*", "extensions.*"]
 disallow_untyped_defs = false

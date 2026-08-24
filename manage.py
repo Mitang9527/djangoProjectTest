@@ -15,6 +15,10 @@ def main():
         default_settings = "djangoProjectTest.settings.prod"
     elif is_development():
         default_settings = "djangoProjectTest.settings.dev"
+    elif get_env_type() == "TEST":
+        # CI / 本地测试环境（pytest 走 pyproject 的 DJANGO_SETTINGS_MODULE，
+        # 这里覆盖 manage.py 命令如 makemigrations --check 的场景）
+        default_settings = "djangoProjectTest.settings.test"
     else:
         raise ValueError(f"未知的运行环境: {get_env_type()}")
 

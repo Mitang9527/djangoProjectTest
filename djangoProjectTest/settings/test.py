@@ -5,6 +5,20 @@
 - 密码哈希使用最快算法 (提升测试速度)
 - 邮件使用内存后端
 """
+import os
+
+# 注意：pytest-django 4.x 会在根 conftest.py 导入之前就加载 settings
+# （pytest_load_initial_conftests 钩子），因此测试环境变量必须在 settings
+# 模块自身兜底，不能只依赖 conftest.py 的 setdefault。
+os.environ.setdefault("SECRET_KEY", "test-secret-key-not-for-production-use-only-at-least-10-chars")
+os.environ.setdefault("JWT_SIGNING_KEY", "test-jwt-signing-key-independent-from-secret-key-at-least-10c")
+os.environ.setdefault("API_SECRET_KEY", "test-api-secret-key-not-for-production-use-at-least-10-chars")
+os.environ.setdefault("DEBUG", "False")
+os.environ.setdefault("ENV", "TEST")
+os.environ.setdefault("PROJECT_NAME", "DjangoTest")
+os.environ.setdefault("TESTER_NAME", "Pytest")
+os.environ.setdefault("ALLOWED_HOSTS", "*")
+
 from .base import *  # noqa: F401, F403
 
 DEBUG = False

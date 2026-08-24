@@ -58,33 +58,37 @@ def init_sentry():
     environment = os.environ.get("ENV", "DEV").lower()
     release = os.environ.get("RELEASE_VERSION", None)
 
-    sentry_sdk.init(
-        dsn=sentry_dsn,
-        environment=environment,
-        release=release,
-        # 采样率
-        traces_sample_rate=float(os.environ.get("SENTRY_TRACES_SAMPLE_RATE", "0.1")),
-        # 发送前过滤敏感信息
-        before_send=before_send,
-        # 集成
-        integrations=[
-            DjangoIntegration(
-                transaction_style="url",
-                middleware_spans=True,
-                signals_spans=False,
-            ),
-            CeleryIntegration(),
-            RedisIntegration(),
-            LoggingIntegration(
-                level=logging.INFO,
-                event_level=logging.ERROR,
-            ),
-        ],
-        # 过滤敏感用户信息
-        send_default_pii=False,
-        # 请求体大小限制
-        max_request_body_size="medium",
-    )
+    try:
+        sentry_sdk.init(
+            dsn=sentry_dsn,
+            environment=environment,
+            release=release,
+            # 采样率
+            traces_sample_rate=float(os.environ.get("SENTRY_TRACES_SAMPLE_RATE", "0.1")),
+            # 发送前过滤敏感信息
+            before_send=before_send,
+            # 集成
+            integrations=[
+                DjangoIntegration(
+                    transaction_style="url",
+                    middleware_spans=True,
+                    signals_spans=False,
+                ),
+                CeleryIntegration(),
+                RedisIntegration(),
+                LoggingIntegration(
+                    level=logging.INFO,
+                    event_level=logging.ERROR,
+                ),
+            ],
+            # 过滤敏感用户信息
+            send_default_pii=False,
+            # 请求体大小限制
+            max_request_body_size="medium",
+        )
+    except Exception as exc:  # pragma: no cover - 初始化失败（如本地证书库异常）不应阻断服务启动
+        logging.getLogger("sentry").warning("Sentry 初始化失败，已跳过: %s", exc)
+        return
 
     # #10 — 通知 loguru Sentry 已就绪, 后续 ERROR+ 日志自动转发
     from framework.log_utils.loguru_control import mark_sentry_enabled
