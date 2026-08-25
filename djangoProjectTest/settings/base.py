@@ -101,6 +101,9 @@ MIDDLEWARE = [
     # 3. 安全与重定向（最外层的安全防护）
     'django.middleware.security.SecurityMiddleware',
 
+    # 3.5 CSP 响应头（缓解 XSS / 点击劫持；DEBUG 下关闭以免干扰 DRF Browsable API）
+    'framework.security.csp.CSPMiddleware',
+
     # 4. 静态文件托管（必须在 CommonMiddleware 之前，避免被重定向拦截）
     'whitenoise.middleware.WhiteNoiseMiddleware',
 
@@ -313,6 +316,8 @@ REST_FRAMEWORK = {
         'anon': '60/minute',
     },
     'DEFAULT_SCHEMA_CLASS': 'framework.drf.schema.PermissiveAutoSchema',
+    # 注意：版本控制统一由 URL 路径前缀（/api/v1/、/api/v2/…）实现，由 settings.API_VERSIONS
+    # 驱动；不启用 DRF AcceptHeader 版本化，避免「路径 + header」双机制并存导致路由与文档混乱。
 }
 
 # JWT 配置
@@ -325,7 +330,7 @@ SIMPLE_JWT = {
     'UPDATE_LAST_LOGIN': True,
     
     'ALGORITHM': 'HS256',
-    'SIGNING_KEY': global_config.JWT_SIGNING_KEY or global_config.SECRET_KEY,  # 优先使用独立 JWT 密钥，未设置时回退到 SECRET_KEY
+    'SIGNING_KEY': global_config.JWT_SIGNING_KEY or (global_config.SECRET_KEY if DEBUG else None),  # 独立 JWT 密钥；未设置时仅 DEBUG 回退到 SECRET_KEY
     'VERIFYING_KEY': None,
     'AUDIENCE': None,
     'ISSUER': None,
@@ -348,6 +353,14 @@ SIMPLE_JWT = {
     'SLIDING_TOKEN_LIFETIME': timedelta(hours=24),
     'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=7),
 }
+
+# 安全护栏：生产环境强制使用独立的 JWT_SIGNING_KEY，禁止回退到 SECRET_KEY
+# （SECRET_KEY 一旦泄露即可伪造任意 JWT；主平台与 AI 服务须配置为相同值以实现跨服务验签）
+if not SIMPLE_JWT.get('SIGNING_KEY'):
+    raise RuntimeError(
+        "JWT_SIGNING_KEY 环境变量未设置。生产环境必须使用独立的 JWT 签名密钥，"
+        "且主平台与 AI 服务须配置为相同值；请勿回退到 SECRET_KEY。"
+    )
 
 # =====================================================
 # 生产环境异常处理脱敏
@@ -562,6 +575,8 @@ SECURE_HSTS_PRELOAD = not DEBUG
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+# CSP 响应头：生产环境开启；DEBUG 下关闭，避免干扰 DRF Browsable API 的内联脚本
+CSP_ENABLED = not DEBUG
 # X-Frame-Options: 防止点击劫持
 X_FRAME_OPTIONS = 'DENY'
 # Session Cookie 安全
@@ -608,6 +623,21 @@ LOGGING = {
             'handlers': ['loguru'],
             'level': 'WARNING',  # SQL 日志设为 WARNING 避免过多
             # 'level': 'DEBUG',
+            'propagate': False,
+        },
+        'django.template': {
+            # 模板引擎在 DEBUG 下每次变量解析失败都打 DEBUG 刷屏；
+            # 本项目是纯 API 后端（零模板），这些 DEBUG 完全是噪音。
+            'handlers': ['loguru'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'django.utils.autoreload': {
+            # 开发模式 runserver 的 autoreload 会每 tick 打 DEBUG（扫描文件 mtime）刷屏；
+            # 精准压制：保留 INFO（如 "Watching for file changes" 启动行），丢弃 DEBUG，
+            # propagate=False 且不放 handler，使其不向上透传到 loguru，从而不影响全局 LOG_LEVEL。
+            'handlers': [],
+            'level': 'INFO',
             'propagate': False,
         },
     }
@@ -663,39 +693,48 @@ API_SIGNATURE_PATHS = [
     "/api/v1/*",
 ]
 
+# 业务 API 版本列表（URL 路径版本化的权威来源）
+# - 驱动自动发现路由挂载 /api/<version>/<leaf>/
+# - 驱动主 urls 是否挂载 /api/v2/users/ 等手动 v2 路由
+# - 新增版本：此处追加（如 'v2'）并确保对应 app 提供 <version>_urls 模块
+API_VERSIONS = ['v1']
+
 # 排除签名验证的路径
 # 任何公开的 /api 接口,都必须在这儿加上，不然前端调取不到
 API_SIGNATURE_EXCLUDE_PATHS = [
-    "/api/users/login/",
-    "/api/users/register/",
-    "/api/jwt/login/",
-    "/api/jwt/refresh/",
-    "/api/jwt/verify/",
-    "/api/health/",
-    "/api/health/*",
-    "/api/ping/",
-    # 第一方 Web SPA（带 JWT 的浏览器客户端）走 JWT 鉴权，不做签名校验
-    "/api/ai_studio/*",
-    "/api/ai_gateway/*",
-    # 全局演示登录（前后端联调用，生产需关闭 ALLOW_DEMO_LOGIN）
-    "/api/demo-login/",
-    # 时效性密钥受保护接口（自身用 API Key 鉴权，不走全局请求签名校验）
-    "/api/secure-info/",
-    # API Key 生命周期管理（视图集，管理员专属签发，JWT 鉴权，不走全局请求签名校验）
-    # 通配覆盖 list / detail / rotate 子路由
-    "/api/api-keys/*",
-    # users 应用（含 v1 镜像）整体走 JWT/Session 鉴权 —— 浏览器/前端 SPA 调用，
-    # 不做全局请求签名校验（签名面向无会话的服务端到服务端调用）。
-    # 注意：users 应用挂在 `api/users/` 与 `api/v1/users/` 下，真实路径带该前缀，
-    "/api/users/*",
+    # ---- 用户认证（浏览器/SPA，JWT 鉴权，不做请求签名）----
+    "/api/v1/users/login/",
+    "/api/v1/users/register/",
+    "/api/v1/users/jwt/login/",
+    "/api/v1/users/jwt/refresh/",
+    "/api/v1/users/jwt/verify/",
     "/api/v1/users/*",
-
-
-    "/api/upload/file/",
-    "/api/upload/image/",
-    "/api/alert_system/*",
-    "/api/soul/*",
-    "/api/adb_web/*",
+    # ---- 用户认证 v2（与 v1 同样的 JWT 鉴权，不做请求签名）----
+    "/api/v2/users/*",
+    # ---- SaaS 后台（浏览器/SPA，JWT 鉴权，不做请求签名）----
+    "/api/v1/saas/*",
+    # ---- 核心平台公开/监控/外部鉴权端点 ----
+    # 注意：核心平台已从根路径收口到 /api/v1/core/，其监控端点落入 /api/* 签名拦截，
+    #       需在此显式放行（探活/依赖检查不带签名头）。
+    "/api/v1/health/",
+    "/api/v1/health/*",
+    "/api/v1/core/ping/",
+    "/api/v1/core/ping-auth/",
+    "/api/v1/core/secure-info/",
+    "/api/v1/core/demo-login/",
+    "/api/v1/core/api-keys/*",
+    "/api/v1/core/upload/file/",
+    "/api/v1/core/upload/image/",
+    "/api/v1/core/health/",
+    "/api/v1/core/health/*",
+    "/api/v1/core/system-status/",
+    # ---- 第一方 Web SPA（带 JWT 的浏览器客户端）走 JWT 鉴权，不做签名校验 ----
+    "/api/v1/ai_studio/*",
+    "/api/v1/ai_gateway/*",
+    # ---- 业务 / 扩展服务 ----
+    "/api/v1/alert_system/*",
+    "/api/v1/soul/*",
+    "/api/v1/adb_web/*",
 ]
 
 # 时间戳容忍度（秒）
@@ -778,6 +817,14 @@ DB_POOL_DEFAULT_OPTIONS = {
     "max_lifetime": float(os.environ.get("DB_POOL_MAX_LIFETIME", "3600")),
     "pre_ping":  os.environ.get("DB_POOL_PRE_PING", "true").lower() == "true",
 }
+
+# =====================================================
+# 数据库读写分离（主从）路由
+# 默认不启用；各环境在 DATABASES 定义后调用
+# framework.db.replica.install_replica() 注入副本与路由。
+# 未配置 DB_REPLICA_URL / DB_REPLICA_DSN 时保持单库，零风险。
+# =====================================================
+DATABASE_ROUTERS = []
 
 # =====================================================
 # Whitenoise 静态文件配置

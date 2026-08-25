@@ -1,5 +1,5 @@
 """
-ApiKeyViewSet 签发接口测试（POST /api/api-keys/，旧 CreateApiKeyView 的接口版）。
+ApiKeyViewSet 签发接口测试（POST /api/v1/core/api-keys/，旧 CreateApiKeyView 的接口版）。
 覆盖：未认证 / 非管理员 / 管理员自签 / 管理员代发 / 永久密钥 / 未知归属用户 / 缺参。
 """
 import pytest
@@ -21,7 +21,7 @@ def _jwt_client(user):
 @pytest.mark.django_db
 def test_unauthenticated_is_forbidden(api_client):
     """未携带 token → 认证层直接拒绝 → 401。"""
-    resp = api_client.post("/api/api-keys/", {"name": "x"}, format="json")
+    resp = api_client.post("/api/v1/core/api-keys/", {"name": "x"}, format="json")
     assert resp.status_code == status.HTTP_401_UNAUTHORIZED
 
 
@@ -29,7 +29,7 @@ def test_unauthenticated_is_forbidden(api_client):
 def test_regular_user_is_forbidden(regular_user):
     """普通用户（非 is_staff）→ 403。"""
     client = _jwt_client(regular_user)
-    resp = client.post("/api/api-keys/", {"name": "x"}, format="json")
+    resp = client.post("/api/v1/core/api-keys/", {"name": "x"}, format="json")
     assert resp.status_code == status.HTTP_403_FORBIDDEN
 
 
@@ -37,7 +37,7 @@ def test_regular_user_is_forbidden(regular_user):
 def test_admin_issues_key_for_self(admin_user):
     """管理员自签 → 201，明文以 sk- 开头，落审计日志。"""
     client = _jwt_client(admin_user)
-    resp = client.post("/api/api-keys/", {"name": "报表导出", "ttl": 3600}, format="json")
+    resp = client.post("/api/v1/core/api-keys/", {"name": "报表导出", "ttl": 3600}, format="json")
     assert resp.status_code == status.HTTP_201_CREATED
     body = resp.json()["data"]
     assert body["key"].startswith("sk-")
@@ -51,7 +51,7 @@ def test_admin_issues_key_for_self(admin_user):
 def test_admin_issues_permanent_key(admin_user):
     """ttl=0 → 永不过期（expires_at 为 None, is_permanent=True）。"""
     client = _jwt_client(admin_user)
-    resp = client.post("/api/api-keys/", {"name": "永久服务账号", "ttl": 0}, format="json")
+    resp = client.post("/api/v1/core/api-keys/", {"name": "永久服务账号", "ttl": 0}, format="json")
     assert resp.status_code == status.HTTP_201_CREATED
     body = resp.json()["data"]
     assert body["is_permanent"] is True
@@ -63,7 +63,7 @@ def test_admin_issues_for_other_user(admin_user, second_user):
     """管理员可为他人代发密钥。"""
     client = _jwt_client(admin_user)
     resp = client.post(
-        "/api/api-keys/",
+        "/api/v1/core/api-keys/",
         {"name": "代发密钥", "owner_username": "testuser2"},
         format="json",
     )
@@ -76,7 +76,7 @@ def test_admin_issues_for_unknown_user(admin_user):
     """归属用户不存在 → 400。"""
     client = _jwt_client(admin_user)
     resp = client.post(
-        "/api/api-keys/",
+        "/api/v1/core/api-keys/",
         {"name": "x", "owner_username": "nobody"},
         format="json",
     )
@@ -87,5 +87,5 @@ def test_admin_issues_for_unknown_user(admin_user):
 def test_missing_name_rejected(admin_user):
     """缺少 name → 400 参数校验失败。"""
     client = _jwt_client(admin_user)
-    resp = client.post("/api/api-keys/", {}, format="json")
+    resp = client.post("/api/v1/core/api-keys/", {}, format="json")
     assert resp.status_code == status.HTTP_400_BAD_REQUEST

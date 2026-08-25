@@ -25,7 +25,7 @@ urlpatterns = [
     path('login/', UserLoginView.as_view(), name='login'),
 
     # API 接口
-    path('api/list/', UserListView.as_view(), name='user-list'),
+    path('list/', UserListView.as_view(), name='user-list'),
 
     # 其他
     path('logout/', UserLogoutView.as_view(), name='logout'),
@@ -42,7 +42,7 @@ urlpatterns = [
     path('jwt/verify/', VerifyTokenView.as_view(), name='jwt-verify'),
     
     # 用户管理 API（供 SaaS 后台使用）
-    path('api/', include(user_router.urls)),
+    path('', include(user_router.urls)),
 ]
 
 # OIDC 单点登录路由（仅在启用时注册，避免未配置 / 未安装 mozilla-django-oidc 时报错）

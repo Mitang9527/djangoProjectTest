@@ -309,3 +309,17 @@ class LogoutSerializer(serializers.Serializer):
     """登出序列化器"""
     refresh = serializers.CharField(required=True, help_text="刷新 Token")
 
+
+class UserManageSerializerV2(UserManageSerializer):
+    """
+    v2 用户管理序列化器：继承 v1（UserManageSerializer），仅增加 version 标记字段，
+    作为「版本迭代只重写差异」的范例。鉴权 / 过滤 / 权限逻辑全部复用 v1。
+    """
+    version = serializers.SerializerMethodField()
+
+    class Meta(UserManageSerializer.Meta):
+        fields = UserManageSerializer.Meta.fields + ('version',)
+
+    def get_version(self, obj):
+        return 'v2'
+

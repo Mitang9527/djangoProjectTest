@@ -124,10 +124,10 @@ $DC -f "$COMPOSE_FILE" up -d
 
 # ---------- 等待健康检查 ----------
 if command -v curl >/dev/null 2>&1; then
-  log_step "等待服务就绪 (http://127.0.0.1:${HEALTH_PORT}/api/health/)"
+  log_step "等待服务就绪 (http://127.0.0.1:${HEALTH_PORT}/api/v1/health/)"
   HEALTHY=0
   for i in $(seq 1 60); do
-    if curl -fsS "http://127.0.0.1:${HEALTH_PORT}/api/health/" >/dev/null 2>&1; then
+    if curl -fsS "http://127.0.0.1:${HEALTH_PORT}/api/v1/health/" >/dev/null 2>&1; then
       log_info "服务已就绪 ✓ (第 ${i} 次探测)"
       HEALTHY=1
       break
@@ -138,7 +138,7 @@ if command -v curl >/dev/null 2>&1; then
     log_error "健康检查超时，请查看日志: $DC -f $COMPOSE_FILE logs --tail=50 web"
   fi
 else
-  log_warn "跳过健康检查（无 curl），请手动访问 /api/health/"
+  log_warn "跳过健康检查（无 curl），请手动访问 /api/v1/health/"
 fi
 
 # ---------- 可选：创建管理员 ----------
@@ -154,7 +154,7 @@ log_info "============ 部署完成 ============"
 echo -e "  前端入口   : ${CYAN}http://<你的服务器IP>/${NC}"
 echo -e "  管理后台   : ${CYAN}/admin/${NC}   (Django 模板，已保留)"
 echo -e "  API 文档   : ${CYAN}/api/schema/swagger-ui/${NC}   (需管理员登录)"
-echo -e "  健康检查   : ${CYAN}/api/health/${NC}"
+echo -e "  健康检查   : ${CYAN}/api/v1/health/${NC}"
 echo -e "  查看日志   : ${CYAN}$DC -f $COMPOSE_FILE logs -f${NC}"
 echo
 if [ -n "$DB_PW" ];   then echo -e "  ${YELLOW}自动生成 DB_PASSWORD   : $DB_PW${NC}"; fi

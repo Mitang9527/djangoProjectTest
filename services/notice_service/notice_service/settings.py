@@ -176,6 +176,18 @@ LOGGING = {
             "level": "WARNING",
             "propagate": False,
         },
+        "django.template": {
+            # 模板变量解析 DEBUG 刷屏，纯 API 后端不需要
+            "handlers": _LOGGER_HANDLERS,
+            "level": "WARNING",
+            "propagate": False,
+        },
+        "django.utils.autoreload": {
+            # runserver autoreload 每 tick 打 DEBUG 刷屏
+            "handlers": [],
+            "level": "INFO",
+            "propagate": False,
+        },
     },
 }
 

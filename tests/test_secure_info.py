@@ -31,14 +31,14 @@ def _client():
 @pytest.mark.django_db
 def test_secure_info_requires_key(key_user):
     """缺密钥必须拒绝（强制要求）。"""
-    r = _client().get("/api/secure-info/")
+    r = _client().get("/api/v1/core/secure-info/")
     assert r.status_code == 401
 
 
 @pytest.mark.django_db
 def test_secure_info_wrong_key(key_user):
     """错误密钥必须拒绝。"""
-    r = _client().get("/api/secure-info/", HTTP_X_API_KEY="sk-not-a-real-key")
+    r = _client().get("/api/v1/core/secure-info/", HTTP_X_API_KEY="sk-not-a-real-key")
     assert r.status_code == 401
 
 
@@ -46,7 +46,7 @@ def test_secure_info_wrong_key(key_user):
 def test_secure_info_valid_key(key_user):
     """有效且未过期的密钥返回 200 与受保护数据。"""
     k = APIKey.issue(key_user, "报表导出服务", ttl_seconds=3600)
-    r = _client().get("/api/secure-info/", HTTP_X_API_KEY=k.key)
+    r = _client().get("/api/v1/core/secure-info/", HTTP_X_API_KEY=k.key)
     assert r.status_code == 200
     payload = r.json()
     assert payload["status"] == "success"
@@ -61,7 +61,7 @@ def test_secure_info_valid_key(key_user):
 def test_secure_info_bearer_header(key_user):
     """Authorization: Bearer <key> 同样可用。"""
     k = APIKey.issue(key_user, "svc", ttl_seconds=3600)
-    r = _client().get("/api/secure-info/", HTTP_AUTHORIZATION=f"Bearer {k.key}")
+    r = _client().get("/api/v1/core/secure-info/", HTTP_AUTHORIZATION=f"Bearer {k.key}")
     assert r.status_code == 200
 
 
@@ -71,7 +71,7 @@ def test_secure_info_disabled(key_user):
     k = APIKey.issue(key_user, "svc", ttl_seconds=3600)
     k.is_active = False
     k.save(update_fields=["is_active"])
-    r = _client().get("/api/secure-info/", HTTP_X_API_KEY=k.key)
+    r = _client().get("/api/v1/core/secure-info/", HTTP_X_API_KEY=k.key)
     assert r.status_code == 401
 
 
@@ -81,5 +81,5 @@ def test_secure_info_expired(key_user):
     k = APIKey.issue(key_user, "svc", ttl_seconds=3600)
     k.expires_at = timezone.now() - timedelta(seconds=10)
     k.save(update_fields=["expires_at"])
-    r = _client().get("/api/secure-info/", HTTP_X_API_KEY=k.key)
+    r = _client().get("/api/v1/core/secure-info/", HTTP_X_API_KEY=k.key)
     assert r.status_code == 401

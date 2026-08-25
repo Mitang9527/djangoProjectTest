@@ -69,47 +69,47 @@ router.register(r'feature-flags', FeatureFlagViewSet)
 router.register(r'config-history', ConfigHistoryViewSet)
 
 urlpatterns = [
-    # APK 工具 API 路由
-    path('apk-tool/api/', include('apk_tool.urls')),
-    # API 路由
-    path('api/', include(router.urls)),
-    path('api/me/permissions/', me_permissions, name='me-permissions'),
-    path('api/me/tenants/', me_tenants, name='me-tenants'),
-    path('api/me/switch-tenant/', switch_tenant, name='switch-tenant'),
-    path('api/permissions/grouped/', permissions_grouped, name='permissions-grouped'),
-    path('api/system/dashboard/', system_dashboard_api, name='system-dashboard-api'),
-    path('api/system/logs/', system_logs_api, name='system-logs-api'),
-    path('api/system/configs/', system_settings_config_api, name='system-settings-config-api'),
-    path('api/system/backup/', system_backup_api, name='system-backup-api'),
-    path('api/system/backup/list/', system_backup_list_api, name='system-backup-list-api'),
-    path('api/export/', export_data, name='export-data'),
-    path('api/export/models/', export_models, name='export-models'),
+    # APK 工具 API 路由（apk_tool 嵌套在此）
+    path('apk-tool/', include('apk_tool.urls')),
+    # API 路由（router 注册的 plans / tenants / roles / orders ...）
+    path('', include(router.urls)),
+    path('me/permissions/', me_permissions, name='me-permissions'),
+    path('me/tenants/', me_tenants, name='me-tenants'),
+    path('me/switch-tenant/', switch_tenant, name='switch-tenant'),
+    path('permissions/grouped/', permissions_grouped, name='permissions-grouped'),
+    path('system/dashboard/', system_dashboard_api, name='system-dashboard-api'),
+    path('system/logs/', system_logs_api, name='system-logs-api'),
+    path('system/configs/', system_settings_config_api, name='system-settings-config-api'),
+    path('system/backup/', system_backup_api, name='system-backup-api'),
+    path('system/backup/list/', system_backup_list_api, name='system-backup-list-api'),
+    path('export/', export_data, name='export-data'),
+    path('export/models/', export_models, name='export-models'),
     # 网关管理 API
-    path('api/gateway/dashboard/', gateway_dashboard_api, name='gateway-dashboard-api'),
-    path('api/gateway/rules/', gateway_rules_list_api, name='gateway-rules-list-api'),
-    path('api/gateway/rules/create/', gateway_rule_create_api, name='gateway-rule-create-api'),
-    path('api/gateway/rules/<uuid:rule_id>/update/', gateway_rule_update_api, name='gateway-rule-update-api'),
-    path('api/gateway/rules/<uuid:rule_id>/delete/', gateway_rule_delete_api, name='gateway-rule-delete-api'),
-    path('api/gateway/rules/<uuid:rule_id>/toggle/', gateway_rule_toggle_api, name='gateway-rule-toggle-api'),
+    path('gateway/dashboard/', gateway_dashboard_api, name='gateway-dashboard-api'),
+    path('gateway/rules/', gateway_rules_list_api, name='gateway-rules-list-api'),
+    path('gateway/rules/create/', gateway_rule_create_api, name='gateway-rule-create-api'),
+    path('gateway/rules/<uuid:rule_id>/update/', gateway_rule_update_api, name='gateway-rule-update-api'),
+    path('gateway/rules/<uuid:rule_id>/delete/', gateway_rule_delete_api, name='gateway-rule-delete-api'),
+    path('gateway/rules/<uuid:rule_id>/toggle/', gateway_rule_toggle_api, name='gateway-rule-toggle-api'),
     # 缓存管理 API
-    path('api/cache/stats/', cache_stats_api, name='cache-stats-api'),
-    path('api/cache/invalidate/', cache_invalidate_api, name='cache-invalidate-api'),
-    path('api/cache/warmup/', cache_warmup_api, name='cache-warmup-api'),
-    path('api/cache/reset-stats/', cache_reset_stats_api, name='cache-reset-stats-api'),
+    path('cache/stats/', cache_stats_api, name='cache-stats-api'),
+    path('cache/invalidate/', cache_invalidate_api, name='cache-invalidate-api'),
+    path('cache/warmup/', cache_warmup_api, name='cache-warmup-api'),
+    path('cache/reset-stats/', cache_reset_stats_api, name='cache-reset-stats-api'),
     # DB 连接池管理 API
-    path('api/db-pool/stats/', db_pool_stats_api, name='db-pool-stats-api'),
-    path('api/db-pool/reset-stats/', db_pool_reset_stats_api, name='db-pool-reset-stats-api'),
-    path('api/db-pool/reinit/', db_pool_reinit_api, name='db-pool-reinit-api'),
+    path('db-pool/stats/', db_pool_stats_api, name='db-pool-stats-api'),
+    path('db-pool/reset-stats/', db_pool_reset_stats_api, name='db-pool-reset-stats-api'),
+    path('db-pool/reinit/', db_pool_reinit_api, name='db-pool-reinit-api'),
     
     # 配置中心 API
-    path('api/config-center/get/', get_config_value, name='config-get-api'),
-    path('api/config-center/all/', get_all_configs, name='config-all-api'),
-    path('api/config-center/public/', get_public_configs, name='config-public-api'),
-    path('api/config-center/set/', set_config_value, name='config-set-api'),
-    path('api/config-center/reload/', reload_configs, name='config-reload-api'),
+    path('config-center/get/', get_config_value, name='config-get-api'),
+    path('config-center/all/', get_all_configs, name='config-all-api'),
+    path('config-center/public/', get_public_configs, name='config-public-api'),
+    path('config-center/set/', set_config_value, name='config-set-api'),
+    path('config-center/reload/', reload_configs, name='config-reload-api'),
     
     # 特性开关 API
-    path('api/feature-flags/check/', check_feature_flag, name='feature-check-api'),
-    path('api/feature-flags/user/', get_user_features, name='feature-user-api'),
-    path('api/feature-flags/<uuid:feature_id>/toggle/', toggle_feature_flag, name='feature-toggle-api'),
+    path('feature-flags/check/', check_feature_flag, name='feature-check-api'),
+    path('feature-flags/user/', get_user_features, name='feature-user-api'),
+    path('feature-flags/<uuid:feature_id>/toggle/', toggle_feature_flag, name='feature-toggle-api'),
 ]

@@ -20,12 +20,15 @@ factory = APIRequestFactory()
 
 
 def _call(view_cls, token=None):
-    req = factory.get("/api/ping/")
+    req = factory.get("/api/v1/core/ping/")
     if token:
         req.META["HTTP_AUTHORIZATION"] = token
     try:
         resp = view_cls.as_view()(req)
-        d = resp.data.get("auth_demo", {})
+        # 响应经 CustomRenderer 信封包装：视图原始字典位于 resp.data["data"] 下
+        raw = resp.data if isinstance(resp.data, dict) else {}
+        payload = raw.get("data", raw)
+        d = payload.get("auth_demo", {}) if isinstance(payload, dict) else {}
         return resp.status_code, d
     except Exception as e:
         return getattr(e, "status_code", 500), {"error": f"{type(e).__name__}: {e}"}
@@ -65,9 +68,10 @@ def test_ping_auth_classes_demo(jwt_token):
     print(f"  伪造 JWT   : HTTP {s6} | {d6}")
     print("=" * 72)
 
-    # 断言：[] 永远匿名；JWT 视图有效 token 识别用户、伪造 token 拒绝
-    assert d1.get("user") == "AnonymousUser"
-    assert d2.get("user") == "AnonymousUser"          # [] 忽略任何 token
+    # 断言：PingView 用 authentication_classes=[]，根本不解析身份，响应里不含 auth_demo；
+    #       PingAuthView 用 JWT 后端，无 token 仍匿名(AllowAny)、有效 token 识别用户、伪造 token 拒绝
+    assert "auth_demo" not in d1                      # [] 不暴露任何身份解析结果
+    assert "auth_demo" not in d2                      # [] 忽略任何 token
     assert d4.get("user") == "AnonymousUser"          # 无 token 仍匿名(AllowAny)
     assert d5.get("user") == username                 # 有效 JWT 填充 user
     assert s6 == 401                                  # 伪造 JWT 被认证层拒绝

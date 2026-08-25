@@ -19,21 +19,21 @@ class TestUserLoginAPI:
         user.save()
 
         resp = api_client.post(
-            "/api/users/login/",
+            "/api/v1/users/login/",
             data={"username": "loginuser", "password": "Pass123!"},
             format="json",
             HTTP_ACCEPT="application/json",
         )
         assert resp.status_code == status.HTTP_200_OK
-        data = resp.json()
-        assert "access" in data
-        assert "refresh" in data
+        body = resp.json().get("data", resp.json())
+        assert "access" in body
+        assert "refresh" in body
 
     def test_login_wrong_password(self, db, api_client):
         """密码错误返回 401"""
         UserFactory(username="loginuser")
         resp = api_client.post(
-            "/api/users/login/",
+            "/api/v1/users/login/",
             data={"username": "loginuser", "password": "wrongpass"},
             format="json",
             HTTP_ACCEPT="application/json",
@@ -43,7 +43,7 @@ class TestUserLoginAPI:
     def test_login_nonexistent_user(self, db, api_client):
         """不存在的用户返回错误"""
         resp = api_client.post(
-            "/api/users/login/",
+            "/api/v1/users/login/",
             data={"username": "ghost", "password": "Pass123!"},
             format="json",
             HTTP_ACCEPT="application/json",
@@ -53,7 +53,7 @@ class TestUserLoginAPI:
     def test_login_missing_fields(self, db, api_client):
         """缺少字段返回 400"""
         resp = api_client.post(
-            "/api/users/login/",
+            "/api/v1/users/login/",
             data={},
             format="json",
             HTTP_ACCEPT="application/json",
@@ -73,7 +73,7 @@ class TestJWTTokenAPI:
         user.save()
 
         resp = api_client.post(
-            "/api/users/api/jwt/login/",
+            "/api/v1/users/jwt/login/",
             data={"username": "jwtuser", "password": "Pass123!"},
             format="json",
         )
@@ -92,7 +92,7 @@ class TestJWTTokenAPI:
 
         # 先登录获取 token
         resp = api_client.post(
-            "/api/users/api/jwt/login/",
+            "/api/v1/users/jwt/login/",
             data={"username": "jwtuser", "password": "Pass123!"},
             format="json",
         )
@@ -101,7 +101,7 @@ class TestJWTTokenAPI:
 
         # 刷新 token
         resp = api_client.post(
-            "/api/users/api/jwt/refresh/",
+            "/api/v1/users/jwt/refresh/",
             data={"refresh": refresh_token},
             format="json",
         )
@@ -112,5 +112,5 @@ class TestJWTTokenAPI:
 
     def test_jwt_verified_request(self, db, jwt_auth_client):
         """JWT 认证后的请求应该能通过"""
-        resp = jwt_auth_client.get("/api/users/info/")
+        resp = jwt_auth_client.get("/api/v1/users/info/")
         assert resp.status_code != status.HTTP_401_UNAUTHORIZED

@@ -36,6 +36,12 @@ DATABASES = {
     }
 }
 
+# 读写分离：配置 DB_REPLICA_URL 后自动注入 replica 库 + PrimaryReplicaRouter；
+# 未配置时保持单库（default），零风险。
+from framework.db.replica import install_replica  # noqa: E402
+
+DATABASES, DATABASE_ROUTERS = install_replica(DATABASES, DATABASE_ROUTERS)
+
 # Security settings for production
 SECURE_SSL_REDIRECT = global_config.SECURE_SSL_REDIRECT
 SESSION_COOKIE_SECURE = True

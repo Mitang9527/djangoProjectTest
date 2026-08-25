@@ -229,11 +229,10 @@ print("5. resolve() 实证 (验证 '冲突' 是否为真实路由冲突)")
 print("=" * 110)
 from django.urls import resolve
 probe = [
-    '/saas/api/plans/', '/saas/api/',                 # saas 路由根 + ViewSet 子路径
-    '/api/alert_system/rules/', '/api/alert_system/',  # alert_system
-    '/api/adb_web/devices/', '/api/adb_web/',          # adb_web
-    '/api/users/test/',                                # 用户改动后的测试接口
-    '/api/v1/users/test/',
+    '/api/v1/saas/plans/', '/api/v1/saas/',                 # saas 路由根 + ViewSet 子路径
+    '/api/v1/alert_system/rules/', '/api/v1/alert_system/',  # alert_system
+    '/api/v1/adb_web/devices/', '/api/v1/adb_web/',          # adb_web
+    '/api/v1/users/test/',                                # 用户改动后的测试接口
 ]
 for p in probe:
     try:

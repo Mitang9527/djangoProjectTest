@@ -46,22 +46,18 @@ EXCLUDE = list(S.API_SIGNATURE_EXCLUDE_PATHS)
 
 # (方法, 真实完整路径, 路由用途/预期性质)
 ROUTES = [
-    ("GET",  "/api/users/api/test/",       "TestApiView  GET  (IsAuthenticated)"),
-    ("POST", "/api/users/api/test/",       "TestApiView  POST (IsAuthenticated)"),
-    ("GET",  "/api/users/system-roles/",   "SystemRoleListView (需登录)"),
-    ("POST", "/api/users/register/",       "UserRegisterView (AllowAny)"),
-    ("POST", "/api/users/login/",          "UserLoginView (AllowAny)"),
-    ("GET",  "/api/users/api/list/",        "UserListView (需登录)"),
-    ("POST", "/api/users/logout/",         "UserLogoutView (需登录)"),
-    ("GET",  "/api/users/info/",            "UserInfoView (需登录)"),
-    ("POST", "/api/users/api/jwt/login/",   "CustomTokenObtainPairView (AllowAny)"),
-    ("POST", "/api/users/api/jwt/refresh/", "CustomTokenRefreshView (需 refresh)"),
-    ("POST", "/api/users/api/jwt/logout/",  "JWTLogoutView (需登录)"),
-    ("POST", "/api/users/api/jwt/verify/",  "VerifyTokenView (需 token)"),
-    # v1 挂载镜像（同样的路由，前缀换成 /api/v1/users/）
-    ("GET",  "/api/v1/users/api/test/",     "TestApiView @ v1"),
-    ("POST", "/api/v1/users/login/",        "UserLoginView @ v1"),
-    ("POST", "/api/v1/users/api/jwt/login/", "JWT login @ v1"),
+    ("GET",  "/api/v1/users/test/",          "TestApiView  GET  (IsAuthenticated)"),
+    ("POST", "/api/v1/users/test/",          "TestApiView  POST (IsAuthenticated)"),
+    ("GET",  "/api/v1/users/system-roles/",  "SystemRoleListView (需登录)"),
+    ("POST", "/api/v1/users/register/",      "UserRegisterView (AllowAny)"),
+    ("POST", "/api/v1/users/login/",         "UserLoginView (AllowAny)"),
+    ("GET",  "/api/v1/users/list/",          "UserListView (需登录)"),
+    ("POST", "/api/v1/users/logout/",        "UserLogoutView (需登录)"),
+    ("GET",  "/api/v1/users/info/",          "UserInfoView (需登录)"),
+    ("POST", "/api/v1/users/jwt/login/",     "CustomTokenObtainPairView (AllowAny)"),
+    ("POST", "/api/v1/users/jwt/refresh/",   "CustomTokenRefreshView (需 refresh)"),
+    ("POST", "/api/v1/users/jwt/logout/",    "JWTLogoutView (需登录)"),
+    ("POST", "/api/v1/users/jwt/verify/",    "VerifyTokenView (需 token)"),
 ]
 
 print("=" * 100)
@@ -155,7 +151,7 @@ with override_settings(
 
     # 经已排除签名的 login 拿 token
     r = client.post(
-        "/api/users/login/",
+        "/api/v1/users/login/",
         data={"username": "route_verify_user", "password": "RouteVerify123!"},
         content_type="application/json", HTTP_ACCEPT="application/json",
     )

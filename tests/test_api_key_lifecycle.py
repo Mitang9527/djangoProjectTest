@@ -33,7 +33,7 @@ def test_admin_lists_all_keys(admin_user, regular_user):
     APIKey.issue(regular_user, "user-key", ttl_seconds=3600)
 
     client = _jwt_client(admin_user)
-    resp = client.get("/api/api-keys/")
+    resp = client.get("/api/v1/core/api-keys/")
     assert resp.status_code == status.HTTP_200_OK
     items = resp.json()["data"]["results"]
     names = {it["name"] for it in items}
@@ -51,7 +51,7 @@ def test_regular_user_lists_only_own(admin_user, regular_user):
     APIKey.issue(regular_user, "user-key", ttl_seconds=3600)
 
     client = _jwt_client(regular_user)
-    resp = client.get("/api/api-keys/")
+    resp = client.get("/api/v1/core/api-keys/")
     assert resp.status_code == status.HTTP_200_OK
     items = resp.json()["data"]["results"]
     names = {it["name"] for it in items}
@@ -66,7 +66,7 @@ def test_detail_is_masked(regular_user):
     """详情返回脱敏 masked_key，且不含明文 key 字段。"""
     key = APIKey.issue(regular_user, "detail-key", ttl_seconds=3600)
     client = _jwt_client(regular_user)
-    resp = client.get(f"/api/api-keys/{key.id}/")
+    resp = client.get(f"/api/v1/core/api-keys/{key.id}/")
     assert resp.status_code == status.HTTP_200_OK
     body = resp.json()["data"]
     assert body["masked_key"].startswith("sk-")
@@ -82,7 +82,7 @@ def test_revoke_via_patch(regular_user):
     """PATCH is_active=false 吊销密钥；is_usable 变为 False 并落审计。"""
     key = APIKey.issue(regular_user, "revoke-key", ttl_seconds=3600)
     client = _jwt_client(regular_user)
-    resp = client.patch(f"/api/api-keys/{key.id}/", {"is_active": False}, format="json")
+    resp = client.patch(f"/api/v1/core/api-keys/{key.id}/", {"is_active": False}, format="json")
     assert resp.status_code == status.HTTP_200_OK
     body = resp.json()["data"]
     assert body["is_active"] is False
@@ -101,7 +101,7 @@ def test_rename_via_patch(regular_user):
     """PATCH name 改名。"""
     key = APIKey.issue(regular_user, "old-name", ttl_seconds=3600)
     client = _jwt_client(regular_user)
-    resp = client.patch(f"/api/api-keys/{key.id}/", {"name": "new-name"}, format="json")
+    resp = client.patch(f"/api/v1/core/api-keys/{key.id}/", {"name": "new-name"}, format="json")
     assert resp.status_code == status.HTTP_200_OK
     assert resp.json()["data"]["name"] == "new-name"
     key.refresh_from_db()
@@ -118,7 +118,7 @@ def test_rotate_invalidates_old_and_issues_new(regular_user):
     old_plain = old.key
     client = _jwt_client(regular_user)
 
-    resp = client.post(f"/api/api-keys/{old.id}/rotate/")
+    resp = client.post(f"/api/v1/core/api-keys/{old.id}/rotate/")
     assert resp.status_code == status.HTTP_201_CREATED
     body = resp.json()["data"]
     new_plain = body["key"]
@@ -143,7 +143,7 @@ def test_delete_removes_key(regular_user):
     key = APIKey.issue(regular_user, "delete-key", ttl_seconds=3600)
     kid = key.id
     client = _jwt_client(regular_user)
-    resp = client.delete(f"/api/api-keys/{kid}/")
+    resp = client.delete(f"/api/v1/core/api-keys/{kid}/")
     assert resp.status_code == status.HTTP_200_OK
     assert not APIKey.objects.filter(id=kid).exists()
     assert AuditLog.objects.filter(
@@ -162,10 +162,10 @@ def test_user_cannot_access_others_key(admin_user, regular_user):
     for method in ("get", "patch", "delete"):
         fn = getattr(client, method)
         if method == "patch":
-            resp = fn(f"/api/api-keys/{other.id}/", {"is_active": False}, format="json")
+            resp = fn(f"/api/v1/core/api-keys/{other.id}/", {"is_active": False}, format="json")
         else:
-            resp = fn(f"/api/api-keys/{other.id}/")
+            resp = fn(f"/api/v1/core/api-keys/{other.id}/")
         assert resp.status_code == status.HTTP_404_NOT_FOUND, method
     # 轮换同理
-    resp = client.post(f"/api/api-keys/{other.id}/rotate/")
+    resp = client.post(f"/api/v1/core/api-keys/{other.id}/rotate/")
     assert resp.status_code == status.HTTP_404_NOT_FOUND

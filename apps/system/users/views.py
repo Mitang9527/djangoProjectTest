@@ -8,7 +8,8 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import (
     UserRegisterSerializer, UserDetailSerializer, UserLoginSerializer, TestApiSerializer,
-    CustomTokenObtainPairSerializer, RefreshTokenSerializer, LogoutSerializer, UserManageSerializer
+    CustomTokenObtainPairSerializer, RefreshTokenSerializer, LogoutSerializer, UserManageSerializer,
+    UserManageSerializerV2
 )
 from .permissions import IsAdminOrSelf, DataPermissionMixin
 from loguru import logger
@@ -447,4 +448,13 @@ class UserManageViewSet(viewsets.ModelViewSet):
             return [permissions.IsAuthenticated(), UserViewPermission()]
         # retrieve — 已登录即可（用户查看自己的详情通过其他端点）
         return [permissions.IsAuthenticated()]
+
+
+class UserManageViewSetV2(UserManageViewSet):
+    """
+    用户管理 v2 ViewSet：继承 v1 的 UserManageViewSet，仅通过 serializer_class
+    切换到 v2 序列化器（增加 version 字段）。其余鉴权 / 过滤 / 分页 / 权限逻辑
+    全部复用 v1，体现「版本迭代只重写差异」的推荐做法。
+    """
+    serializer_class = UserManageSerializerV2
 

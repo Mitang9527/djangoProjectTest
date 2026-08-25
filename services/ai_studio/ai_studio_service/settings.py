@@ -114,11 +114,19 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # JWT（与主平台共享 SIGNING_KEY 即可互相验签）
 # ---------------------------------------------------------------------------
 SIMPLE_JWT = {
-    "SIGNING_KEY": os.environ.get("JWT_SIGNING_KEY", SECRET_KEY),
+    "SIGNING_KEY": os.environ.get("JWT_SIGNING_KEY") or (SECRET_KEY if DEBUG else None),
     "ACCESS_TOKEN_LIFETIME": timedelta(hours=int(os.environ.get("JWT_ACCESS_TTL_HOURS", "24"))),
     "USER_ID_CLAIM": "user_id",
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
+
+# 安全护栏：生产环境强制使用独立的 JWT_SIGNING_KEY，禁止回退到 SECRET_KEY
+# （须与主平台配置为相同值，本服务仅校验主平台签发的 JWT）
+if not SIMPLE_JWT.get("SIGNING_KEY"):
+    raise RuntimeError(
+        "JWT_SIGNING_KEY 环境变量未设置。生产环境必须使用独立的 JWT 签名密钥，"
+        "且须与主平台配置为相同值以实现跨服务验签。"
+    )
 
 # ---------------------------------------------------------------------------
 # CORS（前端跨域调用）
@@ -227,6 +235,18 @@ LOGGING = {
         "django.db.backends": {
             "handlers": _LOGGER_HANDLERS,
             "level": "WARNING",
+            "propagate": False,
+        },
+        "django.template": {
+            # 模板变量解析 DEBUG 刷屏，纯 API 后端不需要
+            "handlers": _LOGGER_HANDLERS,
+            "level": "WARNING",
+            "propagate": False,
+        },
+        "django.utils.autoreload": {
+            # runserver autoreload 每 tick 打 DEBUG 刷屏
+            "handlers": [],
+            "level": "INFO",
             "propagate": False,
         },
     },
