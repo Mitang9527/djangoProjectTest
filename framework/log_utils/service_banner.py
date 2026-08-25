@@ -36,6 +36,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional
 
+from loguru import logger
+
 # ---------------------------------------------------------------
 # 服务元信息（banner 展示用）
 # ---------------------------------------------------------------
@@ -122,6 +124,7 @@ def _ensure_django() -> Optional[str]:
 def check_database(label: str = "database") -> CheckResult:
     """DB 连通性：sqlite 直连；postgres/mysql 先 socket 探测再 SELECT 1。"""
     start = time.monotonic()
+    logger.info(f"[{label}] 开始检查 数据库 缓存配置...")
     err = _ensure_django()
     if err:
         return CheckResult(label, False, f"django 未就绪: {err}", duration_ms=_ms(start))
@@ -170,6 +173,7 @@ def check_broker(label: str = "broker") -> CheckResult:
         conn = Connection(url, connect_timeout=_CHECK_TIMEOUT,
                           transport_options={"max_retries": 0})
         try:
+
             conn.connect()
         finally:
             conn.release()
@@ -181,6 +185,7 @@ def check_broker(label: str = "broker") -> CheckResult:
 def check_redis_from_cache(label: str = "redis") -> CheckResult:
     """读 settings.CACHES['default']，django_redis 后端时 ping；否则跳过。"""
     start = time.monotonic()
+    logger.info(f"[{label}] 开始检查 Redis 缓存配置...")
     err = _ensure_django()
     if err:
         return CheckResult(label, False, f"django 未就绪: {err}", duration_ms=_ms(start))

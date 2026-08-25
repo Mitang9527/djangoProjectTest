@@ -7,11 +7,27 @@ from typing import Optional, Callable, Any, Tuple, Set
 from collections import defaultdict
 from loguru import logger
 from functools import wraps
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpRequest
 from django.conf import settings
 from framework.files.upload.validators import FileValidator
 from framework.files.upload.exceptions import FileUploadError
 
+
+def _get_request(*args: Any) -> Any:
+    """
+    兼容 FBV(request) 与 CBV(self, request) 两种调用约定，从位置参数中解析出真正的 HttpRequest。
+
+    装饰器既可能被函数视图直接调用（首个位置参数是 request），也可能被 DRF/CBV 方法调用
+    （首个位置参数是视图实例 self，第二个才是 request）。统一在此解析，避免把 self 当成
+    request 而访问 request.FILES 等属性时抛出 AttributeError。
+    """
+    if args and isinstance(args[0], HttpRequest):
+        return args[0]
+    # CBV：第一个参数是视图实例 self，真正的请求在第二个位置参数
+    if len(args) >= 2:
+        return args[1]
+    # 退化兜底：保持与原签名一致
+    return args[0] if args else None
 
 
 def capture_exceptions(
@@ -316,7 +332,8 @@ def validate_file_upload(
     """
     def decorator(view_func: Callable) -> Callable:
         @wraps(view_func)
-        def wrapper(request, *args: Any, **kwargs: Any) -> Any:
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            request = _get_request(*args)
             if file_field not in request.FILES:
                 return JsonResponse(
                     {'error': f'缺少文件字段: {file_field}'},
@@ -339,7 +356,7 @@ def validate_file_upload(
                     status=400
                 )
 
-            return view_func(request, *args, **kwargs)
+            return view_func(*args, **kwargs)
 
         return wrapper
     return decorator
@@ -364,7 +381,8 @@ def validate_image_upload(
     
     def decorator(view_func: Callable) -> Callable:
         @wraps(view_func)
-        def wrapper(request, *args: Any, **kwargs: Any) -> Any:
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            request = _get_request(*args)
             if file_field not in request.FILES:
                 return JsonResponse(
                     {'error': f'缺少文件字段: {file_field}'},
@@ -385,7 +403,7 @@ def validate_image_upload(
                     status=400
                 )
 
-            return view_func(request, *args, **kwargs)
+            return view_func(*args, **kwargs)
 
         return wrapper
     return decorator

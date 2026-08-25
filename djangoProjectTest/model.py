@@ -110,8 +110,8 @@ class ProjectSettings(BaseSettings):
     # JWT 签名密钥（独立于 SECRET_KEY，生产环境必须单独设置）
     JWT_SIGNING_KEY: str = Field("", validation_alias=AliasChoices("JWT_SIGNING_KEY"))
     
-    # Token 有效期（单位：小时），默认 24 小时
-    TOKEN_EXPIRE_HOURS: int = 24
+    # Token 有效期（单位：小时），默认 1 小时
+    TOKEN_EXPIRE_HOURS: int = 1
 
     # Refresh Token 有效期（单位：天），默认 1 天
     REFRESH_TOKEN_EXPIRE_DAYS: int = 1

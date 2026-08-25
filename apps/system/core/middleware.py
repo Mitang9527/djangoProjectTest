@@ -134,10 +134,23 @@ class OperationLogMiddleware:
             "user_agent": request.META.get("HTTP_USER_AGENT", "")[:200],
         }
 
+        # 关键修复: loguru 会把「消息正文」当成格式模板二次解析。
+        # 若消息里包含 '{...}'(例如把 dict/list 直接 f-string 拼接进消息),
+        # 其中的 'user' / 'method' 等会被误当作格式字段, 触发 KeyError: 'user'。
+        # 因此:
+        #   1) 结构化字段通过 bind 进入 extra —— JSON sink 仍会采集(便于 ELK/Loki 过滤);
+        #   2) 文本消息改为「无花括号」的可读串, 彻底规避二次解析。
+        access_logger = api_logger.bind(user=user_str, **log_data)
+
+        text = (
+            f"[ACCESS] {request.method} {request.path} -> "
+            f"{response.status_code} ({elapsed_ms}ms) user={user_str}"
+        )
+
         if response.status_code >= 400:
-            api_logger.warning(f"[ACCESS] {log_data}")
+            access_logger.warning(text)
         else:
-            api_logger.info(f"[ACCESS] {log_data}")
+            access_logger.info(text)
 
     def _record_to_db(self, request: HttpRequest, response: HttpResponse, elapsed_ms: float) -> None:
         """写入 AuditLog 数据库模型 (异步)"""
