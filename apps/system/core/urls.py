@@ -2,7 +2,8 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     SystemStatusView, HealthCheckView, LivenessCheckView, ReadinessCheckView,
-    FileUploadView, ImageUploadView, AuditLogViewSet, PingView, SecureInfoView,
+    DocumentUploadView, ImageUploadView, VideoUploadView, AudioUploadView, TokenInfoView,
+    AuditLogViewSet, PingView, SecureInfoView,
     PingAuthView, ApiKeyViewSet
 )
 from .auth import DemoLoginView
@@ -19,9 +20,13 @@ urlpatterns = [
     path('health/ready/', ReadinessCheckView.as_view(), name='health-ready'),
     path('system-status/', SystemStatusView.as_view(), name='system-status'),
     path('', include(router.urls)),
-    # 文件上传相关路由
-    path('upload/file/', FileUploadView.as_view(), name='upload-file'),
+    # 文件上传相关路由（按资源类型拆分为四种独立接口，各存独立目录）
+    path('upload/file/', DocumentUploadView.as_view(), name='upload-file'),
     path('upload/image/', ImageUploadView.as_view(), name='upload-image'),
+    path('upload/video/', VideoUploadView.as_view(), name='upload-video'),
+    path('upload/audio/', AudioUploadView.as_view(), name='upload-audio'),
+    # JWT access token 信息查询（需登录，免签名校验）
+    path('token/info/', TokenInfoView.as_view(), name='token-info'),
 
 
     path('ping/', PingView.as_view(), name='ping'),

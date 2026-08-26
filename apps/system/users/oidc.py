@@ -100,6 +100,11 @@ class OIDCCallbackView(OIDCAuthenticationCallbackView):
             if user is None:
                 return getattr(settings, "OIDC_LOGOUT_REDIRECT_URL", "/")
             refresh = RefreshToken.for_user(user)
+            # 令牌版本戳：每次登录自增并写入 claim，使该用户所有旧 token 立即失效
+            if hasattr(user, "token_version"):
+                user.token_version = (user.token_version or 0) + 1
+                user.save(update_fields=["token_version"])
+                refresh["token_version"] = user.token_version
             self._oidc_jwt = {
                 "access": str(refresh.access_token),
                 "refresh": str(refresh),

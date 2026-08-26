@@ -118,5 +118,5 @@ def install_error_spike_sink() -> int:
     """手动把计数 sink 挂到全局 logger（返回 sink id；已挂过则幂等）。"""
     from loguru import logger
 
-    sink_id = logger.add(_error_spike_sink, level="ERROR")
+    sink_id = logger.add(_error_spike_sink, level="ERROR", format=_make_file_format())
     return sink_id

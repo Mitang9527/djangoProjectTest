@@ -333,30 +333,64 @@ def _make_console_format(hyperlinks: bool):
         time_s = f"\x1b[32m{t}\x1b[0m"                                  # green 时间
         level_s = f"{lvl_color}{lvl:<8}{_ANSI_RESET}"                   # level 配色
         rid = (
-            f"\x1b[34m{_escape_markup(str(r['extra'].get('request_id', '-')))}"
+            f"\x1b[34m{_escape_log_content(str(r['extra'].get('request_id', '-')))}"
             f"{_ANSI_RESET}"
         )
         # 可见位置: 保留 name:function:line 习惯, 并追加真实文件路径 file:line。
         # 关键点: PyCharm 等 IDE 运行控制台不识别 OSC 8 超链接, 但它会自动把
         # 文本中的 "绝对路径:行号" 渲染为可点击链接。因此可见文本里必须包含真实
         # 文件路径 (而非仅模块点分名 name), 否则 PyCharm 无法跳转。
-        file_loc_text = f"{_escape_markup(r['file'].path)}:{r['line']}"
+        file_loc_text = f"{_escape_log_content(r['file'].path)}:{r['line']}"
         loc_text = (
-            f"{_escape_markup(r['name'])}:"
-            f"{_escape_markup(r['function'])}:"
+            f"{_escape_log_content(r['name'])}:"
+            f"{_escape_log_content(r['function'])}:"
             f"{r['line']} {file_loc_text}"
         )
 
         if hyperlinks:
             # URL 同样需转义: 个别环境 file.path 可能为 <string> 等含 '<' 的值
-            url = _escape_markup(_normalize_file_uri(r["file"].path, r["line"]))
+            url = _escape_log_content(_normalize_file_uri(r["file"].path, r["line"]))
             loc = _osc8_link(url, f"\x1b[36m{loc_text}\x1b[0m")
         else:
             loc = f"\x1b[36m{loc_text}\x1b[0m"
 
-        msg = _escape_markup(r["message"])
+        msg = _escape_log_content(r["message"])
         return f"{time_s} | {level_s} | {rid} | {loc} - {msg}\n"
 
+    return _fmt
+
+
+def _escape_log_content(s: str) -> str:
+    """
+    转义日志动态内容中的 '<' 与花括号，防止 Loguru 将可调用格式的「输出结果」
+    二次解析为颜色标签/格式字段：
+      - '<' → '\\<' : 避免 Colorizer 把 '<module>' 等误判为颜色标签 (ValueError)
+      - '{' → '{{' , '}' → '}}' : 避免 format_map 把 '{detail}' 等当字段 (KeyError)
+    """
+    return s.replace("<", r"\<").replace("{", "{{").replace("}", "}}")
+
+
+def _make_file_format():
+    """
+    文件 sink 格式（可调用，规避 Loguru 对消息体内花括号/尖括号的二次解析）。
+
+    Loguru 的字符串模板格式在渲染 `{message}` 时会把消息内容本身当作
+    format 串重新解析；当消息体含有未转义花括号或 '<...>'（如 DRF 异常
+    `{'detail': ...}` 的 repr、模块级代码函数名 `<module>`）就会抛
+    KeyError/ValueError 使日志系统自身崩溃。改用可调用 format 直接拼接，
+    并对动态内容转义，彻底消除该类崩溃。输出布局与旧 file_fmt 保持一致。
+    """
+    def _fmt(record):
+        r = record
+        t = r["time"].strftime("%Y-%m-%d %H:%M:%S")
+        rid = r["extra"].get("request_id", "-")
+        name = _escape_log_content(r["name"])
+        func = _escape_log_content(r["function"])
+        msg = _escape_log_content(r["message"])
+        return (
+            f"{t} | {r['level'].name} | {rid} | "
+            f"{name}:{func}:{r['line']} | {msg}\n"
+        )
     return _fmt
 
 
@@ -501,7 +535,7 @@ class LogManager:
         LogManager._sink_ids.clear()
 
         # ---- 1. Sentry sink (最先添加, ERROR+ 转发) ---- (#10)
-        sentry_id = logger.add(_sentry_sink, level="ERROR")
+        sentry_id = logger.add(_sentry_sink, level="ERROR", format=_make_file_format())
         LogManager._sink_ids.append(sentry_id)
 
         # ---- 2. 控制台输出 ---- (#8 分级, #5 request_id, #14 超链接跳转)
@@ -518,11 +552,7 @@ class LogManager:
         LogManager._sink_ids.append(console_id)
 
         # ---- 公共文件格式 ---- (#5 包含 request_id)
-        file_fmt = (
-            "{time:YYYY-MM-DD HH:mm:ss} | {level} | "
-            "{extra[request_id]} | "
-            "{name}:{function}:{line} | {message}"
-        )
+        # 使用可调用 format (_make_file_format) 避免消息体花括号触发 KeyError
 
         # ---- 3. JSON 结构化日志 (生产模式) ---- (#4)
         if json_output:
@@ -540,7 +570,7 @@ class LogManager:
             retention="14 days",   # #9 细化
             compression="gz",
             level=file_level,
-            format=file_fmt,
+            format=_make_file_format(),
             encoding="utf-8",
             enqueue=True,          # #2 异步写入
             filter=self._make_exclusion_filter(SOURCE_CELERY, SOURCE_API),  # #12
@@ -554,7 +584,7 @@ class LogManager:
             retention="14 days",   # #9
             compression="gz",
             level=file_level,
-            format=file_fmt,
+            format=_make_file_format(),
             encoding="utf-8",
             enqueue=True,          # #2
             filter=self._make_source_filter(SOURCE_CELERY),  # #12
@@ -568,7 +598,7 @@ class LogManager:
             retention="14 days",   # #9
             compression="gz",
             level=file_level,
-            format=file_fmt,
+            format=_make_file_format(),
             encoding="utf-8",
             enqueue=True,          # #2
             filter=self._make_source_filter(SOURCE_API),  # #12
@@ -582,7 +612,7 @@ class LogManager:
             retention="30 days",   # #9
             compression="gz",
             level="ERROR",
-            format=file_fmt,
+            format=_make_file_format(),
             encoding="utf-8",
             enqueue=True,          # #2
             backtrace=True,        # #6 完整调用栈
@@ -593,7 +623,9 @@ class LogManager:
         # ---- 7.5 ERROR 突增计数 sink ---- (#14 监控: 滑动窗口统计 ERROR+)
         try:
             from framework.log_utils.error_spike import _error_spike_sink
-            error_spike_sink_id = logger.add(_error_spike_sink, level="ERROR")
+            error_spike_sink_id = logger.add(
+                _error_spike_sink, level="ERROR", format=_make_file_format()
+            )
             LogManager._sink_ids.append(error_spike_sink_id)
         except Exception:
             pass

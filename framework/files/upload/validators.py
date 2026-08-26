@@ -29,38 +29,159 @@ except (ImportError, OSError):
 class FileValidator:
     """文件验证器"""
 
+    # 对应的 MIME 类型白名单（与扩展名保持同步）。
+    # 启用 python-magic 时按真实文件内容检测；未启用时按 mimetypes
+    # 从扩展名猜测（见 _validate_mime_type 的降级处理）。
+    # 注意：部分扩展（.csv/.rtf/.avi）在不同平台 mimetypes 猜测值不同，
+    # 此处按本项目实测的 Windows mimetypes 猜测值对齐，并兼容常见 magic 值。
     DEFAULT_ALLOWED_TYPES = {
+        # 图片
         'image/jpeg',
         'image/png',
         'image/gif',
         'image/webp',
+        'image/bmp',
+        'image/x-icon',
+        'image/tiff',
+        'image/heic',          # .heic
+        'image/heif',          # .heif
+        'image/avif',          # .avif
+        # 视频
+        'video/mp4',
+        'video/webm',
+        'video/quicktime',
+        'video/avi',
+        'video/x-matroska',
+        'video/x-flv',
+        'video/x-ms-wmv',
+        'video/x-m4v',
+        'video/ogg',           # .ogv
+        'video/mpeg',          # .mpeg / .mpg
+        'video/3gpp',          # .3gp
+        'video/mp2t',          # .ts (MPEG transport stream)
+        'video/vnd.dlna.mpeg-tts',  # .ts (Windows mimetypes 实际值)
+        # 音频
+        'audio/mpeg',
+        'audio/wav',
+        'audio/ogg',
+        'audio/vnd.dlna.adts',
+        'audio/x-flac',
+        'audio/mp4',
+        'audio/opus',          # .opus
+        'audio/midi',          # .mid / .midi
+        'audio/mid',           # .mid / .midi (Windows mimetypes 实际值)
+        # 文档 / 数据 / 归档
         'application/pdf',
-        'application/msword',
+        'application/msword',                                         # .doc / .rtf
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'application/vnd.ms-excel',
+        'application/vnd.ms-excel',                                   # .xls / .csv
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-powerpoint',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
         'text/plain',
+        'text/csv',
+        'text/markdown',
+        'text/xml',
+        'application/json',
+        'application/x-zip-compressed',
+        # OpenDocument / 电子书 / 日历名片 / 表格配置
+        'application/vnd.oasis.opendocument.text',          # .odt
+        'application/vnd.oasis.opendocument.spreadsheet',   # .ods
+        'application/vnd.oasis.opendocument.presentation',  # .odp
+        'application/epub+zip',                             # .epub
+        'application/epub',                                 # .epub (Windows mimetypes 实际值)
+        'text/calendar',                                   # .ics
+        'text/vcard', 'text/x-vcard',                      # .vcf
+        'text/tab-separated-values',                       # .tsv
+        'application/yaml', 'text/yaml', 'application/x-yaml',  # .yaml / .yml
+        # 归档（与已放行的 .zip 同性质；后端若解压需防 zip bomb）
+        'application/x-7z-compressed',                     # .7z
+        'application/x-tar',                               # .tar
+        'application/gzip', 'application/x-gzip',          # .gz / .tgz
+        'application/vnd.rar', 'application/x-rar-compressed',  # .rar
+        'application/x-compressed',                            # .7z / .rar (Windows mimetypes 实际值)
+        # 字体（web 项目常需）
+        'font/woff', 'application/font-woff', 'application/x-font-woff',        # .woff
+        'font/woff2', 'application/font-woff2', 'application/x-font-woff2',    # .woff2
+        'font/ttf', 'application/x-font-ttf',                                  # .ttf
+        'font/otf', 'application/x-font-otf',                                  # .otf
     }
 
     DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 
-    DANGEROUS_EXTENSIONS = {
-        '.exe', '.bat', '.cmd', '.scr', '.pif', '.com', '.dll',
-        '.js', '.vbs', '.ps1', '.sh', '.php', '.jsp', '.asp', '.aspx'
+    # 视频类单独放宽：视频容器天然比图片/文档大，统一 10MB 上限会误伤正常业务。
+    # 视频单文件上限默认 100MB，可通过 settings.FILE_UPLOAD_MAX_VIDEO_FILE_SIZE 覆盖。
+    DEFAULT_MAX_VIDEO_FILE_SIZE: int = 100 * 1024 * 1024  # 100MB
+
+    # ------------------------------------------------------------------
+    # 扩展名白名单设计原则（安全铁律）：
+    # 绝不使用黑名单（如禁止 .exe/.sh）——黑客可用 .php5/.phtml/.shtml/.
+    # cgi/.pl/.py/.htaccess 等无数变体绕过黑名单。只允许明确已知安全的
+    # 格式；白名单之外的扩展名一律拒绝。
+    # ------------------------------------------------------------------
+
+    # 图片：常见位图 + 广泛支持的格式（.bmp/.ico/.tiff）。
+    # ⚠️ SVG(.svg) 刻意不纳入：image/svg+xml 可内嵌 <script>，是已知 XSS
+    #    向量；若业务确需 SVG，须先做 XML 净化（bleach / defusedxml）再单独放行。
+    DEFAULT_IMAGE_EXTENSIONS = {
+        '.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.ico', '.tiff', '.tif',
+        '.heic', '.heif', '.avif',
     }
+
+    # 视频：主流容器格式
+    DEFAULT_VIDEO_EXTENSIONS = {
+        '.mp4', '.webm', '.mov', '.avi', '.mkv', '.flv', '.wmv', '.m4v',
+        '.ogv', '.mpeg', '.mpg', '.3gp', '.ts',
+    }
+
+    # 音频：常与视频一并归类为媒体文件
+    DEFAULT_AUDIO_EXTENSIONS = {
+        '.mp3', '.wav', '.ogg', '.aac', '.flac', '.m4a',
+        '.opus', '.oga', '.mid', '.midi',
+    }
+
+    # 文档 / 数据 / 归档 / 字体等常见格式
+    DEFAULT_DOC_EXTENSIONS = {
+        '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+        '.txt', '.csv', '.rtf', '.md', '.json', '.xml', '.zip',
+        '.odt', '.ods', '.odp', '.epub', '.ics', '.vcf', '.tsv',
+        '.yaml', '.yml',
+        '.7z', '.tar', '.gz', '.tgz', '.rar',
+        '.woff', '.woff2', '.ttf', '.otf',
+    }
+
+    # 通用白名单 = 图片 ∪ 视频 ∪ 音频 ∪ 文档
+    DEFAULT_ALLOWED_EXTENSIONS = (
+        DEFAULT_IMAGE_EXTENSIONS
+        | DEFAULT_VIDEO_EXTENSIONS
+        | DEFAULT_AUDIO_EXTENSIONS
+        | DEFAULT_DOC_EXTENSIONS
+    )
 
     def __init__(
         self,
         allowed_types: Optional[Set[str]] = None,
         max_file_size: Optional[int] = None,
         enable_virus_scan: bool = False,
-        allowed_extensions: Optional[Set[str]] = None
+        allowed_extensions: Optional[Set[str]] = None,
+        max_video_file_size: Optional[int] = None
     ):
         self.allowed_types = allowed_types or self.DEFAULT_ALLOWED_TYPES
         self.max_file_size = max_file_size or self.DEFAULT_MAX_FILE_SIZE
+
+        # 视频类单独上限：传入时优先，否则用默认 100MB 放宽值
+        self.max_video_file_size = max_video_file_size or self.DEFAULT_MAX_VIDEO_FILE_SIZE
         self.enable_virus_scan = enable_virus_scan
-        self.allowed_extensions = allowed_extensions
+
+        # 未显式传入时启用默认严格白名单；绝不退化为「无限制」
+        self.allowed_extensions = allowed_extensions or self.DEFAULT_ALLOWED_EXTENSIONS
         self.mime_magic = magic.Magic(mime=True) if _HAS_MAGIC else None
+
+    @staticmethod
+    def _is_video(file: UploadedFile) -> bool:
+        """按扩展名判断是否为视频文件（与白名单共用 DEFAULT_VIDEO_EXTENSIONS）。"""
+        _, ext = os.path.splitext(file.name)
+        return ext.lower() in FileValidator.DEFAULT_VIDEO_EXTENSIONS
 
     def validate(self, file: UploadedFile) -> Tuple[bool, Optional[str]]:
         """
@@ -84,22 +205,40 @@ class FileValidator:
             return False, str(e)
 
     def _validate_extension(self, file: UploadedFile):
-        """验证文件扩展名"""
-        ext = Path(file.name).suffix.lower()
-        
-        if ext in self.DANGEROUS_EXTENSIONS:
-            raise FileSecurityError(f"不允许的文件扩展名: {ext}")
-        
-        if self.allowed_extensions and ext not in self.allowed_extensions:
-            raise InvalidFileTypeError(f"不允许的文件扩展名: {ext}")
+        """验证文件扩展名（严格白名单 + 小写归一化）
+
+        永远不信任用户传来的后缀：用 os.path.splitext 提取后缀并统一小写，
+        使 .JPG 与 .jpg 等价识别；仅放行白名单内明确已知的格式，其余一律拒绝。
+        """
+        # os.path.splitext 兼容无后缀 / 多点的文件名（a.b.exe -> .exe）
+        _, ext = os.path.splitext(file.name)
+        ext = ext.lower()
+
+        allowed = self.allowed_extensions
+        if ext not in allowed:
+            label = ext or '(无后缀)'
+            raise InvalidFileTypeError(
+                f"不允许的文件扩展名: {label}，"
+                f"仅允许: {', '.join(sorted(allowed))}"
+            )
 
     def _validate_size(self, file: UploadedFile):
-        """验证文件大小"""
+        """验证文件大小
+
+        视频类（扩展名命中 DEFAULT_VIDEO_EXTENSIONS）使用放宽后的
+        max_video_file_size（默认 100MB），其余类型仍受 max_file_size（默认 10MB）约束。
+        """
         file_size = file.size
-        if file_size > self.max_file_size:
+        # 视频单独放宽：避免视频被通用 10MB 上限误伤
+        effective_limit = (
+            self.max_video_file_size if self._is_video(file) else self.max_file_size
+        )
+        if file_size > effective_limit:
+            # 提示当前生效的是哪一类上限，便于前端理解
+            limit_label = "视频类" if effective_limit is self.max_video_file_size else "通用"
             raise FileTooLargeError(
                 f"文件过大 ({file_size / 1024 / 1024:.2f}MB), "
-                f"最大允许 {self.max_file_size / 1024 / 1024:.2f}MB"
+                f"{limit_label}最大允许 {effective_limit / 1024 / 1024:.2f}MB"
             )
 
     def _validate_mime_type(self, file: UploadedFile):
@@ -112,16 +251,32 @@ class FileValidator:
             raise FileSecurityError("文件内容为空")
 
         if self.mime_magic is not None:
+            # python-magic 可用：按真实文件内容检测（权威闸门）
             detected_mime = self.mime_magic.from_buffer(content)
+            # 内容无法判定（空串/None，例如极短或罕见封装）时，降级用扩展名猜测，
+            # 避免误拒扩展名白名单已批准的合法文件。
+            if not detected_mime:
+                guessed, _ = mimetypes.guess_type(file.name)
+                detected_mime = guessed
+            if detected_mime:
+                if detected_mime not in self.allowed_types:
+                    raise InvalidFileTypeError(
+                        f"不允许的文件类型: {detected_mime}, "
+                        f"允许的类型: {', '.join(self.allowed_types)}"
+                    )
+            # detected_mime 仍为 None（mimetypes 也不认识）→ 扩展名白名单已批准，放过
         else:
+            # 降级：按扩展名猜测。猜不出（None 或空串）说明 mimetypes 不认识
+            # 该扩展，此时扩展名白名单已先批准，直接放过，避免误拒合法扩展
+            #（如 .webp/.flv/.md；部分平台 mimetypes 对未知扩展返回空串 ''）。
             guessed, _ = mimetypes.guess_type(file.name)
-            detected_mime = guessed or "application/octet-stream"
-
-        if detected_mime not in self.allowed_types:
-            raise InvalidFileTypeError(
-                f"不允许的文件类型: {detected_mime}, "
-                f"允许的类型: {', '.join(self.allowed_types)}"
-            )
+            if not guessed:
+                return
+            if guessed not in self.allowed_types:
+                raise InvalidFileTypeError(
+                    f"不允许的文件类型: {guessed}, "
+                    f"允许的类型: {', '.join(self.allowed_types)}"
+                )
 
     def _scan_virus(self, file: UploadedFile):
         """
@@ -228,3 +383,23 @@ def safe_file_upload(
 
     logger.info(f"文件已安全保存: {file_path}")
     return str(file_path)
+
+
+def relative_media_url(abs_path: str) -> str:
+    """将 ``MEDIA_ROOT`` 下的绝对路径转为相对 ``MEDIA_URL`` 的访问地址。
+
+    统一用于上传接口的返回，解决两个既有问题：
+
+    1. 直接回吐 ``safe_file_upload`` 的绝对路径会暴露服务器目录结构（信息泄露）；
+    2. Windows 下 ``os.path.join`` 产生的反斜杠混入 URL 不规范。
+
+    返回结果统一为正斜杠的相对地址（如 ``media/uploads/abc.png``），
+    与 ``settings.MEDIA_URL`` 一致，可直接拼成可访问 URL。
+    """
+    abs_path = os.path.abspath(abs_path)
+    media_root = os.path.abspath(str(settings.MEDIA_ROOT))
+    rel = os.path.relpath(abs_path, media_root)
+    # 统一为正斜杠，保证跨平台 URL 规范
+    rel = rel.replace(os.sep, '/')
+    media_url = str(settings.MEDIA_URL).strip('/')
+    return f"{media_url}/{rel}" if media_url else rel

@@ -74,7 +74,7 @@ class UserRegisterView(generics.CreateAPIView):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
-            logger.warning(f"注册失败: 用户输入无效 - {serializer.errors}")
+            logger.warning("注册失败: 用户输入无效 - {}", serializer.errors)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         self.perform_create(serializer)
@@ -108,7 +108,7 @@ class UserLoginView(APIView):
     def post(self, request):
         serializer = UserLoginSerializer(data=request.data)
         if not serializer.is_valid():
-            logger.warning(f"登录失败: 数据验证不通过 - {serializer.errors}")
+            logger.warning("登录失败: 数据验证不通过 - {}", serializer.errors)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         username = serializer.validated_data['username']
@@ -131,6 +131,12 @@ class UserLoginView(APIView):
             # 使用 JWT 认证生成 token
             from rest_framework_simplejwt.tokens import RefreshToken
             refresh = RefreshToken.for_user(user)
+
+            # 令牌版本戳：每次登录自增并写入 claim，使该用户所有旧 token 立即失效
+            if hasattr(user, "token_version"):
+                user.token_version = (user.token_version or 0) + 1
+                user.save(update_fields=["token_version"])
+                refresh["token_version"] = user.token_version
 
             # 注入多租户上下文 claim（tenant_id）
             from system.users.serializers import resolve_login_tenant

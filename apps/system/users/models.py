@@ -15,6 +15,8 @@ class User(AbstractUser):
         'saas.Role', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='users', verbose_name='系统角色'
     )
+    # 令牌版本戳：每次登录 / 改密自增，使该用户所有旧 JWT 立即失效（重登即废全部旧 token）
+    token_version = models.PositiveIntegerField(default=0, verbose_name='令牌版本')
 
     objects = CustomUserManager()
 

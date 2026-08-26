@@ -37,7 +37,7 @@ class RegisterService:
 
         serializer = UserRegisterSerializer(data=data)
         if not serializer.is_valid():
-            logger.warning(f"注册失败: 数据验证不通过 - {serializer.errors}")
+            logger.warning("注册失败: 数据验证不通过 - {}", serializer.errors)
             return {"error": "validation", "errors": serializer.errors}
 
         user = serializer.save()
@@ -99,6 +99,11 @@ class LoginService:
         from rest_framework_simplejwt.tokens import RefreshToken
 
         refresh = RefreshToken.for_user(user)
+        # 令牌版本戳：每次登录自增并写入 claim，使该用户所有旧 token 立即失效
+        if hasattr(user, "token_version"):
+            user.token_version = (user.token_version or 0) + 1
+            user.save(update_fields=["token_version"])
+            refresh["token_version"] = user.token_version
         tokens = {
             "refresh": str(refresh),
             "access": str(refresh.access_token),
@@ -198,7 +203,7 @@ class ProfileService:
 
         serializer = UserDetailSerializer(user, data=data, partial=partial)
         if not serializer.is_valid():
-            logger.warning(f"更新用户信息失败: {serializer.errors}")
+            logger.warning("更新用户信息失败: {}", serializer.errors)
             return {"error": "validation", "errors": serializer.errors}
 
         instance = serializer.save()
@@ -257,6 +262,11 @@ class TokenService:
             return {"error": "disabled", "message": "账号已被禁用"}
 
         refresh = RefreshToken.for_user(user)
+        # 令牌版本戳：每次登录自增并写入 claim，使该用户所有旧 token 立即失效
+        if hasattr(user, "token_version"):
+            user.token_version = (user.token_version or 0) + 1
+            user.save(update_fields=["token_version"])
+            refresh["token_version"] = user.token_version
 
         if request:
             ip = (

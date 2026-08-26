@@ -7,8 +7,9 @@ from typing import Optional, Callable, Any, Tuple, Set
 from collections import defaultdict
 from loguru import logger
 from functools import wraps
-from django.http import JsonResponse, HttpRequest
+from django.http import HttpRequest
 from django.conf import settings
+from rest_framework.response import Response
 from framework.files.upload.validators import FileValidator
 from framework.files.upload.exceptions import FileUploadError
 
@@ -318,7 +319,8 @@ def validate_file_upload(
     allowed_types: Optional[Set[str]] = None,
     max_file_size: Optional[int] = None,
     enable_virus_scan: bool = False,
-    allowed_extensions: Optional[Set[str]] = None
+    allowed_extensions: Optional[Set[str]] = None,
+    max_video_file_size: Optional[int] = None
 ):
     """
     文件上传验证装饰器（用于 Django 视图）
@@ -326,33 +328,37 @@ def validate_file_upload(
     Args:
         file_field: 文件字段名
         allowed_types: 允许的 MIME 类型集合
-        max_file_size: 最大文件大小（字节）
+        max_file_size: 最大文件大小（字节，非视频类生效）
         enable_virus_scan: 是否启用病毒扫描
         allowed_extensions: 允许的文件扩展名集合
+        max_video_file_size: 视频类单独上限（字节），不传则用 validator 默认 100MB
     """
     def decorator(view_func: Callable) -> Callable:
         @wraps(view_func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             request = _get_request(*args)
             if file_field not in request.FILES:
-                return JsonResponse(
-                    {'error': f'缺少文件字段: {file_field}'},
+                return Response(
+                    {'detail': f'缺少文件字段: {file_field}'},
                     status=400
                 )
 
             uploaded_file = request.FILES[file_field]
-            
+
             validator = FileValidator(
                 allowed_types=allowed_types,
                 max_file_size=max_file_size,
                 enable_virus_scan=enable_virus_scan,
-                allowed_extensions=allowed_extensions
+                # 未传则启用默认严格白名单，避免退化为「无扩展名限制」
+                allowed_extensions=allowed_extensions or FileValidator.DEFAULT_ALLOWED_EXTENSIONS,
+                # 视频类单独放宽：传入时覆盖默认 100MB 上限
+                max_video_file_size=max_video_file_size
             )
 
             is_valid, error = validator.validate(uploaded_file)
             if not is_valid:
-                return JsonResponse(
-                    {'error': error},
+                return Response(
+                    {'detail': error},
                     status=400
                 )
 
@@ -366,7 +372,8 @@ def validate_image_upload(
     file_field: str = 'file',
     max_file_size: Optional[int] = None,
     max_width: int = 4096,
-    max_height: int = 4096
+    max_height: int = 4096,
+    allowed_extensions: Optional[Set[str]] = None
 ):
     """
     图片上传验证装饰器
@@ -376,30 +383,33 @@ def validate_image_upload(
         max_file_size: 最大文件大小
         max_width: 最大宽度
         max_height: 最大高度
+        allowed_extensions: 允许的文件扩展名集合（默认图片白名单）
     """
     image_types = {'image/jpeg', 'image/png', 'image/gif', 'image/webp'}
-    
+
     def decorator(view_func: Callable) -> Callable:
         @wraps(view_func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             request = _get_request(*args)
             if file_field not in request.FILES:
-                return JsonResponse(
-                    {'error': f'缺少文件字段: {file_field}'},
+                return Response(
+                    {'detail': f'缺少文件字段: {file_field}'},
                     status=400
                 )
 
             uploaded_file = request.FILES[file_field]
-            
+
             validator = FileValidator(
                 allowed_types=image_types,
-                max_file_size=max_file_size
+                max_file_size=max_file_size,
+                # 未传则启用默认图片白名单
+                allowed_extensions=allowed_extensions or FileValidator.DEFAULT_IMAGE_EXTENSIONS
             )
 
             is_valid, error = validator.validate(uploaded_file)
             if not is_valid:
-                return JsonResponse(
-                    {'error': error},
+                return Response(
+                    {'detail': error},
                     status=400
                 )
 
@@ -421,14 +431,14 @@ def handle_file_upload_exception(view_func: Callable) -> Callable:
             return view_func(request, *args, **kwargs)
         except FileUploadError as e:
             logger.warning(f"文件上传错误: {str(e)}")
-            return JsonResponse(
-                {'error': str(e)},
+            return Response(
+                {'detail': str(e)},
                 status=400
             )
         except Exception as e:
             logger.error(f"文件上传异常: {str(e)}")
-            return JsonResponse(
-                {'error': '文件上传失败，请稍后重试'},
+            return Response(
+                {'detail': '文件上传失败，请稍后重试'},
                 status=500
             )
     return wrapper

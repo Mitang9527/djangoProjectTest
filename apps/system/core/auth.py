@@ -71,6 +71,11 @@ class DemoLoginView(APIView):
 
         quota = _maybe_quota(user)
         refresh = RefreshToken.for_user(user)
+        # 令牌版本戳：每次登录自增并写入 claim，使该用户所有旧 token 立即失效
+        if hasattr(user, "token_version"):
+            user.token_version = (user.token_version or 0) + 1
+            user.save(update_fields=["token_version"])
+            refresh["token_version"] = user.token_version
         logger.info(
             f"[DEMO-LOGIN] 登录成功 user_id={user.id} username={user.username} "
             f"new_created={created} is_staff={user.is_staff} ip={ip}"

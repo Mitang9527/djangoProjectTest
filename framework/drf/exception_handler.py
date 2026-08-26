@@ -45,7 +45,7 @@ def global_exception_handler(exc, context):
 
     if response is not None:
         # 已知 DRF 异常（400/401/403/404/405...）
-        logger.warning(f"API 警告 [{method}] {path} - {view_name}: {exc}")
+        logger.warning("API 警告 [{}] {} - {}: {}", method, path, view_name, exc)
 
         # 生产环境可选的字段校验错误脱敏（默认关闭，保留前端提示所需信息）
         if is_prod and getattr(settings, "PROD_MASK_VALIDATION_ERRORS", False):
@@ -54,7 +54,10 @@ def global_exception_handler(exc, context):
                 response.status_code = status.HTTP_400_BAD_REQUEST
     else:
         # 未捕获的服务器内部错误 (500)
-        logger.error(f"系统异常 [{method}] {path} - {view_name}: {exc}\n{traceback.format_exc()}")
+        logger.error(
+            "系统异常 [{}] {} - {}: {}\n{}",
+            method, path, view_name, exc, traceback.format_exc()
+        )
         if is_prod:
             # 生产环境：绝不泄露异常原文、类名、堆栈或内部路径
             response = Response(

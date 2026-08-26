@@ -34,7 +34,7 @@ class BuildTaskViewSet(viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         """创建构建任务 — 带详细错误日志"""
-        logger.info(f"[APK API] 创建任务请求 — user={request.user.username}, data={request.data}")
+        logger.info("[APK API] 创建任务请求 — user={}, data={}", request.user.username, request.data)
         try:
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)

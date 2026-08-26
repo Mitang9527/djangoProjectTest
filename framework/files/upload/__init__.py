@@ -3,7 +3,8 @@ from .validators import (
     validate_file_type,
     validate_file_size,
     scan_file_for_virus,
-    safe_file_upload
+    safe_file_upload,
+    relative_media_url,
 )
 from .exceptions import (
     FileUploadError,
@@ -19,6 +20,7 @@ __all__ = [
     'validate_file_size',
     'scan_file_for_virus',
     'safe_file_upload',
+    'relative_media_url',
     'FileUploadError',
     'InvalidFileTypeError',
     'FileTooLargeError',

@@ -24,13 +24,13 @@ from .serializers import (
 from .permissions import CanIssueApiKey, CanManageApiKey
 from .health import HealthChecker
 
-from framework.files.upload.validators import safe_file_upload, FileValidator
+from framework.files.upload import safe_file_upload, FileValidator, FileUploadError, relative_media_url
 from framework.files.upload.image_processor import ImageProcessor
 from framework.helpers.decorators import validate_file_upload, validate_image_upload, handle_file_upload_exception
 
 from django.contrib.auth import get_user_model
 from django.utils import timezone
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone as dt_timezone
 
 User = get_user_model()
 
@@ -457,38 +457,59 @@ class ReadinessCheckView(APIView):
         return Response(result, status=status_code)
 
 
-class FileUploadView(APIView):
+class DocumentUploadView(APIView):
     """
-    通用文件上传视图示例
+    文档上传视图（文档 / 数据 / 归档 / 字体等）
     """
     permission_classes = [permissions.IsAuthenticated]
     
     @extend_schema(
-        summary="文件上传",
-        description="安全的文件上传接口，包含类型验证和大小限制",
+        summary="文档上传",
+        description="文档类文件上传接口，仅放行文档/数据/归档/字体等已审核格式，含大小限制与扩展名白名单校验",
         tags=["文件上传"]
     )
     @validate_file_upload(
         file_field='file',
-        max_file_size=settings.FILE_UPLOAD_MAX_FILE_SIZE
+        max_file_size=settings.FILE_UPLOAD_MAX_FILE_SIZE,
+        # 仅放行文档类白名单（与全局 DEFAULT_DOC_EXTENSIONS 同步，自动跟随白名单维护）
+        allowed_extensions=FileValidator.DEFAULT_DOC_EXTENSIONS,
     )
     @handle_file_upload_exception
     def post(self, request):
-        uploaded_file = request.FILES['file']
-        
-        file_path = safe_file_upload(
-            uploaded_file,
-            upload_dir='uploads',
-            random_filename=True
-        )
-        
+        # 优雅处理：前端漏传文件时返回 400，而非抛出 MultiValueDictKeyError 导致 500
+        uploaded_file = request.FILES.get('file')
+        if not uploaded_file:
+            return Response(
+                {'detail': '缺少文件字段: file'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            file_path = safe_file_upload(
+                uploaded_file,
+                upload_dir='documents',
+                random_filename=True
+            )
+        except (FileUploadError, OSError) as e:
+            # 磁盘满 / 无写入权限等底层错误：服务端记录详情，前端返回安全提示（不泄露路径）
+            logger.error(f"[DocumentUpload] 保存失败: {e}")
+            return Response(
+                {'detail': '文件保存失败，请稍后重试'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
         return Response({
-            'success': True,
+            'status': 'success',
+            'code': status.HTTP_201_CREATED,
             'message': '文件上传成功',
-            'file_path': file_path,
-            'file_name': uploaded_file.name,
-            'file_size': uploaded_file.size
-        })
+            'data': {
+                # 统一返回相对 MEDIA_URL 的可访问地址，杜绝绝对路径泄露
+                'file_path': relative_media_url(file_path),
+                'file_name': uploaded_file.name,
+                'file_size': uploaded_file.size,
+            },
+            'errors': None,
+        }, status=status.HTTP_201_CREATED)
 
 
 class ImageUploadView(APIView):
@@ -499,57 +520,242 @@ class ImageUploadView(APIView):
     
     @extend_schema(
         summary="图片上传",
-        description="图片上传接口，自动压缩并添加水印",
+        description="图片上传接口，自动压缩并添加水印，含扩展名白名单校验",
         tags=["文件上传"]
     )
     @validate_image_upload(
         file_field='image',
-        max_file_size=settings.FILE_UPLOAD_MAX_FILE_SIZE
+        max_file_size=settings.FILE_UPLOAD_MAX_FILE_SIZE,
+        # 图片严格白名单
+        allowed_extensions={'.jpg', '.jpeg', '.png', '.gif', '.webp'},
     )
     @handle_file_upload_exception
     def post(self, request):
-        uploaded_file = request.FILES['image']
-        
-        # 上传原始图片
-        original_path = safe_file_upload(
-            uploaded_file,
-            upload_dir='images/original',
-            random_filename=True
-        )
-        
-        # 处理图片（压缩）
-        processor = ImageProcessor(
-            max_width=settings.IMAGE_PROCESSING_MAX_WIDTH,
-            max_height=settings.IMAGE_PROCESSING_MAX_HEIGHT,
-            quality=settings.IMAGE_PROCESSING_QUALITY
-        )
-        
-        compressed_path = processor.compress_image(
-            original_path,
-            output_path=os.path.join(
-                settings.MEDIA_ROOT,
-                'images/compressed',
-                os.path.basename(original_path)
+        # 优雅处理：前端漏传图片时返回 400
+        uploaded_file = request.FILES.get('image')
+        if not uploaded_file:
+            return Response(
+                {'detail': '缺少文件字段: image'},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-        )
-        
-        # 创建缩略图
-        thumbnail_path = processor.create_thumbnail(
-            original_path,
-            output_path=os.path.join(
-                settings.MEDIA_ROOT,
-                'images/thumbnails',
-                os.path.basename(original_path)
-            ),
-            size=(200, 200)
-        )
-        
+
+        try:
+            # 上传原始图片
+            original_path = safe_file_upload(
+                uploaded_file,
+                upload_dir='images/original',
+                random_filename=True
+            )
+
+            # 处理图片（压缩）
+            processor = ImageProcessor(
+                max_width=settings.IMAGE_PROCESSING_MAX_WIDTH,
+                max_height=settings.IMAGE_PROCESSING_MAX_HEIGHT,
+                quality=settings.IMAGE_PROCESSING_QUALITY
+            )
+
+            compressed_path = processor.compress_image(
+                original_path,
+                output_path=os.path.join(
+                    settings.MEDIA_ROOT,
+                    'images/compressed',
+                    os.path.basename(original_path)
+                )
+            )
+
+            # 创建缩略图
+            thumbnail_path = processor.create_thumbnail(
+                original_path,
+                output_path=os.path.join(
+                    settings.MEDIA_ROOT,
+                    'images/thumbnails',
+                    os.path.basename(original_path)
+                ),
+                size=(200, 200)
+            )
+        except (FileUploadError, OSError) as e:
+            # 磁盘满 / 无写入权限 / 图片处理失败：服务端记录详情，前端返回安全提示
+            logger.error(f"[ImageUpload] 处理失败: {e}")
+            return Response(
+                {'detail': '图片处理失败，请稍后重试'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
         return Response({
-            'success': True,
-            'message': '图片上传成功',
-            'original': original_path.replace(settings.MEDIA_ROOT, settings.MEDIA_URL),
-            'compressed': compressed_path.replace(settings.MEDIA_ROOT, settings.MEDIA_URL),
-            'thumbnail': thumbnail_path.replace(settings.MEDIA_ROOT, settings.MEDIA_URL),
-            'file_name': uploaded_file.name,
-            'file_size': uploaded_file.size
-        })
+            'status': 'success',
+            'code': status.HTTP_201_CREATED,
+                'message': '图片上传成功',
+                'data': {
+                    # 统一相对 MEDIA_URL 地址；relative_media_url 已处理跨平台斜杠
+                    'original': relative_media_url(original_path),
+                    'compressed': relative_media_url(compressed_path),
+                    'thumbnail': relative_media_url(thumbnail_path),
+                    'file_name': uploaded_file.name,
+                    'file_size': uploaded_file.size,
+                },
+                'errors': None,
+            }, status=status.HTTP_201_CREATED)
+
+
+class TokenInfoView(APIView):
+    """
+    JWT access token 信息查询接口。
+
+    从当前请求的 ``Authorization: Bearer`` 解析 JWT，返回签发/过期时间、剩余有效秒数等，
+    便于前端做「即将过期自动续期」或展示登录剩余时长。
+    需携带有效 Bearer token（IsAuthenticated）；免请求签名（SPA 直连场景同 upload 接口）。
+    """
+
+    authentication_classes = [SlidingJWTAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        summary="查询 access token 剩余有效时长",
+        description=(
+            "解析当前请求所携带的 access token，返回 exp/iat/剩余秒数等。"
+            "需登录（IsAuthenticated）。"
+        ),
+        tags=["系统"],
+    )
+    def get(self, request):
+        token = request.auth
+        # SimpleJWT 的 AccessToken 对象提供 .payload；兜底直接 dict 化
+        payload = token.payload if hasattr(token, "payload") else dict(token)
+
+        def _to_ts(value):
+            """exp/iat 可能是 int 时间戳（NumericDate）或 datetime，统一转成秒。"""
+            if value is None:
+                return None
+            if isinstance(value, datetime):
+                return value.timestamp()
+            return float(value)
+
+        now_ts = timezone.now().timestamp()
+        exp_ts = _to_ts(payload.get("exp"))
+        iat_ts = _to_ts(payload.get("iat"))
+        remaining = int(exp_ts - now_ts) if exp_ts is not None else None
+
+        data = {
+            "token_type": "access",
+            "user_id": payload.get("user_id"),
+            "username": payload.get("username"),
+            "iat": int(iat_ts) if iat_ts is not None else None,
+            "exp": int(exp_ts) if exp_ts is not None else None,
+            "exp_iso": (
+                datetime.fromtimestamp(exp_ts, tz=dt_timezone.utc).isoformat()
+                if exp_ts is not None else None
+            ),
+            "remaining_seconds": remaining,
+            "expired": bool(remaining is not None and remaining <= 0),
+        }
+        return Response(data, status=status.HTTP_200_OK)
+
+
+class VideoUploadView(APIView):
+    """
+    视频上传视图（视频类格式）
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        summary="视频上传",
+        description="视频类文件上传接口，仅放行视频容器格式，享 100MB 放宽上限，含扩展名白名单校验",
+        tags=["文件上传"]
+    )
+    @validate_file_upload(
+        file_field='file',
+        max_file_size=settings.FILE_UPLOAD_MAX_FILE_SIZE,
+        # 视频类单独放宽：覆盖 validator 的默认视频上限（100MB）
+        max_video_file_size=settings.FILE_UPLOAD_MAX_VIDEO_FILE_SIZE,
+        # 仅放行视频类白名单（与全局 DEFAULT_VIDEO_EXTENSIONS 同步，自动跟随白名单维护）
+        allowed_extensions=FileValidator.DEFAULT_VIDEO_EXTENSIONS,
+    )
+    @handle_file_upload_exception
+    def post(self, request):
+        uploaded_file = request.FILES.get('file')
+        if not uploaded_file:
+            return Response(
+                {'detail': '缺少文件字段: file'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            file_path = safe_file_upload(
+                uploaded_file,
+                upload_dir='videos',
+                random_filename=True
+            )
+        except (FileUploadError, OSError) as e:
+            # 磁盘满 / 无写入权限等底层错误：服务端记录详情，前端返回安全提示（不泄露路径）
+            logger.error(f"[VideoUpload] 保存失败: {e}")
+            return Response(
+                {'detail': '视频保存失败，请稍后重试'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return Response({
+            'status': 'success',
+            'code': status.HTTP_201_CREATED,
+            'message': '视频上传成功',
+            'data': {
+                # 统一返回相对 MEDIA_URL 的可访问地址，杜绝绝对路径泄露
+                'file_path': relative_media_url(file_path),
+                'file_name': uploaded_file.name,
+                'file_size': uploaded_file.size,
+            },
+            'errors': None,
+        }, status=status.HTTP_201_CREATED)
+
+
+class AudioUploadView(APIView):
+    """
+    音频上传视图（音频类格式）
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        summary="音频上传",
+        description="音频类文件上传接口，仅放行音频格式，含大小限制与扩展名白名单校验",
+        tags=["文件上传"]
+    )
+    @validate_file_upload(
+        file_field='file',
+        max_file_size=settings.FILE_UPLOAD_MAX_FILE_SIZE,
+        # 仅放行音频类白名单（与全局 DEFAULT_AUDIO_EXTENSIONS 同步，自动跟随白名单维护）
+        allowed_extensions=FileValidator.DEFAULT_AUDIO_EXTENSIONS,
+    )
+    @handle_file_upload_exception
+    def post(self, request):
+        uploaded_file = request.FILES.get('file')
+        if not uploaded_file:
+            return Response(
+                {'detail': '缺少文件字段: file'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            file_path = safe_file_upload(
+                uploaded_file,
+                upload_dir='audios',
+                random_filename=True
+            )
+        except (FileUploadError, OSError) as e:
+            # 磁盘满 / 无写入权限等底层错误：服务端记录详情，前端返回安全提示（不泄露路径）
+            logger.error(f"[AudioUpload] 保存失败: {e}")
+            return Response(
+                {'detail': '音频保存失败，请稍后重试'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return Response({
+            'status': 'success',
+            'code': status.HTTP_201_CREATED,
+            'message': '音频上传成功',
+            'data': {
+                # 统一返回相对 MEDIA_URL 的可访问地址，杜绝绝对路径泄露
+                'file_path': relative_media_url(file_path),
+                'file_name': uploaded_file.name,
+                'file_size': uploaded_file.size,
+            },
+            'errors': None,
+        }, status=status.HTTP_201_CREATED)

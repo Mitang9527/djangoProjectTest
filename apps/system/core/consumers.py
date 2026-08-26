@@ -71,7 +71,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             if self.scope['user'].is_authenticated:
                 username = self.scope['user'].username
             
-            logger.info(f"收到消息: 用户={username}, 内容={message}")
+            logger.info("收到消息: 用户={}, 内容={}", username, message)
             
             # 广播消息到群组
             await self.channel_layer.group_send(

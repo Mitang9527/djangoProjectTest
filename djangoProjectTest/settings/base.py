@@ -703,21 +703,12 @@ API_VERSIONS = ['v1']
 # 任何公开的 /api 接口,都必须在这儿加上，不然前端调取不到
 API_SIGNATURE_EXCLUDE_PATHS = [
     # ---- 用户认证（浏览器/SPA，JWT 鉴权，不做请求签名）----
-    "/api/v1/users/login/",
-    "/api/v1/users/register/",
-    "/api/v1/users/jwt/login/",
-    "/api/v1/users/jwt/refresh/",
-    "/api/v1/users/jwt/verify/",
     "/api/v1/users/*",
-    # ---- 用户认证 v2（与 v1 同样的 JWT 鉴权，不做请求签名）----
-    "/api/v2/users/*",
     # ---- SaaS 后台（浏览器/SPA，JWT 鉴权，不做请求签名）----
     "/api/v1/saas/*",
     # ---- 核心平台公开/监控/外部鉴权端点 ----
-    # 注意：核心平台已从根路径收口到 /api/v1/core/，其监控端点落入 /api/* 签名拦截，
-    #       需在此显式放行（探活/依赖检查不带签名头）。
-    "/api/v1/health/",
-    "/api/v1/health/*",
+    # 核心平台已收口到 /api/v1/core/，其监控/外部端点落入 /api/* 签名拦截，
+    # 需在此显式放行（探活/依赖检查/前端调用均不带签名头）。
     "/api/v1/core/ping/",
     "/api/v1/core/ping-auth/",
     "/api/v1/core/secure-info/",
@@ -725,16 +716,17 @@ API_SIGNATURE_EXCLUDE_PATHS = [
     "/api/v1/core/api-keys/*",
     "/api/v1/core/upload/file/",
     "/api/v1/core/upload/image/",
+    "/api/v1/core/upload/video/",
+    "/api/v1/core/upload/audio/",
     "/api/v1/core/health/",
     "/api/v1/core/health/*",
     "/api/v1/core/system-status/",
+    "/api/v1/core/token/info/",
     # ---- 第一方 Web SPA（带 JWT 的浏览器客户端）走 JWT 鉴权，不做签名校验 ----
     "/api/v1/ai_studio/*",
     "/api/v1/ai_gateway/*",
-    # ---- 业务 / 扩展服务 ----
+    # ---- 业务服务 ----
     "/api/v1/alert_system/*",
-    "/api/v1/soul/*",
-    "/api/v1/adb_web/*",
 ]
 
 # 时间戳容忍度（秒）
@@ -839,20 +831,64 @@ FILE_UPLOAD_PERMISSIONS = 0o644
 FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o755
 
 # 文件验证配置
+# 注意：当前 validator 使用 framework.files.upload.validators.FileValidator
+# 内置的 DEFAULT_ALLOWED_TYPES / DEFAULT_ALLOWED_EXTENSIONS 作为权威白名单，
+# 本变量为同义冗余配置，保留以便后续若改为「settings 驱动白名单」时直接启用。
 FILE_UPLOAD_ALLOWED_TYPES = {
-    'image/jpeg',
-    'image/png',
-    'image/gif',
-    'image/webp',
+    # 图片
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+    'image/bmp', 'image/x-icon', 'image/tiff',
+    'image/heic', 'image/heif', 'image/avif',
+    # 视频
+    'video/mp4', 'video/webm', 'video/quicktime', 'video/avi',
+    'video/x-matroska', 'video/x-flv', 'video/x-ms-wmv', 'video/x-m4v',
+    'video/ogg', 'video/mpeg', 'video/3gpp', 'video/mp2t',
+    'video/vnd.dlna.mpeg-tts',
+    # 音频
+    'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/vnd.dlna.adts',
+    'audio/x-flac', 'audio/mp4',
+    'audio/opus', 'audio/midi',
+    'audio/mid',
+    # 文档 / 数据 / 归档 / 字体
     'application/pdf',
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/vnd.ms-excel',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'text/plain',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'text/plain', 'text/csv', 'text/markdown', 'text/xml',
+    'application/json',
+    'application/x-zip-compressed',
+    'application/vnd.oasis.opendocument.text',
+    'application/vnd.oasis.opendocument.spreadsheet',
+    'application/vnd.oasis.opendocument.presentation',
+    'application/epub+zip', 'application/epub',
+    'text/calendar', 'text/vcard', 'text/x-vcard',
+    'text/tab-separated-values',
+    'application/yaml', 'text/yaml', 'application/x-yaml',
+    'application/x-7z-compressed', 'application/x-tar',
+    'application/gzip', 'application/x-gzip',
+    'application/vnd.rar', 'application/x-rar-compressed',
+    'application/x-compressed',
+    'font/woff', 'application/font-woff', 'application/x-font-woff',
+    'font/woff2', 'application/font-woff2', 'application/x-font-woff2',
+    'font/ttf', 'application/x-font-ttf',
+    'font/otf', 'application/x-font-otf',
 }
 FILE_UPLOAD_MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+# 视频类单独放宽上限（容器天然更大，避免被通用 10MB 误伤）。
+# 该值须与 framework 层 validator 的 DEFAULT_MAX_VIDEO_FILE_SIZE 对齐；
+# 同时 DATA_UPLOAD_MAX_MEMORY_SIZE 必须 >= 此值 + multipart 开销，否则大视频在解析阶段被拒。
+FILE_UPLOAD_MAX_VIDEO_FILE_SIZE = 100 * 1024 * 1024  # 100MB
 FILE_UPLOAD_ENABLE_VIRUS_SCAN = False
+
+# 框架层上传 DoS 防护：请求体超过该值（含所有字段与文件）直接在解析阶段拒绝，
+# 防止恶意用户疯狂上传大文件耗尽内存/磁盘。必须 >= 视频单文件上限（100MB）+ multipart 开销，
+# 否则正常大视频会在解析阶段被 413 拒绝；放宽视频可用性后，DoS 防护由 per-file 上限 + 鉴权兜底。
+DATA_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024 + 10 * 1024 * 1024  # 110MB（>= 视频上限 + 开销）
+# 超过该值的部分流式写入临时文件（而非常驻内存），降低内存压力
+FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024  # 5MB
 
 # 图片处理配置
 IMAGE_PROCESSING_MAX_WIDTH = 1920

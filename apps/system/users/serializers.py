@@ -3,6 +3,7 @@ from django.apps import apps
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework.validators import UniqueValidator
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.settings import api_settings as jwt_api_settings
 from rest_framework_simplejwt.tokens import RefreshToken
 from drf_spectacular.utils import extend_schema_field
 
@@ -147,6 +148,12 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         token['role_id'] = str(user.role.id) if user.role else None
         token['email'] = user.email
 
+        # 令牌版本戳：每次登录自增并写入 claim，使该用户所有旧 token 立即失效
+        if hasattr(user, 'token_version'):
+            user.token_version = (user.token_version or 0) + 1
+            user.save(update_fields=['token_version'])
+            token['token_version'] = user.token_version
+
         return token
 
     def validate(self, attrs):
@@ -179,6 +186,23 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 class RefreshTokenSerializer(serializers.Serializer):
     """刷新 Token 序列化器"""
     refresh = serializers.CharField(required=True, help_text="刷新 Token")
+
+    def validate(self, attrs):
+        refresh = RefreshToken(attrs["refresh"])
+        data = {"access": str(refresh.access_token)}
+
+        if jwt_api_settings.ROTATE_REFRESH_TOKENS:
+            if jwt_api_settings.BLACKLIST_AFTER_ROTATION:
+                try:
+                    refresh.blacklist()
+                except AttributeError:
+                    pass
+            refresh.set_jti()
+            refresh.set_exp()
+            refresh.set_iat()
+            data["refresh"] = str(refresh)
+
+        return data
 
 class UserManageSerializer(serializers.ModelSerializer):
     """管理员操作用户的序列化器（创建/编辑/删除）"""
@@ -262,6 +286,8 @@ class UserManageSerializer(serializers.ModelSerializer):
         
         if password:
             instance.set_password(password)
+            # 改密后使该用户所有旧 token 立即失效
+            instance.token_version = (instance.token_version or 0) + 1
         instance.save()
         return instance
     

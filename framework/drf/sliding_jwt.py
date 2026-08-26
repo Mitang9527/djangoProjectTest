@@ -20,13 +20,14 @@ from datetime import datetime
 
 from django.conf import settings
 from django.utils import timezone
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.request import Request
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.settings import api_settings as jwt_settings
 from rest_framework_simplejwt.tokens import AccessToken
 
 # 滑动续期时需要从旧 token 复制到新 token 的声明（顺序无关）
-_SLIDE_CLAIMS = (jwt_settings.USER_ID_CLAIM, "username", "email", "role_id", "tenant_id")
+_SLIDE_CLAIMS = (jwt_settings.USER_ID_CLAIM, "username", "email", "role_id", "tenant_id", "token_version")
 
 
 class SlidingJWTAuthentication(JWTAuthentication):
@@ -43,6 +44,16 @@ class SlidingJWTAuthentication(JWTAuthentication):
             return None
 
         user, validated_token = result
+
+        # 令牌版本校验：token_version claim 与用户当前值不一致（重登 / 改密后）
+        # 即视为旧 token，立即拒绝。旧 token（部署前签发、无该 claim）留空则跳过，
+        # 保证灰度期已登录用户不被强制踢出，直到其自然过期或重新登录。
+        expected = getattr(user, "token_version", None)
+        actual = validated_token.get("token_version", None)
+        if actual is not None and expected is not None and actual != expected:
+            raise AuthenticationFailed(
+                "该账号已在其他位置登录或密码已修改，请重新登录"
+            )
 
         if not getattr(settings, "SLIDING_SESSION_ENABLED", False):
             return result
