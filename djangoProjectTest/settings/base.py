@@ -544,11 +544,14 @@ API_VERSIONS = ['v1']
 API_SIGNATURE_EXCLUDE_PATHS = [
     # ---- 用户认证（浏览器/SPA，JWT 鉴权，不做请求签名）----
     "/api/v1/users/*",
+
     # ---- SaaS 后台（浏览器/SPA，JWT 鉴权，不做请求签名）----
     "/api/v1/saas/*",
+
     # ---- 核心平台公开/监控/外部鉴权端点 ----
     # 核心平台已收口到 /api/v1/core/，其监控/外部端点落入 /api/* 签名拦截，
     # 需在此显式放行（探活/依赖检查/前端调用均不带签名头）。
+
     "/api/v1/core/ping/",
     "/api/v1/core/ping-auth/",
     "/api/v1/core/secure-info/",
@@ -562,6 +565,7 @@ API_SIGNATURE_EXCLUDE_PATHS = [
     "/api/v1/core/health/*",
     "/api/v1/core/system-status/",
     "/api/v1/core/token/info/",
+
     # ---- 第一方 Web SPA（带 JWT 的浏览器客户端）走 JWT 鉴权，不做签名校验 ----
     "/api/v1/ai_studio/*",
     "/api/v1/ai_gateway/*",

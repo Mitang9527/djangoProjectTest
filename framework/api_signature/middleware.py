@@ -4,6 +4,7 @@ API 签名验证中间件
 
 import json
 from django.http import JsonResponse
+from django.urls import Resolver404, resolve
 from django.utils.deprecation import MiddlewareMixin
 from django.conf import settings
 from loguru import logger
@@ -49,6 +50,21 @@ class APISignatureMiddleware(MiddlewareMixin):
         # 签名验证仅针对无会话的程序化 API 调用
         if self._is_browser_request(request):
             return None
+
+        # 路径不存在的接口直接返回 404，不再交给 Django，
+        # 避免对不存在的路径误报 403 签名失败（语义应为“未找到”而非“无权限”）
+        try:
+            resolve(request.path)
+        except Resolver404:
+            logger.warning(f"API 路径不存在: {request.method} {request.path}")
+            return JsonResponse(
+                {
+                    'code': 404,
+                    'message': '接口路径不存在',
+                    'data': None,
+                },
+                status=404,
+            )
 
         try:
             # 从请求头获取参数
