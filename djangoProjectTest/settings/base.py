@@ -342,6 +342,12 @@ SESSION_IDLE_TIMEOUT_REDIRECT_URL = getattr(global_config, "SESSION_IDLE_TIMEOUT
 CACHALOT_ENABLED = True
 CACHALOT_TIMEOUT = 30  # ORM 缓存 30 秒（避免权限/角色变更长时间不生效）
 CACHALOT_CACHE = 'default'
+# 迁移期间 cachalot 会缓存 django_content_type 查询并返回陈旧的空结果，
+# 导致 create_contenttypes 重复插入 -> UNIQUE constraint failed。
+# 仅在执行 migrate 命令时关闭查询缓存（不影响运行时缓存）。
+import sys as _sys
+if 'migrate' in _sys.argv:
+    CACHALOT_ENABLED = False
 # 忽略高频写入表（Session、日志等）
 CACHALOT_UNCACHABLE_TABLES = frozenset([
     'django_session',
