@@ -21,8 +21,8 @@ def db_pool_stats_api(request):
     from framework.db import pool_manager, is_patched
     stats = pool_manager.all_stats()
     return Response({
-        'patched': is_patched(),
-        'pools': stats,
+        "patched": is_patched(),
+        "pools": stats,
     })
 
 
@@ -36,7 +36,7 @@ def db_pool_reset_stats_api(request):
     """清空所有池的指标计数器（不关闭池）"""
     from framework.db.metrics import reset_all_metrics
     reset_all_metrics()
-    return Response({'detail': 'DB 连接池指标已重置'})
+    return Response({"detail": "DB 连接池指标已重置"})
 
 
 @extend_schema(
@@ -52,5 +52,5 @@ def db_pool_reinit_api(request):
     pool_manager.close_all()
     n = pool_manager.init_pools()
     return Response({
-        'initialized': n,
+        "initialized": n,
     })

@@ -45,9 +45,9 @@ class BuildTaskViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"[APK API] 创建任务异常 — {e}\n{traceback.format_exc()}")
             return Response({
-                'success': False,
-                'message': f'创建任务失败: {str(e)}',
-                'detail': str(e),
+                "success": False,
+                "message": f'创建任务失败: {str(e)}',
+                "detail": str(e),
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def perform_create(self, serializer):
@@ -84,10 +84,10 @@ class BuildTaskViewSet(viewsets.ModelViewSet):
                 task.save()
                 logger.success(f"[APK API] 反编译成功 — task_id={task.id}, package={task.package_name}")
                 return Response({
-                    'success': True,
-                    'message': result['message'],
-                    'package_name': result.get('package_name'),
-                    'slclient_data': result.get('slclient_data', {}),
+                    "success": True,
+                    "message": result["message"],
+                    "package_name": result.get("package_name"),
+                    "slclient_data": result.get("slclient_data", {}),
                 })
             else:
                 task.status = 'failed'
@@ -95,15 +95,15 @@ class BuildTaskViewSet(viewsets.ModelViewSet):
                 task.save()
                 logger.error(f"[APK API] 反编译失败 — task_id={task.id}: {result['message']}")
                 return Response({
-                    'success': False,
-                    'message': result['message'],
-                    'logs': result.get('logs', []),
+                    "success": False,
+                    "message": result["message"],
+                    "logs": result.get("logs", []),
                 }, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             logger.error(f"[APK API] 反编译异常 — task_id={pk}: {e}\n{traceback.format_exc()}")
             return Response({
-                'success': False,
-                'message': f'反编译异常: {str(e)}',
+                "success": False,
+                "message": f'反编译异常: {str(e)}',
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['post'], url_path='configure')
@@ -120,21 +120,21 @@ class BuildTaskViewSet(viewsets.ModelViewSet):
                 updated_data = load_slclient_json(str(task.id))
                 logger.success(f"[APK API] 配置更新成功 — task_id={task.id}")
                 return Response({
-                    'success': True,
-                    'message': '配置已更新',
-                    'slclient_data': updated_data,
+                    "success": True,
+                    "message": "配置已更新",
+                    "slclient_data": updated_data,
                 })
             else:
                 logger.error(f"[APK API] 配置更新失败 — task_id={task.id}")
                 return Response({
-                    'success': False,
-                    'message': '配置更新失败',
+                    "success": False,
+                    "message": "配置更新失败",
                 }, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             logger.error(f"[APK API] 配置更新异常 — task_id={pk}: {e}\n{traceback.format_exc()}")
             return Response({
-                'success': False,
-                'message': f'配置更新异常: {str(e)}',
+                "success": False,
+                "message": f'配置更新异常: {str(e)}',
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['post'], url_path='import-terminal')
@@ -152,21 +152,21 @@ class BuildTaskViewSet(viewsets.ModelViewSet):
                 task.save()
                 logger.success(f"[APK API] 终端配置导入成功 — task_id={task.id}, folder={folder_name}")
                 return Response({
-                    'success': True,
-                    'message': result['message'],
-                    'slclient_data': result.get('slclient_data', {}),
+                    "success": True,
+                    "message": result["message"],
+                    "slclient_data": result.get("slclient_data", {}),
                 })
             else:
                 logger.error(f"[APK API] 终端配置导入失败 — task_id={task.id}: {result['message']}")
                 return Response({
-                    'success': False,
-                    'message': result['message'],
+                    "success": False,
+                    "message": result["message"],
                 }, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             logger.error(f"[APK API] 终端配置导入异常 — task_id={pk}: {e}\n{traceback.format_exc()}")
             return Response({
-                'success': False,
-                'message': f'终端导入异常: {str(e)}',
+                "success": False,
+                "message": f'终端导入异常: {str(e)}',
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['post'], url_path='build')
@@ -195,11 +195,11 @@ class BuildTaskViewSet(viewsets.ModelViewSet):
                 task.save()
                 logger.success(f"[APK API] 构建成功 — task_id={task.id}, apk={task.apk_name}, size={task.apk_size}")
                 return Response({
-                    'success': True,
-                    'message': result['message'],
-                    'apk_name': result.get('apk_name'),
-                    'apk_relative_path': result.get('apk_relative_path'),
-                    'apk_size': result.get('apk_size', 0),
+                    "success": True,
+                    "message": result["message"],
+                    "apk_name": result.get("apk_name"),
+                    "apk_relative_path": result.get("apk_relative_path"),
+                    "apk_size": result.get("apk_size", 0),
                 })
             else:
                 task.status = 'failed'
@@ -207,15 +207,15 @@ class BuildTaskViewSet(viewsets.ModelViewSet):
                 task.save()
                 logger.error(f"[APK API] 构建失败 — task_id={task.id}: {result['message']}")
                 return Response({
-                    'success': False,
-                    'message': result['message'],
-                    'logs': result.get('logs', []),
+                    "success": False,
+                    "message": result["message"],
+                    "logs": result.get("logs", []),
                 }, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             logger.error(f"[APK API] 构建异常 — task_id={pk}: {e}\n{traceback.format_exc()}")
             return Response({
-                'success': False,
-                'message': f'构建异常: {str(e)}',
+                "success": False,
+                "message": f'构建异常: {str(e)}',
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['get'], url_path='download')
@@ -227,21 +227,21 @@ class BuildTaskViewSet(viewsets.ModelViewSet):
         if task.status != 'completed' or not task.apk_path:
             logger.warning(f"[APK API] APK 未构建完成 — task_id={task.id}, status={task.status}")
             return Response({
-                'success': False,
-                'message': 'APK 未构建完成',
+                "success": False,
+                "message": "APK 未构建完成",
             }, status=status.HTTP_400_BAD_REQUEST)
 
         apk_file = Path(task.apk_path)
         if not apk_file.exists():
             logger.error(f"[APK API] APK 文件不存在 — task_id={task.id}, path={task.apk_path}")
             return Response({
-                'success': False,
-                'message': 'APK 文件不存在',
+                "success": False,
+                "message": "APK 文件不存在",
             }, status=status.HTTP_404_NOT_FOUND)
 
         logger.success(f"[APK API] APK 下载开始 — task_id={task.id}, file={task.apk_name}")
         response = FileResponse(
-            open(apk_file, 'rb'),
+            open(apk_file, "rb"),
             as_attachment=True,
             filename=task.apk_name or apk_file.name,
         )
@@ -254,8 +254,8 @@ class BuildTaskViewSet(viewsets.ModelViewSet):
         task = self.get_object()
         slclient_data = load_slclient_json(str(task.id))
         return Response({
-            'success': True,
-            'slclient_data': slclient_data,
+            "success": True,
+            "slclient_data": slclient_data,
         })
 
     @action(detail=True, methods=['get'], url_path='key-configs')
@@ -265,8 +265,8 @@ class BuildTaskViewSet(viewsets.ModelViewSet):
         task = self.get_object()
         key_configs = get_formatted_key_configs(str(task.id))
         return Response({
-            'success': True,
-            'key_configs': key_configs,
+            "success": True,
+            "key_configs": key_configs,
         })
 
     @action(detail=False, methods=['get'], url_path='terminal-list')
@@ -275,7 +275,7 @@ class BuildTaskViewSet(viewsets.ModelViewSet):
         logger.debug(f"[APK API] 获取终端列表 — user={request.user.username}")
         configs = list_terminal_configs()
         return Response({
-            'success': True,
-            'terminals': configs,
-            'total': len(configs),
+            "success": True,
+            "terminals": configs,
+            "total": len(configs),
         })

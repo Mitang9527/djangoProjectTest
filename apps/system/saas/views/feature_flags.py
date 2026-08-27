@@ -23,14 +23,14 @@ def check_feature_flag(request):
     """检查特性开关是否启用"""
     key = request.query_params.get('key', '')
     if not key:
-        return Response({'detail': 'key 参数不能为空'}, status=400)
+        return Response({"detail": "key 参数不能为空"}, status=400)
 
     tenant = getattr(request, 'tenant', None)
     enabled = FeatureFlagService.is_enabled(key, request.user, tenant)
 
     return Response({
-        'key': key,
-        'enabled': enabled
+        "key": key,
+        "enabled": enabled
     })
 
 
@@ -58,5 +58,5 @@ def toggle_feature_flag(request, feature_id):
     """切换特性开关状态"""
     result = FeatureFlagService.toggle_status(feature_id, request.user)
     if 'error' in result:
-        return Response({'detail': result['error']}, status=404)
+        return Response({"detail": result["error"]}, status=404)
     return Response(result)

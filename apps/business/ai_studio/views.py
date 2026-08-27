@@ -85,12 +85,12 @@ class GenerateView(APIView):
                 logger.warning(
                     f"[GENERATE] 渠道不存在 user={user.username} channel_id={channel_id}"
                 )
-                return Response({'detail': '渠道/Agent 不存在'}, status=400)
+                return Response({"detail": "渠道/Agent 不存在"}, status=400)
             if not can_use_channel(user, channel):
                 logger.warning(
                     f"[GENERATE] 无权使用渠道 user={user.username} channel={channel.name}"
                 )
-                return Response({'detail': '无权使用该渠道/Agent'}, status=403)
+                return Response({"detail": "无权使用该渠道/Agent"}, status=403)
 
         try:
             idempotency_key = request.headers.get('Idempotency-Key') or request.data.get('idempotency_key')
@@ -100,10 +100,10 @@ class GenerateView(APIView):
             )
         except PermissionError as e:
             logger.warning(f"[GENERATE] 权限拦截 user={user.username} reason={e}")
-            return Response({'detail': str(e)}, status=403)
+            return Response({"detail": str(e)}, status=403)
         except ValueError as e:
             logger.warning(f"[GENERATE] 参数错误 user={user.username} reason={e}")
-            return Response({'detail': str(e)}, status=400)
+            return Response({"detail": str(e)}, status=400)
 
         quota = get_or_create_quota(user)
         logger.info(
@@ -152,8 +152,8 @@ class TaskListView(APIView):
     def get(self, request):
         tasks = GenerationTask.objects.filter(user=request.user)[:50]
         return Response({
-            'tasks': GenerationTaskSerializer(tasks, many=True).data,
-            'count': tasks.count(),
+            "tasks": GenerationTaskSerializer(tasks, many=True).data,
+            "count": tasks.count(),
         })
 
 
@@ -166,11 +166,11 @@ class MeView(APIView):
         user = request.user
         quota = get_or_create_quota(user)
         return Response({
-            'id': user.id,
-            'username': user.username,
-            'is_staff': user.is_staff,
-            'is_superuser': user.is_superuser,
-            'quota': {'balance': quota.balance, 'frozen': quota.frozen},
+            "id": user.id,
+            "username": user.username,
+            "is_staff": user.is_staff,
+            "is_superuser": user.is_superuser,
+            "quota": {"balance": quota.balance, "frozen": quota.frozen},
         })
 
 
@@ -195,7 +195,7 @@ class RechargeView(APIView):
             )
         except ValueError as e:
             logger.warning(f"[RECHARGE] 充值失败 user={user.username} reason={e}")
-            return Response({'detail': str(e)}, status=400)
+            return Response({"detail": str(e)}, status=400)
 
         quota = get_or_create_quota(user)
         logger.info(
@@ -203,11 +203,11 @@ class RechargeView(APIView):
             f"quota_amount={order.quota_amount} balance={quota.balance} frozen={quota.frozen}"
         )
         return Response({
-            'order_no': order.order_no,
-            'quota_amount': order.quota_amount,
-            'status': order.status,
-            'balance': quota.balance,
-            'frozen': quota.frozen,
+            "order_no": order.order_no,
+            "quota_amount": order.quota_amount,
+            "status": order.status,
+            "balance": quota.balance,
+            "frozen": quota.frozen,
         })
 
 
@@ -227,14 +227,14 @@ class AdminGrantView(APIView):
         elif data.get('username'):
             target = User.objects.filter(username=data['username']).first()
         else:
-            return Response({'detail': '需提供 user_id 或 username'}, status=400)
+            return Response({"detail": "需提供 user_id 或 username"}, status=400)
 
         if not target:
             logger.warning(
                 f"[GRANT] 目标用户不存在 operator={admin.username} "
                 f"user_id={data.get('user_id')} username={data.get('username')}"
             )
-            return Response({'detail': '目标用户不存在'}, status=404)
+            return Response({"detail": "目标用户不存在"}, status=404)
 
         logger.info(
             f"[GRANT] 额度调整 operator={admin.username} -> target={target.username} "
@@ -244,21 +244,21 @@ class AdminGrantView(APIView):
             quota = admin_grant(admin, target, data['amount'], data.get('reason', ''))
         except PermissionError as e:
             logger.warning(f"[GRANT] 权限拦截 operator={admin.username} reason={e}")
-            return Response({'detail': str(e)}, status=403)
+            return Response({"detail": str(e)}, status=403)
         except ValueError as e:
             logger.warning(f"[GRANT] 参数错误 operator={admin.username} reason={e}")
-            return Response({'detail': str(e)}, status=400)
+            return Response({"detail": str(e)}, status=400)
 
         logger.info(
             f"[GRANT] 调整完成 target={target.username} amount={data['amount']} "
             f"balance={quota.balance} frozen={quota.frozen}"
         )
         return Response({
-            'user_id': target.id,
-            'username': target.username,
-            'amount': data['amount'],
-            'balance': quota.balance,
-            'frozen': quota.frozen,
+            "user_id": target.id,
+            "username": target.username,
+            "amount": data["amount"],
+            "balance": quota.balance,
+            "frozen": quota.frozen,
         })
 
 
@@ -281,7 +281,7 @@ class AdminUsersView(APIView):
                 'frozen': q.frozen if q else 0,
                 'total_granted': q.total_granted if q else 0,
             })
-        return Response({'users': data, 'count': len(data)})
+        return Response({"users": data, "count": len(data)})
 
 
 class ChannelListView(APIView):
@@ -292,8 +292,8 @@ class ChannelListView(APIView):
     def get(self, request):
         channels = ApiChannel.objects.all()
         return Response({
-            'channels': ChannelSerializer(channels, many=True).data,
-            'count': channels.count(),
+            "channels": ChannelSerializer(channels, many=True).data,
+            "count": channels.count(),
         })
 
     def post(self, request):
@@ -311,13 +311,13 @@ class ChannelDetailView(APIView):
     def get(self, request, channel_id):
         channel = ApiChannel.objects.filter(id=channel_id).first()
         if not channel:
-            return Response({'detail': '渠道不存在'}, status=404)
+            return Response({"detail": "渠道不存在"}, status=404)
         return Response(ChannelSerializer(channel).data)
 
     def put(self, request, channel_id):
         channel = ApiChannel.objects.filter(id=channel_id).first()
         if not channel:
-            return Response({'detail': '渠道不存在'}, status=404)
+            return Response({"detail": "渠道不存在"}, status=404)
         ser = ChannelCreateSerializer(channel, data=request.data, partial=True)
         ser.is_valid(raise_exception=True)
         channel = ser.save()
@@ -326,9 +326,9 @@ class ChannelDetailView(APIView):
     def delete(self, request, channel_id):
         channel = ApiChannel.objects.filter(id=channel_id).first()
         if not channel:
-            return Response({'detail': '渠道不存在'}, status=404)
+            return Response({"detail": "渠道不存在"}, status=404)
         channel.delete()
-        return Response({'detail': '已删除'}, status=204)
+        return Response({"detail": "已删除"}, status=204)
 
 
 class GrantView(APIView):
@@ -348,8 +348,8 @@ class GrantView(APIView):
         if channel_id:
             qs = qs.filter(channel_id=channel_id)
         return Response({
-            'grants': GrantSerializer(qs[:200], many=True).data,
-            'count': qs.count(),
+            "grants": GrantSerializer(qs[:200], many=True).data,
+            "count": qs.count(),
         })
 
     def post(self, request):
@@ -361,12 +361,12 @@ class GrantView(APIView):
         elif data.get('username'):
             target = User.objects.filter(username=data['username']).first()
         else:
-            return Response({'detail': '需提供 user_id 或 username'}, status=400)
+            return Response({"detail": "需提供 user_id 或 username"}, status=400)
         if not target:
-            return Response({'detail': '目标用户不存在'}, status=404)
+            return Response({"detail": "目标用户不存在"}, status=404)
         channel = ApiChannel.objects.filter(id=data['channel_id']).first()
         if not channel:
-            return Response({'detail': '渠道不存在'}, status=404)
+            return Response({"detail": "渠道不存在"}, status=404)
 
         grant, _ = UserChannelGrant.objects.update_or_create(
             user=target, channel=channel,
@@ -383,16 +383,16 @@ class GrantView(APIView):
         username = request.query_params.get('username')
         channel_id = request.query_params.get('channel_id')
         if not channel_id:
-            return Response({'detail': '需提供 channel_id'}, status=400)
+            return Response({"detail": "需提供 channel_id"}, status=400)
         qs = UserChannelGrant.objects.all()
         if user_id:
             qs = qs.filter(user_id=user_id)
         elif username:
             qs = qs.filter(user__username=username)
         else:
-            return Response({'detail': '需提供 user_id 或 username'}, status=400)
+            return Response({"detail": "需提供 user_id 或 username"}, status=400)
         deleted, _ = qs.filter(channel_id=channel_id).delete()
-        return Response({'detail': '已撤销授权', 'deleted': deleted}, status=200)
+        return Response({"detail": "已撤销授权", "deleted": deleted}, status=200)
 
 
 class MyChannelsView(APIView):
@@ -409,8 +409,8 @@ class MyChannelsView(APIView):
             ).select_related('channel')
             channels = [g.channel for g in grants]
         return Response({
-            'channels': MyChannelSerializer(channels, many=True).data,
-            'count': len(channels),
+            "channels": MyChannelSerializer(channels, many=True).data,
+            "count": len(channels),
         })
 
 
@@ -433,19 +433,19 @@ class AdminDashboardView(APIView):
         recharge_paid = RechargeOrder.objects.filter(status='PAID').aggregate(
             s=Sum('quota_amount'))['s'] or 0
         return Response({
-            'users': {'total': user_total, 'active': user_active},
-            'quota_pool': {
-                'available': quota_pool['balance'] or 0,
-                'frozen': quota_pool['frozen'] or 0,
-                'total_granted': quota_pool['granted'] or 0,
+            "users": {"total": user_total, "active": user_active},
+            "quota_pool": {
+                "available": quota_pool["balance"] or 0,
+                "frozen": quota_pool["frozen"] or 0,
+                "total_granted": quota_pool["granted"] or 0,
             },
-            'tasks': {
-                'by_status': task_stats,
-                'by_kind': kind_stats,
-                'total': sum(task_stats.values()),
+            "tasks": {
+                "by_status": task_stats,
+                "by_kind": kind_stats,
+                "total": sum(task_stats.values()),
             },
-            'channels': {'total': channel_total, 'active': channel_active},
-            'recharge_paid_total': recharge_paid,
+            "channels": {"total": channel_total, "active": channel_active},
+            "recharge_paid_total": recharge_paid,
         })
 
 

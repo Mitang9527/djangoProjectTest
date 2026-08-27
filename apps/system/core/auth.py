@@ -62,7 +62,8 @@ class DemoLoginView(APIView):
         username = (request.data.get('username') or '').strip()
         if not username:
             logger.info(f"[DEMO-LOGIN] 用户名为空 ip={ip}")
-            return Response({'detail': '请输入用户名'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "请输入用户名"}, status=status.HTTP_400_BAD_REQUEST)
 
         user, created = User.objects.get_or_create(username=username)
         if not user.email and '@' in username:

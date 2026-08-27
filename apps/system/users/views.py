@@ -120,7 +120,7 @@ class UserLoginView(APIView):
         if user:
             if not user.is_active:
                 logger.warning(f"登录失败: 账号已被禁用 - [{username}]")
-                return Response({'detail': _('该账号已被禁用')}, status=status.HTTP_403_FORBIDDEN)
+                return Response({"detail": _("该账号已被禁用")}, status=status.HTTP_403_FORBIDDEN)
 
             # 获取请求 IP
             x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
@@ -145,21 +145,21 @@ class UserLoginView(APIView):
                 refresh['tenant_id'] = tenant_id
 
             return Response({
-                'refresh': str(refresh),
-                'access': str(refresh.access_token),
-                'user': {
-                    'id': user.pk,
-                    'username': user.username,
-                    'email': user.email,
-                    'nickname': getattr(user, 'nickname', ''),
-                    'role': (user.role.name if user.role else None),
-                    'tenant_id': tenant_id,
+                "refresh": str(refresh),
+                "access": str(refresh.access_token),
+                "user": {
+                    "id": user.pk,
+                    "username": user.username,
+                    "email": user.email,
+                    "nickname": getattr(user, "nickname", ""),
+                    "role": (user.role.name if user.role else None),
+                    "tenant_id": tenant_id,
                 }
             })
 
         # 统一返回用户名或密码错误（不区分账号不存在/密码错误，防止枚举）
         logger.warning(f"登录失败: 用户名或密码错误 - [{username}]")
-        return Response({'detail': _('用户名或密码错误')}, status=status.HTTP_401_UNAUTHORIZED)
+        return Response({"detail": _("用户名或密码错误")}, status=status.HTTP_401_UNAUTHORIZED)
 
 class UserLogoutView(APIView):
     """用户登出视图 - 支持 JWT 黑名单和 Session 清理"""
@@ -199,10 +199,10 @@ class UserLogoutView(APIView):
             else:
                 logger.info("匿名用户登出请求")
 
-            return Response({'message': _('登出成功')}, status=status.HTTP_200_OK)
+            return Response({"message": _("登出成功")}, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"用户登出异常: {e}")
-            return Response({'detail': _('登出失败')}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"detail": _("登出失败")}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class UserInfoView(generics.RetrieveUpdateAPIView):
     """用户信息查看和修改"""
@@ -322,7 +322,7 @@ class JWTLogoutView(APIView):
             # 2. 处理 JWT 登出 - 将 refresh token 加入黑名单
             refresh_token = request.data.get('refresh')
             if not refresh_token:
-                return Response({'detail': '缺少 refresh token'}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"detail": "缺少 refresh token"}, status=status.HTTP_400_BAD_REQUEST)
             
             token = RefreshToken(refresh_token)
             token.blacklist()
@@ -333,11 +333,11 @@ class JWTLogoutView(APIView):
             else:
                 logger.info("JWT登出成功（匿名用户）")
             
-            return Response({'message': '登出成功'}, status=status.HTTP_200_OK)
+            return Response({"message": "登出成功"}, status=status.HTTP_200_OK)
             
         except Exception as e:
             logger.error(f"JWT登出失败: {e}")
-            return Response({'detail': '登出失败'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "登出失败"}, status=status.HTTP_400_BAD_REQUEST)
 
 class SystemRoleListView(APIView):
     """
@@ -386,13 +386,13 @@ class VerifyTokenView(APIView):
     )
     def get(self, request):
         return Response({
-            'valid': True,
-            'user': {
-                'id': request.user.id,
-                'username': request.user.username,
-                'email': request.user.email,
-                'role_id': str(request.user.role.id) if request.user.role else None,
-                'role_name': request.user.role.name if request.user.role else None,
+            "valid": True,
+            "user": {
+                "id": request.user.id,
+                "username": request.user.username,
+                "email": request.user.email,
+                "role_id": str(request.user.role.id) if request.user.role else None,
+                "role_name": request.user.role.name if request.user.role else None,
             }
         })
 

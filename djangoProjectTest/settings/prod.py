@@ -38,25 +38,14 @@ DATABASES = {
 
 # 读写分离：配置 DB_REPLICA_URL 后自动注入 replica 库 + PrimaryReplicaRouter；
 # 未配置时保持单库（default），零风险。
-from framework.db.replica import install_replica  # noqa: E402
+DATABASES, DATABASE_ROUTERS = apply_replica(DATABASES, DATABASE_ROUTERS)
 
-DATABASES, DATABASE_ROUTERS = install_replica(DATABASES, DATABASE_ROUTERS)
-
-# Security settings for production
+# 安全响应头（SECURE_SSL_REDIRECT / HSTS / Cookie Secure / X-Frame-Options 等）
+# 已由 base.py 按 DEBUG 统一设置（生产 DEBUG=False 时全部生效）。此处仅保留 prod 特有项：
+#   1) SECURE_SSL_REDIRECT 走 global_config，允许通过配置覆盖；
+#   2) SECURE_PROXY_SSL_HEADER，生产位于 Nginx 反代之后需声明转发协议头。
 SECURE_SSL_REDIRECT = global_config.SECURE_SSL_REDIRECT
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
-SECURE_BROWSER_XSS_FILTER = True
-SECURE_CONTENT_TYPE_NOSNIFF = True
-X_FRAME_OPTIONS = 'DENY'
-
-# HSTS settings
-SECURE_HSTS_SECONDS = 31536000  # 1 year
-SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-SECURE_HSTS_PRELOAD = True
-
-# Proxy settings (if behind Nginx/Apache)
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
-# Static and Media (继承 base.py 配置)
+# Static and Media（继承 base.py 配置）
 # STATIC_ROOT / MEDIA_ROOT 已在 base.py 中定义

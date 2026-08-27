@@ -33,11 +33,9 @@ DATABASES = {
     }
 }
 
-# 读写分离：测试环境默认不配置 DB_REPLICA_URL，install_replica 无副作用，
+# 读写分离：测试环境默认不配置 DB_REPLICA_URL，apply_replica 无副作用，
 # 保持内存 SQLite 单库，保证 pytest 可跑。
-from framework.db.replica import install_replica  # noqa: E402
-
-DATABASES, DATABASE_ROUTERS = install_replica(DATABASES, DATABASE_ROUTERS)
+DATABASES, DATABASE_ROUTERS = apply_replica(DATABASES, DATABASE_ROUTERS)
 
 # =====================================================
 # 缓存：本地内存（不依赖 Redis）

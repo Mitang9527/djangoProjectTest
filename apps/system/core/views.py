@@ -86,7 +86,7 @@ class AdminRequiredMixin(View):
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_authenticated or not request.user.is_superuser:
             return Response(
-                {'detail': '需要管理员权限'}, status=403
+                {"detail": "需要管理员权限"}, status=403
             )
         return super().dispatch(request, *args, **kwargs)
 
@@ -480,7 +480,7 @@ class DocumentUploadView(APIView):
         uploaded_file = request.FILES.get('file')
         if not uploaded_file:
             return Response(
-                {'detail': '缺少文件字段: file'},
+                {"detail": "缺少文件字段: file"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -494,21 +494,21 @@ class DocumentUploadView(APIView):
             # 磁盘满 / 无写入权限等底层错误：服务端记录详情，前端返回安全提示（不泄露路径）
             logger.error(f"[DocumentUpload] 保存失败: {e}")
             return Response(
-                {'detail': '文件保存失败，请稍后重试'},
+                {"detail": "文件保存失败，请稍后重试"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
         return Response({
-            'status': 'success',
-            'code': status.HTTP_201_CREATED,
-            'message': '文件上传成功',
-            'data': {
+            "status": "success",
+            "code": status.HTTP_201_CREATED,
+            "message": "文件上传成功",
+            "data": {
                 # 统一返回相对 MEDIA_URL 的可访问地址，杜绝绝对路径泄露
-                'file_path': relative_media_url(file_path),
-                'file_name': uploaded_file.name,
-                'file_size': uploaded_file.size,
+                "file_path": relative_media_url(file_path),
+                "file_name": uploaded_file.name,
+                "file_size": uploaded_file.size,
             },
-            'errors': None,
+            "errors": None,
         }, status=status.HTTP_201_CREATED)
 
 
@@ -535,7 +535,7 @@ class ImageUploadView(APIView):
         uploaded_file = request.FILES.get('image')
         if not uploaded_file:
             return Response(
-                {'detail': '缺少文件字段: image'},
+                {"detail": "缺少文件字段: image"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -577,23 +577,23 @@ class ImageUploadView(APIView):
             # 磁盘满 / 无写入权限 / 图片处理失败：服务端记录详情，前端返回安全提示
             logger.error(f"[ImageUpload] 处理失败: {e}")
             return Response(
-                {'detail': '图片处理失败，请稍后重试'},
+                {"detail": "图片处理失败，请稍后重试"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
         return Response({
-            'status': 'success',
-            'code': status.HTTP_201_CREATED,
-                'message': '图片上传成功',
-                'data': {
+            "status": "success",
+            "code": status.HTTP_201_CREATED,
+                "message": "图片上传成功",
+                "data": {
                     # 统一相对 MEDIA_URL 地址；relative_media_url 已处理跨平台斜杠
-                    'original': relative_media_url(original_path),
-                    'compressed': relative_media_url(compressed_path),
-                    'thumbnail': relative_media_url(thumbnail_path),
-                    'file_name': uploaded_file.name,
-                    'file_size': uploaded_file.size,
+                    "original": relative_media_url(original_path),
+                    "compressed": relative_media_url(compressed_path),
+                    "thumbnail": relative_media_url(thumbnail_path),
+                    "file_name": uploaded_file.name,
+                    "file_size": uploaded_file.size,
                 },
-                'errors': None,
+                "errors": None,
             }, status=status.HTTP_201_CREATED)
 
 
@@ -675,7 +675,7 @@ class VideoUploadView(APIView):
         uploaded_file = request.FILES.get('file')
         if not uploaded_file:
             return Response(
-                {'detail': '缺少文件字段: file'},
+                {"detail": "缺少文件字段: file"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -689,21 +689,21 @@ class VideoUploadView(APIView):
             # 磁盘满 / 无写入权限等底层错误：服务端记录详情，前端返回安全提示（不泄露路径）
             logger.error(f"[VideoUpload] 保存失败: {e}")
             return Response(
-                {'detail': '视频保存失败，请稍后重试'},
+                {"detail": "视频保存失败，请稍后重试"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
         return Response({
-            'status': 'success',
-            'code': status.HTTP_201_CREATED,
-            'message': '视频上传成功',
-            'data': {
+            "status": "success",
+            "code": status.HTTP_201_CREATED,
+            "message": "视频上传成功",
+            "data": {
                 # 统一返回相对 MEDIA_URL 的可访问地址，杜绝绝对路径泄露
-                'file_path': relative_media_url(file_path),
-                'file_name': uploaded_file.name,
-                'file_size': uploaded_file.size,
+                "file_path": relative_media_url(file_path),
+                "file_name": uploaded_file.name,
+                "file_size": uploaded_file.size,
             },
-            'errors': None,
+            "errors": None,
         }, status=status.HTTP_201_CREATED)
 
 
@@ -729,7 +729,7 @@ class AudioUploadView(APIView):
         uploaded_file = request.FILES.get('file')
         if not uploaded_file:
             return Response(
-                {'detail': '缺少文件字段: file'},
+                {"detail": "缺少文件字段: file"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -743,19 +743,19 @@ class AudioUploadView(APIView):
             # 磁盘满 / 无写入权限等底层错误：服务端记录详情，前端返回安全提示（不泄露路径）
             logger.error(f"[AudioUpload] 保存失败: {e}")
             return Response(
-                {'detail': '音频保存失败，请稍后重试'},
+                {"detail": "音频保存失败，请稍后重试"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
         return Response({
-            'status': 'success',
-            'code': status.HTTP_201_CREATED,
-            'message': '音频上传成功',
-            'data': {
+            "status": "success",
+            "code": status.HTTP_201_CREATED,
+            "message": "音频上传成功",
+            "data": {
                 # 统一返回相对 MEDIA_URL 的可访问地址，杜绝绝对路径泄露
-                'file_path': relative_media_url(file_path),
-                'file_name': uploaded_file.name,
-                'file_size': uploaded_file.size,
+                "file_path": relative_media_url(file_path),
+                "file_name": uploaded_file.name,
+                "file_size": uploaded_file.size,
             },
-            'errors': None,
+            "errors": None,
         }, status=status.HTTP_201_CREATED)

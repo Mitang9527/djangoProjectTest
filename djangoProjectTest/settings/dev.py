@@ -23,11 +23,8 @@ DATABASES = {
 
 # 读写分离：配置 DB_REPLICA_URL 后自动注入 replica 库 + PrimaryReplicaRouter；
 # 未配置时保持单库（default），零风险。
-from framework.db.replica import install_replica  # noqa: E402
+DATABASES, DATABASE_ROUTERS = apply_replica(DATABASES, DATABASE_ROUTERS)
 
-DATABASES, DATABASE_ROUTERS = install_replica(DATABASES, DATABASE_ROUTERS)
-
-CORS_ALLOW_ALL_ORIGINS = True
 
 # =====================================================
 # Django Debug Toolbar 配置

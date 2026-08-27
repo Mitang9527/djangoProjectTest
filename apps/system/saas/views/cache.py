@@ -33,11 +33,11 @@ def cache_invalidate_api(request):
     """按标签批量失效缓存"""
     tag = request.data.get('tag', '')
     if not tag:
-        return Response({'detail': '请提供 tag 参数'}, status=400)
+        return Response({"detail": "请提供 tag 参数"}, status=400)
     result = CacheService.invalidate_by_tag(tag)
     if 'error' in result:
-        return Response({'detail': result['error']}, status=400)
-    return Response({'count': result['count']})
+        return Response({"detail": result["error"]}, status=400)
+    return Response({"count": result["count"]})
 
 
 @extend_schema(

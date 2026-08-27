@@ -22,17 +22,17 @@ def me_tenants(request):
         current_id = request.session.get('current_tenant_id')
         logger.debug(f"[SaaS] me_tenants — user={request.user.username}, count={len(tenants)}")
         return Response({
-            'tenants': tenants,
-            'current_tenant_id': current_id,
+            "tenants": tenants,
+            "current_tenant_id": current_id,
         })
     except Exception as e:
         import traceback as tb
         logger.error(f"[SaaS] me_tenants 异常 — user={request.user.username}: {e}\n{tb.format_exc()}")
         return Response({
-            'tenants': [],
-            'current_tenant_id': None,
-            'detail': str(e),
-            'traceback': tb.format_exc() if settings.DEBUG else None,
+            "tenants": [],
+            "current_tenant_id": None,
+            "detail": str(e),
+            "traceback": tb.format_exc() if settings.DEBUG else None,
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -43,5 +43,5 @@ def switch_tenant(request):
     tenant_id = request.data.get('tenant_id')
     result = TenantService.switch_tenant(request.user, tenant_id, request.session)
     if 'error' in result:
-        return Response({'detail': result['error']}, status=403)
+        return Response({"detail": result["error"]}, status=403)
     return Response(result)

@@ -33,7 +33,7 @@ def gateway_dashboard_api(request):
 @drf_permission_classes([permissions.IsAuthenticated, HasTenantPermission])
 def gateway_rules_list_api(request):
     """列出所有限流规则"""
-    return Response({'rules': GatewayService.list_rules()})
+    return Response({"rules": GatewayService.list_rules()})
 
 
 @extend_schema(
@@ -54,16 +54,16 @@ def gateway_rule_create_api(request):
     description = request.data.get('description', '')
 
     if not name:
-        return Response({'detail': '规则名称不能为空'}, status=400)
+        return Response({"detail": "规则名称不能为空"}, status=400)
     if not url_pattern:
-        return Response({'detail': 'URL 模式不能为空'}, status=400)
+        return Response({"detail": "URL 模式不能为空"}, status=400)
 
     valid_types = [t[0] for t in APILimitRule.RuleType.choices]
     if throttle_type not in valid_types:
-        return Response({'detail': f'无效的限流类型，可选: {", ".join(valid_types)}'}, status=400)
+        return Response({"detail": f'无效的限流类型，可选: {", ".join(valid_types)}'}, status=400)
 
     if not _re.match(r'^\d+/(s|m|h|d)$', rate):
-        return Response({'detail': '速率格式无效，示例: 100/h'}, status=400)
+        return Response({"detail": "速率格式无效，示例: 100/h"}, status=400)
 
     rule = APILimitRule.objects.create(
         name=name,
@@ -77,11 +77,11 @@ def gateway_rule_create_api(request):
     )
 
     return Response({
-        'id': str(rule.id),
-        'name': rule.name,
-        'url_pattern': rule.url_pattern,
-        'throttle_type': rule.throttle_type,
-        'rate': rule.rate,
+        "id": str(rule.id),
+        "name": rule.name,
+        "url_pattern": rule.url_pattern,
+        "throttle_type": rule.throttle_type,
+        "rate": rule.rate,
     })
 
 
@@ -96,7 +96,7 @@ def gateway_rule_update_api(request, rule_id):
     try:
         rule = APILimitRule.objects.get(id=rule_id)
     except APILimitRule.DoesNotExist:
-        return Response({'detail': '规则不存在'}, status=404)
+        return Response({"detail": "规则不存在"}, status=404)
 
     for field in ['name', 'url_pattern', 'throttle_type', 'rate', 'description']:
         val = request.data.get(field, None)
@@ -113,7 +113,7 @@ def gateway_rule_update_api(request, rule_id):
 
     rule.save()
 
-    return Response({'id': str(rule.id)})
+    return Response({"id": str(rule.id)})
 
 
 @extend_schema(
@@ -127,9 +127,9 @@ def gateway_rule_delete_api(request, rule_id):
     try:
         rule = APILimitRule.objects.get(id=rule_id)
         rule.delete()
-        return Response({'detail': '规则已删除'})
+        return Response({"detail": "规则已删除"})
     except APILimitRule.DoesNotExist:
-        return Response({'detail': '规则不存在'}, status=404)
+        return Response({"detail": "规则不存在"}, status=404)
 
 
 @extend_schema(
@@ -145,8 +145,8 @@ def gateway_rule_toggle_api(request, rule_id):
         rule.is_active = not rule.is_active
         rule.save()
         return Response({
-            'id': str(rule.id),
-            'is_active': rule.is_active,
+            "id": str(rule.id),
+            "is_active": rule.is_active,
         })
     except APILimitRule.DoesNotExist:
-        return Response({'detail': '规则不存在'}, status=404)
+        return Response({"detail": "规则不存在"}, status=404)

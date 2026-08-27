@@ -147,7 +147,7 @@ djangoProjectTest/
 ├── docker-compose.yml             # 开发环境编排
 ├── docker-compose.prod.yml        # 生产环境编排
 ├── requirements.txt               # 完整依赖清单（兼容旧安装方式）
-├── .env.example                   # 环境变量模板
+├── .env.template                  # 环境变量模板（本地开发；cp 为 .env）
 ├── Makefile                       # 常用命令封装
 └── manage.py                      # Django 管理脚本
 ```
@@ -157,8 +157,8 @@ djangoProjectTest/
 ### 1. 环境要求
 
 - Python 3.10+
-- PostgreSQL 13+
-- Redis 6+
+- **默认本地开发使用 SQLite，无需 PostgreSQL / Redis 即可启动**（默认 `DB_ENGINE=sqlite3`）。
+- 仅当启用以下功能才需外部组件：读写分离副本 / Redis 缓存 / Celery 异步任务 → 需 PostgreSQL 13+ 与 Redis 6+。
 
 ### 2. 克隆与安装
 
@@ -179,25 +179,26 @@ pip install -r requirements.txt
 
 ### 3. 配置环境变量
 
+> 仓库根目录模板是 **`.env.template`**（不是 `.env.example`）。Docker 用 `.env.docker`，CI/测试用 `.env.test`，全栈部署见 `docker-compose.stack.yml` 中 `.env.stack` 的用法。
+
 ```bash
-cp .env.example .env
-# Windows: copy .env.example .env
+cp .env.template .env
+# Windows: copy .env.template .env
 ```
 
-编辑 `.env`，至少配置以下项：
+编辑 `.env`，至少配置以下项（其余默认值已可本地启动）：
 
 ```env
-SECRET_KEY=your-secret-key
+SECRET_KEY=your-secret-key          # 必填，随机串
 DEBUG=True
-DB_ENGINE=django.db.backends.postgresql
-DB_NAME=saas_db
-DB_USER=saas_user
-DB_PASSWORD=your-password
-DB_HOST=localhost
-DB_PORT=5432
-REDIS_HOST=localhost
-REDIS_PORT=6379
+# DB 默认即为 sqlite3，无需配置即可本地运行：
+# DB_ENGINE=django.db.backends.sqlite3
+# DB_NAME=db.sqlite3
+ALLOW_DEMO_LOGIN=True               # 演示/联调登录开关（按需开启）
+JWT_SIGNING_KEY=shared-secret       # 主平台与 ai_studio 必须一致
 ```
+
+> ⚠️ 端口约定：后端 **8300**、前端 Vite **5273**（项目禁用 8000/5173）。下方启动命令已对应。
 
 ### 4. 初始化数据库
 
@@ -212,16 +213,16 @@ python manage.py init_permissions
 开发模式（仅 HTTP）：
 
 ```bash
-python manage.py runserver 0.0.0.0:8000
+python manage.py runserver 0.0.0.0:8300
 ```
 
 完整模式（HTTP + WebSocket，推荐）：
 
 ```bash
-daphne -b 0.0.0.0 -p 8000 djangoProjectTest.asgi:application
+daphne -b 0.0.0.0 -p 8300 djangoProjectTest.asgi:application
 ```
 
-访问 http://localhost:8000
+访问 http://localhost:8300
 
 ## Docker 部署
 
@@ -272,8 +273,8 @@ make celery-worker    # 启动 Celery Worker
 
 项目内置交互式 API 文档，提供完整的接口定义与在线调试能力：
 
-- Swagger UI: http://localhost:8000/api/swagger/
-- ReDoc: http://localhost:8000/api/redoc/
+- Swagger UI: http://localhost:8300/api/swagger/
+- ReDoc: http://localhost:8300/api/redoc/
 
 出于安全考虑，API 文档仅对管理员开放，需使用超级用户账号登录后访问。
 

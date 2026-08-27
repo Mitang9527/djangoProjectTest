@@ -51,7 +51,7 @@ def system_logs_api(request):
 
     log_file = LogService.find_latest_log()
     if not log_file:
-        return Response({'entries': [], 'total': 0, 'page': 1, 'page_size': page_size, 'total_pages': 1})
+        return Response({"entries": [], "total": 0, "page": 1, "page_size": page_size, "total_pages": 1})
 
     result = LogService.parse_log(
         log_file, level_filter=level_filter, search=search,
@@ -67,13 +67,13 @@ def system_settings_config_api(request):
     """读取/保存系统设置配置项"""
     tenant = getattr(request, 'tenant', None)
     if not tenant:
-        return Response({'detail': _('请先选择租户上下文')}, status=400)
+        return Response({"detail": _("请先选择租户上下文")}, status=400)
 
     if request.method == 'GET':
         category = request.query_params.get('category', 'general')
         configs = TenantConfig.objects.filter(tenant=tenant, category=category)
         return Response({
-            'configs': {
+            "configs": {
                 c.key: c.value for c in configs
             }
         })
@@ -94,7 +94,7 @@ def system_settings_config_api(request):
         updated.append({'key': key, 'value': value, 'created': created})
 
     logger.info(f"租户 {tenant.name} 更新了 {category} 设置")
-    return Response({'updated': updated, 'status': 'ok'})
+    return Response({"updated": updated, "status": "ok"})
 
 
 @api_view(['POST'])
@@ -103,7 +103,7 @@ def system_backup_api(request):
     """触发系统数据备份（需要 system.settings.backup 权限）"""
     result = BackupService.create_backup()
     if result.get("status") == "error":
-        return Response({'detail': result.get('msg', '备份失败')}, status=500)
+        return Response({"detail": result.get("msg", "备份失败")}, status=500)
     return Response(result)
 
 
@@ -112,7 +112,7 @@ def system_backup_api(request):
 @drf_permission_classes([permissions.IsAuthenticated, SystemSettingsBackupPermission])
 def system_backup_list_api(request):
     """列出备份文件列表"""
-    return Response({'backups': BackupService.list_backups()})
+    return Response({"backups": BackupService.list_backups()})
 
 
 @extend_schema(
@@ -149,8 +149,8 @@ def export_data(request):
 
     if model_label not in EXPORTABLE_MODELS:
         return Response({
-            'detail': f'不支持的导出模型: {model_label}',
-            'available': list(EXPORTABLE_MODELS.keys()),
+            "detail": f'不支持的导出模型: {model_label}',
+            "available": list(EXPORTABLE_MODELS.keys()),
         }, status=400)
 
     base = EXPORTABLE_MODELS[model_label]
@@ -168,7 +168,7 @@ def export_data(request):
         )
         exporter = get_exporter(config, fmt)
     except ValueError as e:
-        return Response({'detail': str(e)}, status=400)
+        return Response({"detail": str(e)}, status=400)
 
     qs = exporter.get_queryset()
 
@@ -182,9 +182,9 @@ def export_data(request):
             filename=filename,
         )
         return Response({
-            'status': 'processing',
-            'task_id': task.id,
-            'msg': '数据量较大，已转为后台异步导出，完成后可下载',
+            "status": "processing",
+            "task_id": task.id,
+            "msg": "数据量较大，已转为后台异步导出，完成后可下载",
         })
 
     data = exporter.export(qs)
@@ -214,4 +214,4 @@ def export_models(request):
             'headers': cfg.headers,
             'supported_formats': ['xlsx', 'csv', 'pdf'],
         }
-    return Response({'models': models})
+    return Response({"models": models})

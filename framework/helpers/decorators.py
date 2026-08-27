@@ -339,7 +339,7 @@ def validate_file_upload(
             request = _get_request(*args)
             if file_field not in request.FILES:
                 return Response(
-                    {'detail': f'缺少文件字段: {file_field}'},
+                    {"detail": f'缺少文件字段: {file_field}'},
                     status=400
                 )
 
@@ -358,7 +358,7 @@ def validate_file_upload(
             is_valid, error = validator.validate(uploaded_file)
             if not is_valid:
                 return Response(
-                    {'detail': error},
+                    {"detail": error},
                     status=400
                 )
 
@@ -393,7 +393,7 @@ def validate_image_upload(
             request = _get_request(*args)
             if file_field not in request.FILES:
                 return Response(
-                    {'detail': f'缺少文件字段: {file_field}'},
+                    {"detail": f'缺少文件字段: {file_field}'},
                     status=400
                 )
 
@@ -409,7 +409,7 @@ def validate_image_upload(
             is_valid, error = validator.validate(uploaded_file)
             if not is_valid:
                 return Response(
-                    {'detail': error},
+                    {"detail": error},
                     status=400
                 )
 
@@ -432,13 +432,13 @@ def handle_file_upload_exception(view_func: Callable) -> Callable:
         except FileUploadError as e:
             logger.warning(f"文件上传错误: {str(e)}")
             return Response(
-                {'detail': str(e)},
+                {"detail": str(e)},
                 status=400
             )
         except Exception as e:
             logger.error(f"文件上传异常: {str(e)}")
             return Response(
-                {'detail': '文件上传失败，请稍后重试'},
+                {"detail": "文件上传失败，请稍后重试"},
                 status=500
             )
     return wrapper

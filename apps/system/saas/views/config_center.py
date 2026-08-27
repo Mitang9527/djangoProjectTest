@@ -25,13 +25,13 @@ def get_config_value(request):
     """获取单个配置值"""
     key = request.query_params.get('key', '')
     if not key:
-        return Response({'detail': 'key 参数不能为空'}, status=400)
+        return Response({"detail": "key 参数不能为空"}, status=400)
     exists = GlobalConfig.objects.filter(key=key, is_active=True).exists()
 
     return Response({
-        'key': key,
-        'value': value,
-        'exists': exists
+        "key": key,
+        "value": value,
+        "exists": exists
     })
 
 
@@ -92,7 +92,7 @@ def set_config_value(request):
     config_type = request.data.get('config_type', 'string')
 
     if not key:
-        return Response({'detail': 'key 参数不能为空'}, status=400)
+        return Response({"detail": "key 参数不能为空"}, status=400)
 
     result = ConfigCenterService.set_config(
         key=key,
@@ -105,12 +105,12 @@ def set_config_value(request):
     )
 
     if 'error' in result:
-        return Response({'detail': result['error']}, status=400)
+        return Response({"detail": result["error"]}, status=400)
 
     return Response({
-        'status': 'ok',
-        'key': key,
-        'value': value
+        "status": "ok",
+        "key": key,
+        "value": value
     })
 
 
