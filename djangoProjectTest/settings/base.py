@@ -162,18 +162,20 @@ MIDDLEWARE = [
     # 11.5 会话空闲超时（必须在认证之后；已登录用户超过阈值无操作则强制登出）
     'framework.security.idle_timeout.IdleTimeoutMiddleware',
 
-    # 12. API 签名验证（在认证之后，业务逻辑之前拦截非法请求）
+    # 12. API 网关（限流、访问日志）
+    #     必须放在签名中间件之前：让所有 /api 请求（含被签名拦截的 404/403）
+    #     都能被网关记录为完整的访问日志（method/path/status/耗时）。
+    'framework.gateway.middleware.GatewayMiddleware',
+
+    # 13. API 签名验证（在认证之后，业务逻辑之前拦截非法请求）
     'framework.api_signature.middleware.APISignatureMiddleware',
 
-    # 12.5 Authorization 头自动补全 Bearer 前缀（手动测试裸 token 免手敲 Bearer；
+    # 13.5 Authorization 头自动补全 Bearer 前缀（手动测试裸 token 免手敲 Bearer；
     #      已带 Bearer/Basic 等方案的头不受影响，X-API-Key 独立头不受影响）
     'framework.drf.auth_normalize.AuthorizationBearerMiddleware',
 
-    # 13. SaaS 多租户上下文注入（必须在具体业务和日志记录之前）
+    # 14. SaaS 多租户上下文注入（必须在具体业务和日志记录之前）
     'system.saas.middleware.TenantMiddleware',
-
-    # 14. API 网关（限流、请求日志）
-    'framework.gateway.middleware.GatewayMiddleware',
 
     # 15. 操作日志（放在业务中间件之后，确保能捕获完整的上下文）
     'system.core.middleware.OperationLogMiddleware',
