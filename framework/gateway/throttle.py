@@ -7,6 +7,7 @@ API 网关限流引擎
 限流器类型：
   - IPThrottle:       按客户端 IP 限流
   - UserThrottle:     按认证用户 ID 限流
+  - AnonThrottle:     按匿名用户 IP 限流（登录用户放行）
   - TenantThrottle:   按租户 ID 限流
   - EndpointThrottle: 按 URL 路由 + 用户/IP 组合限流
 
@@ -213,6 +214,19 @@ def _redis_available() -> bool:
         return False
 
 
+def _redis_fail_open() -> bool:
+    """Redis 故障时的限流策略：True=放行(fail-open)，False=拒绝(fail-closed)。
+
+    读取 settings.GATEWAY_THROTTLE_REDIS_FAIL_OPEN（默认 False）。
+    fail-closed 下 Redis 不可用会直接 429，保证限流不因基础设施故障而失效；
+    需要「降级放行、保证可用性」的环境可显式置 True。
+    """
+    try:
+        return bool(getattr(settings, "GATEWAY_THROTTLE_REDIS_FAIL_OPEN", False))
+    except Exception:
+        return False
+
+
 def check_sliding_window(key: str, limit: int, window_seconds: int) -> Tuple[bool, int, int]:
     """
     Redis 滑动窗口速率检查。
@@ -230,8 +244,11 @@ def check_sliding_window(key: str, limit: int, window_seconds: int) -> Tuple[boo
         (allowed, remaining, reset_in_seconds)
     """
     if not _redis_available():
-        # Redis 不可用时降级放行
-        return (True, limit, window_seconds)
+        # Redis 不可用：默认 fail-closed（拒绝 429）；GATEWAY_THROTTLE_REDIS_FAIL_OPEN=True 时放行
+        if _redis_fail_open():
+            return (True, limit, window_seconds)
+        logger.warning(f"[Gateway] Redis 不可用，限流 fail-closed 拒绝请求 (key={key})")
+        return (False, 0, window_seconds)
 
     try:
         client = get_redis().get_client()
@@ -267,8 +284,10 @@ def check_sliding_window(key: str, limit: int, window_seconds: int) -> Tuple[boo
 
     except Exception as e:
         logger.warning(f"[Gateway] 滑动窗口检查失败 (key={key}): {e}")
-        # 降级放行
-        return (True, limit, window_seconds)
+        # 与 Redis 不可用保持一致：默认 fail-closed，可配置 fail-open
+        if _redis_fail_open():
+            return (True, limit, window_seconds)
+        return (False, 0, window_seconds)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -483,6 +502,24 @@ class UserThrottle(ConfigurableRateThrottle):
         return ""
 
 
+class AnonThrottle(ConfigurableRateThrottle):
+    """按匿名用户 IP 限流（仅对未登录请求生效）。
+
+    登录用户返回空 identity → allow_request 直接放行，避免与 UserThrottle
+    叠加造成 anon 档（默认 60/m）误杀已登录用户；未登录请求按客户端 IP 限流。
+
+    配置来源同其他限流器，读取 GATEWAY_THROTTLE_RATES 的 "anon" 档；
+    亦可在 APILimitRule 表配置 throttle_type="anon" 的路由级规则覆盖。
+    """
+    throttle_type = "anon"
+
+    def get_identity(self, request) -> str:
+        user = getattr(request, 'user', None)
+        if user and user.is_authenticated:
+            return ""
+        return _get_client_ip(request)
+
+
 class TenantThrottle(ConfigurableRateThrottle):
     """按租户限流"""
     throttle_type = "tenant"
@@ -512,27 +549,10 @@ class EndpointThrottle(ConfigurableRateThrottle):
         if not identity:
             return True
 
-        path = request.path if hasattr(request, 'path') else ''
-
-        # 优先从路由规则获取限流值
-        try:
-            from system.saas.models import APILimitRule
-            rule = APILimitRule.objects.filter(
-                is_active=True,
-                throttle_type="endpoint",
-            ).order_by("priority").first()
-
-            if rule:
-                for r in APILimitRule.objects.filter(is_active=True, throttle_type="endpoint").order_by("priority"):
-                    if r.matches(path):
-                        limit, window = parse_rate(r.rate) if r.rate else parse_rate("100/h")
-                        break
-                else:
-                    limit, window = parse_rate("100/h")
-            else:
-                limit, window = get_gateway_config.get_rate_for_request(request, "endpoint")
-        except Exception:
-            limit, window = get_gateway_config.get_rate_for_request(request, "endpoint")
+        # 按优先级链取值：路由规则(APILimitRule, throttle_type=endpoint) →
+        # PlanFeature → TenantConfig → 全局默认（GATEWAY_THROTTLE_RATES['endpoint']）。
+        # 注意：不能在「规则存在但路径未匹配」时硬编码回退，否则会跳过套餐/租户/全局配置。
+        limit, window = get_gateway_config.get_rate_for_request(request, "endpoint")
 
         key = f"{REDIS_KEY_PREFIX}endpoint:{identity}"
         allowed, remaining, reset_in = check_sliding_window(key, limit, window)

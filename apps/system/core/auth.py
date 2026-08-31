@@ -77,18 +77,27 @@ class DemoLoginView(APIView):
             user.token_version = (user.token_version or 0) + 1
             user.save(update_fields=["token_version"])
             refresh["token_version"] = user.token_version
+        # 多租户上下文 claim：写入默认租户（请求体 tenant_id 优先，否则 is_default 成员）
+        from system.users.serializers import attach_tenant_claim, create_user_session
+
+        tenant_id = attach_tenant_claim(refresh, request, user)
+        # 先取 access 实例复用（属性每次访问生成新 jti，否则会话 jti 与 access 不一致）
+        access = refresh.access_token
+        # 写入会话记录（jti 绑定 user+tenant）：切租户 / 登出吊销后旧 access 立即失效
+        create_user_session(user, access, tenant_id, request)
         logger.info(
             f"[DEMO-LOGIN] 登录成功 user_id={user.id} username={user.username} "
             f"new_created={created} is_staff={user.is_staff} ip={ip}"
         )
         data = {
-            'access': str(refresh.access_token),
+            'access': str(access),
             'refresh': str(refresh),
             'user': {
                 'id': user.id,
                 'username': user.username,
                 'is_staff': user.is_staff,
                 'is_superuser': user.is_superuser,
+                'tenant_id': tenant_id,
             },
         }
         if quota is not None:

@@ -58,7 +58,8 @@ class TenantMiddleware(MiddlewareMixin):
         from .models import Tenant
 
         try:
-            return Tenant.objects.filter(id=tenant_id).first()
+            # 仅活跃租户可注入；suspended/cancelled/pending 一律视为无租户上下文
+            return Tenant.objects.filter(id=tenant_id, status=Tenant.Status.ACTIVE).first()
         except Exception:
             return None
 

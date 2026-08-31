@@ -1,0 +1,20 @@
+{
+  "name": "@django-project/openapi-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "由后端 OpenAPI schema 生成的 TS 类型与 axios 客户端（generated 产物勿手改）",
+  "scripts": {
+    "export:schema": "node scripts/export-schema.mjs",
+    "generate": "openapi-ts -f openapi-ts.config.ts",
+    "generate:api": "npm run export:schema && npm run generate",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@hey-api/client-axios": "^0.9.1",
+    "@hey-api/openapi-ts": "^0.99.0"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
+}

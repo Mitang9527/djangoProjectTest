@@ -37,6 +37,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional
 
 from loguru import logger
+from framework.core.env_loader import get_env_type
 
 # ---------------------------------------------------------------
 # 服务元信息（banner 展示用）
@@ -390,7 +391,7 @@ def emit_startup_banner(key: str = "", extra: Optional[str] = None) -> None:
         f"{color}============================================================{reset}",
         f"{color}  SERVICE START: {key} — {name}{reset}",
         f"  时间   : {time.strftime('%Y-%m-%d %H:%M:%S')}",
-        f"  环境   : {os.environ.get('APP_ENV', os.environ.get('ENV_TYPE', 'DEV'))} "
+        f"  环境   : {get_env_type()} "
         f"| WORKER: {os.environ.get('WORKER_TYPE', 'web')}",
         f"  版本   : Python {py_ver} | Django {dj_ver}",
         f"  PID    : {os.getpid()} | host: {socket.gethostname()}",

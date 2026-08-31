@@ -8,6 +8,7 @@ from django.http import JsonResponse
 from django.views import View
 
 from . import checks
+from ..core.env_loader import get_env_type
 
 
 class HealthView(View):

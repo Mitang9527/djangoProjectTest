@@ -26,8 +26,10 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.settings import api_settings as jwt_settings
 from rest_framework_simplejwt.tokens import AccessToken
 
-# 滑动续期时需要从旧 token 复制到新 token 的声明（顺序无关）
-_SLIDE_CLAIMS = (jwt_settings.USER_ID_CLAIM, "username", "email", "role_id", "tenant_id", "token_version")
+# 滑动续期时需要从旧 token 复制到新 token 的声明（顺序无关）。
+# 含 jti：续期的新 access 复用原 jti，与其 UserSession 记录保持一致，
+# 保证「切租户吊销会话 → 整条 token 链立即失效」的语义。
+_SLIDE_CLAIMS = (jwt_settings.USER_ID_CLAIM, "username", "email", "role_id", "tenant_id", "token_version", "jti")
 
 
 class SlidingJWTAuthentication(JWTAuthentication):
@@ -54,6 +56,25 @@ class SlidingJWTAuthentication(JWTAuthentication):
             raise AuthenticationFailed(
                 "该账号已在其他位置登录或密码已修改，请重新登录"
             )
+
+        # jti 会话校验：会话记录存在则强制（切租户 / 登出吊销后旧 token 立即失效）。
+        # 记录不存在（存量旧 token / 外部系统）则放行，保证灰度期不踢人。
+        # 仅校验 revoked_at：expires_at 由 simplejwt 的 exp claim 负责（滑动续期
+        # 复用 jti，会话过期校验会误杀续期后的 token）。
+        jti = validated_token.get("jti")
+        if jti:
+            try:
+                from system.users.models import UserSession
+
+                session = UserSession.objects.filter(
+                    user=user, token_jti=jti
+                ).first()
+            except Exception:
+                session = None
+            if session is not None and session.revoked_at is not None:
+                raise AuthenticationFailed(
+                    "会话已失效（租户已切换或已登出），请重新登录"
+                )
 
         if not getattr(settings, "SLIDING_SESSION_ENABLED", False):
             return result

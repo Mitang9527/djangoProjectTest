@@ -1,6 +1,9 @@
+from datetime import datetime as _dt, timezone as _dt_tz
+
 from rest_framework import serializers
 from django.apps import apps
 from django.contrib.auth import get_user_model, authenticate
+from django.utils import timezone
 from rest_framework.validators import UniqueValidator
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.settings import api_settings as jwt_api_settings
@@ -106,10 +109,11 @@ def resolve_login_tenant(request, user) -> str | None:
     """
     登录时解析要写入 JWT 的 tenant_id（多租户上下文 claim）。
 
-    优先级：
+    优先级（对齐参考项目 is_default 语义）：
       1) 请求体显式携带 tenant_id / tenantId（必须已是该租户活跃成员）；
-      2) 否则取用户首个「活跃」租户成员关系；
-      3) 无成员关系（如超管 / 系统用户）返回 None。
+      2) 否则取用户「is_default=True」的活跃成员关系（默认租户）；
+      3) 再否则取首个活跃成员关系；
+      4) 无成员关系（如超管 / 系统用户）返回 None。
 
     仅在函数内惰性导入 saas 模型，避免模块加载期循环依赖。
     """
@@ -129,10 +133,78 @@ def resolve_login_tenant(request, user) -> str | None:
     member = (
         TenantMember.objects
         .filter(user=user, is_active=True, tenant__status='active')
-        .order_by('joined_at')
+        .order_by('-is_default', 'joined_at')
         .first()
     )
     return str(member.tenant_id) if member else None
+
+
+def create_user_session(user, access_token, tenant_id=None, request=None):
+    """
+    签发 access token 后统一写入会话记录（效仿参考项目 create_login_token）。
+
+    会话以 token_jti 绑定 user + tenant，供认证层校验：
+      - 切租户 / 登出时吊销对应 jti 会话 → 该 access 立即失效；
+      - 会话记录存在则强制校验（revoked 即拒绝），记录不存在（存量旧 token）放行。
+
+    Args:
+        user: 用户对象
+        access_token: simplejwt AccessToken（须已生成 jti；新 token 默认自动生成）
+        tenant_id: 租户 ID 字符串 / UUID / None
+        request: 可选，用于记录 IP 与 User-Agent
+
+    Returns:
+        UserSession | None（无 jti 时返回 None，不阻断签发）
+    """
+    from system.users.models import UserSession
+
+    # 注意：simplejwt Token 无迭代协议，须用 .payload（dict(AccessToken) 会 KeyError）
+    payload = access_token.payload
+    jti = payload.get('jti')
+    if not jti:
+        return None
+
+    exp = payload.get('exp')
+    exp_dt = None
+    if isinstance(exp, (int, float)):
+        # Django 5.2 已移除 django.utils.timezone.utc，用标准库 timezone.utc
+        exp_dt = _dt.fromtimestamp(exp, tz=_dt_tz.utc)
+    elif isinstance(exp, timezone.datetime):
+        exp_dt = exp
+
+    ip = ''
+    ua = ''
+    if request is not None:
+        try:
+            ip = request.META.get('HTTP_X_FORWARDED_FOR', '') or request.META.get('REMOTE_ADDR', '')
+            ip = ip.split(',')[0].strip()[:64]
+            ua = request.META.get('HTTP_USER_AGENT', '')[:512]
+        except Exception:
+            pass
+
+    return UserSession.objects.create(
+        user=user,
+        tenant_id=tenant_id,
+        token_jti=jti,
+        ip=ip,
+        user_agent=ua,
+        expires_at=exp_dt,
+    )
+
+
+def attach_tenant_claim(token, request, user) -> str | None:
+    """
+    把登录时解析到的默认租户写入 JWT claim（多租户上下文）。
+
+    供全部 JWT 签发点（标准登录 / DemoLogin / OIDC / LoginService /
+    TokenService）统一调用，避免各自重复解析逻辑。
+    - 无租户上下文（系统超管 / 新用户暂无成员关系）时返回 None，不写 claim；
+    - 调用方可用返回值把 tenant_id 同步放进登录响应，供前端感知默认租户。
+    """
+    tenant_id = resolve_login_tenant(request, user)
+    if tenant_id:
+        token['tenant_id'] = tenant_id
+    return tenant_id
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -160,15 +232,19 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         # 生成 refresh/access + 拼 data.user
         data = super().validate(attrs)      # SimpleJWT 父类在此生成 refresh/access
 
-        # 注入多租户上下文 claim：重新解码 refresh 并补 tenant_id，
-        # 再重建 access（simplejwt 刷新时会自动将该 claim 复制到新 access）。
+        # 注入多租户上下文 claim：把默认租户写入 refresh（simplejwt 刷新时
+        # 会自动将该 claim 复制到新 access）。
         request = self.context.get('request')
-        tenant_id = resolve_login_tenant(request, self.user)
-        if tenant_id:
-            refresh = RefreshToken(data['refresh'])
-            refresh['tenant_id'] = tenant_id
-            data['refresh'] = str(refresh)
-            data['access'] = str(refresh.access_token)
+        refresh = RefreshToken(data['refresh'])
+        tenant_id = attach_tenant_claim(refresh, request, self.user)
+        # 注意：refresh.access_token 每次访问都新建实例（新 jti），先取实例复用，
+        # 并始终用该实例重写 access/refresh，保证与下面会话记录的 jti 一致。
+        access = refresh.access_token
+        data['refresh'] = str(refresh)
+        data['access'] = str(access)
+
+        # 写入会话记录（jti 绑定 user+tenant）：切租户 / 登出吊销后旧 access 立即失效
+        create_user_session(self.user, access, tenant_id, request)
 
         # 添加用户信息到响应
         data['user'] = {
@@ -189,7 +265,6 @@ class RefreshTokenSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         refresh = RefreshToken(attrs["refresh"])
-        data = {"access": str(refresh.access_token)}
 
         if jwt_api_settings.ROTATE_REFRESH_TOKENS:
             if jwt_api_settings.BLACKLIST_AFTER_ROTATION:
@@ -200,7 +275,25 @@ class RefreshTokenSerializer(serializers.Serializer):
             refresh.set_jti()
             refresh.set_exp()
             refresh.set_iat()
+
+        # 新 access 写入会话记录（新 jti），旧 refresh 已 blacklist
+        access = refresh.access_token
+        data = {"access": str(access)}
+        if jwt_api_settings.ROTATE_REFRESH_TOKENS:
             data["refresh"] = str(refresh)
+
+        user_id = refresh.payload.get(jwt_api_settings.USER_ID_CLAIM)
+        if user_id:
+            try:
+                user = User.objects.get(pk=user_id)
+            except User.DoesNotExist:
+                user = None
+            if user is not None:
+                create_user_session(
+                    user, access,
+                    refresh.payload.get('tenant_id'),
+                    self.context.get('request'),
+                )
 
         return data
 

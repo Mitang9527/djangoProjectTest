@@ -139,10 +139,8 @@ class UserLoginView(APIView):
                 refresh["token_version"] = user.token_version
 
             # 注入多租户上下文 claim（tenant_id）
-            from system.users.serializers import resolve_login_tenant
-            tenant_id = resolve_login_tenant(request, user)
-            if tenant_id:
-                refresh['tenant_id'] = tenant_id
+            from system.users.serializers import attach_tenant_claim
+            tenant_id = attach_tenant_claim(refresh, request, user)
 
             return Response({
                 "refresh": str(refresh),
@@ -173,32 +171,12 @@ class UserLogoutView(APIView):
     )
     def post(self, request):
         try:
-            username = None
+            # 统一走 LogoutService：会话吊销 + API Token 清理 + Session 退出 + JWT 黑名单
+            from .services import LogoutService
 
-            # 1. 如果是已认证用户，先获取用户名用于日志
-            if request.user and request.user.is_authenticated:
-                username = request.user.username
-
-                # 1.1 退出 Session 登录
-                from django.contrib.auth import logout
-                logout(request)
-
-            # 2. 处理 JWT 登出 - 将 refresh token 加入黑名单
-            refresh_token = request.data.get('refresh')
-            if refresh_token:
-                try:
-                    from rest_framework_simplejwt.tokens import RefreshToken
-                    token = RefreshToken(refresh_token)
-                    token.blacklist()
-                    logger.info("JWT Token 已加入黑名单")
-                except Exception as e:
-                    logger.warning(f"JWT Token 黑名单处理失败: {e}")
-
-            if username:
-                logger.info(f"用户登出成功: {username}")
-            else:
-                logger.info("匿名用户登出请求")
-
+            LogoutService.logout(
+                request, refresh_token=request.data.get('refresh')
+            )
             return Response({"message": _("登出成功")}, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"用户登出异常: {e}")
@@ -309,32 +287,16 @@ class JWTLogoutView(APIView):
     )
     def post(self, request):
         try:
-            username = None
-
-            # 1. 如果是已认证用户，清理 Session 登录
-            if request.user and request.user.is_authenticated:
-                username = request.user.username
-
-                # 退出 Session 登录
-                from django.contrib.auth import logout
-                logout(request)
-
-            # 2. 处理 JWT 登出 - 将 refresh token 加入黑名单
             refresh_token = request.data.get('refresh')
             if not refresh_token:
                 return Response({"detail": "缺少 refresh token"}, status=status.HTTP_400_BAD_REQUEST)
-            
-            token = RefreshToken(refresh_token)
-            token.blacklist()
-            logger.info("JWT Token 已加入黑名单")
-            
-            if username:
-                logger.info(f"JWT登出成功: 用户=[{username}]")
-            else:
-                logger.info("JWT登出成功（匿名用户）")
-            
+
+            # 统一走 LogoutService：会话吊销 + API Token 清理 + Session 退出 + JWT 黑名单
+            from .services import LogoutService
+
+            LogoutService.logout(request, refresh_token=refresh_token)
             return Response({"message": "登出成功"}, status=status.HTTP_200_OK)
-            
+
         except Exception as e:
             logger.error(f"JWT登出失败: {e}")
             return Response({"detail": "登出失败"}, status=status.HTTP_400_BAD_REQUEST)

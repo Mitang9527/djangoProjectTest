@@ -110,7 +110,7 @@ def discover_app_urls():
 
 from django.urls import path, include
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
-from system.core.views import AdminRequiredMixin
+from system.core.views import AdminRequiredMixin, PlatformInfoView
 from framework.health.views import HealthView, ReadinessView
 from django.views.debug import default_urlconf
 # 创建带权限保护的视图类
@@ -155,6 +155,8 @@ urlpatterns = [
     path('api/v1/saas/', include('system.saas.urls')),
     # 核心平台（审计 / API Key / ping / 上传 / 演示登录 等）
     path('api/v1/core/', include('system.core.urls')),
+    # 平台信息根端点（GET /api/v1/ 返回平台元信息，免签名）
+    path('api/v1/', PlatformInfoView.as_view(), name='platform-info'),
 ]
 
 # ============ 业务 API 版本迭代（受 settings.API_VERSIONS 控制）============

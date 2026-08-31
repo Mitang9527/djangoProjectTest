@@ -105,8 +105,21 @@ class OIDCCallbackView(OIDCAuthenticationCallbackView):
                 user.token_version = (user.token_version or 0) + 1
                 user.save(update_fields=["token_version"])
                 refresh["token_version"] = user.token_version
+            # 多租户上下文 claim：写入默认租户（OIDC 回调无显式 tenant_id，
+            # 取用户 is_default / 首个活跃租户成员关系；无成员关系则不写）。
+            from system.users.serializers import attach_tenant_claim, create_user_session
+
+            attach_tenant_claim(refresh, getattr(self, "request", None), user)
+            # 先取 access 实例复用（属性每次访问生成新 jti，否则会话 jti 与 access 不一致）
+            access = refresh.access_token
+            # 写入会话记录（jti 绑定 user+tenant）：切租户 / 登出吊销后旧 access 立即失效
+            create_user_session(
+                user, access,
+                refresh.payload.get("tenant_id"),
+                getattr(self, "request", None),
+            )
             self._oidc_jwt = {
-                "access": str(refresh.access_token),
+                "access": str(access),
                 "refresh": str(refresh),
             }
         base = getattr(settings, "OIDC_FRONTEND_REDIRECT_URL", "") or "/"

@@ -104,10 +104,19 @@ class LoginService:
             user.token_version = (user.token_version or 0) + 1
             user.save(update_fields=["token_version"])
             refresh["token_version"] = user.token_version
+        # 多租户上下文 claim：写入默认租户（请求体 tenant_id 优先，否则 is_default 成员）
+        from .serializers import attach_tenant_claim, create_user_session
+
+        tenant_id = attach_tenant_claim(refresh, request, user)
+        # 注意：refresh.access_token 每次访问都会新建实例（新 jti），必须先取实例复用，
+        # 否则「access 字符串的 jti」与「会话记录的 jti」不一致，吊销会查不到记录。
+        access = refresh.access_token
         tokens = {
             "refresh": str(refresh),
-            "access": str(refresh.access_token),
+            "access": str(access),
         }
+        # 写入会话记录（jti 绑定 user+tenant）：切租户 / 登出吊销后旧 access 立即失效
+        create_user_session(user, access, tenant_id, request)
 
         if request:
             ip = cls._get_client_ip(request)
@@ -125,6 +134,7 @@ class LoginService:
                 "email": user.email,
                 "nickname": getattr(user, "nickname", ""),
                 "role": getattr(user, "role", "user"),
+                "tenant_id": tenant_id,
             },
         }
 
@@ -146,32 +156,50 @@ class LogoutService:
     @staticmethod
     def logout(request, refresh_token: Optional[str] = None) -> Dict[str, Any]:
         """
-        全面登出: Session + JWT 黑名单 + API Token 清理。
+        全面登出: Session + JWT 黑名单 + 会话吊销 + API Token 清理。
         即使某个环节失败也继续，确保用户登出体验不受影响。
+
+        注意：django_logout 会把 request.user 置为 AnonymousUser，
+        因此会话吊销必须在登出之前用缓存的 user 引用执行。
         """
         username: Optional[str] = None
+        user = getattr(request, "user", None)
+        if user is not None and getattr(user, "is_authenticated", False):
+            username = user.username
 
-        # 1. 获取用户信息
-        if request.user and request.user.is_authenticated:
-            username = request.user.username
+            # 0. 吊销当前 access 对应的会话记录（jti → UserSession.revoked_at），
+            #    使该 access 立即失效（不依赖 refresh 黑名单，access 本身即废）。
+            try:
+                auth = getattr(request, "auth", None)
+                if auth is not None and hasattr(auth, "payload"):
+                    jti = auth.payload.get("jti")
+                    if jti:
+                        from system.users.models import UserSession
+                        from django.utils import timezone as dj_tz
+
+                        UserSession.objects.filter(
+                            user=user, token_jti=jti, revoked_at__isnull=True
+                        ).update(revoked_at=dj_tz.now())
+            except Exception as e:
+                logger.warning(f"吊销会话记录失败: {e}")
 
             # 1.1 删除旧的 API Token
             try:
                 from rest_framework.authtoken.models import Token
-                Token.objects.filter(user=request.user).delete()
+                Token.objects.filter(user=user).delete()
             except Exception as e:
                 logger.warning(f"删除 API Token 失败: {e}")
 
             # 1.2 清理用户模型中的 token 字段
-            if hasattr(request.user, "token") and request.user.token:
-                request.user.token = None
-                request.user.save(update_fields=["token"])
+            if hasattr(user, "token") and user.token:
+                user.token = None
+                user.save(update_fields=["token"])
 
-            # 1.3 退出 Django Session
+            # 1.3 退出 Django Session（注意：执行后 request.user 变为 AnonymousUser）
             from django.contrib.auth import logout as django_logout
             django_logout(request)
 
-        # 2. JWT refresh token 加入黑名单
+        # 3. JWT refresh token 加入黑名单
         if refresh_token:
             try:
                 from rest_framework_simplejwt.tokens import RefreshToken
@@ -267,6 +295,14 @@ class TokenService:
             user.token_version = (user.token_version or 0) + 1
             user.save(update_fields=["token_version"])
             refresh["token_version"] = user.token_version
+        # 多租户上下文 claim：写入默认租户（请求体 tenant_id 优先，否则 is_default 成员）
+        from .serializers import attach_tenant_claim, create_user_session
+
+        tenant_id = attach_tenant_claim(refresh, request, user)
+        # 先取 access 实例复用（属性每次访问生成新 jti，见 LoginService.login 注释）
+        access = refresh.access_token
+        # 写入会话记录（jti 绑定 user+tenant）：切租户 / 登出吊销后旧 access 立即失效
+        create_user_session(user, access, tenant_id, request)
 
         if request:
             ip = (
@@ -277,12 +313,13 @@ class TokenService:
 
         return {
             "refresh": str(refresh),
-            "access": str(refresh.access_token),
+            "access": str(access),
             "user": {
                 "id": user.pk,
                 "username": user.username,
                 "email": user.email,
                 "nickname": getattr(user, "nickname", ""),
+                "tenant_id": tenant_id,
             },
         }
 

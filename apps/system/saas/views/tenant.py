@@ -39,9 +39,18 @@ def me_tenants(request):
 @api_view(['POST'])
 @drf_permission_classes([permissions.IsAuthenticated])
 def switch_tenant(request):
-    """切换当前活跃租户（传 null 清除上下文，回到管理员全量视图）"""
+    """切换当前活跃租户（传 null 清除上下文，回到管理员全量视图）。
+
+    对齐参考项目 /tenants/switch：切换成功后重签 JWT——
+    旧 access 立即失效（吊销对应 jti 会话），新 token 携带新 tenant_id claim。
+    """
     tenant_id = request.data.get('tenant_id')
-    result = TenantService.switch_tenant(request.user, tenant_id, request.session)
+    # JWT 认证下 request.auth 为 AccessToken（含 jti）；API Key / Session 认证为 None
+    access_token = getattr(request.auth, "payload", None) is not None and request.auth or None
+    result = TenantService.switch_tenant(
+        request.user, tenant_id, request.session,
+        request=request, access_token=access_token,
+    )
     if 'error' in result:
         return Response({"detail": result["error"]}, status=403)
     return Response(result)

@@ -114,6 +114,25 @@ def _is_super_admin(user) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# 平台级管控权限：仅超级管理员
+# ---------------------------------------------------------------------------
+class IsSuperAdmin(BasePermission):
+    """
+    仅超级管理员可访问（is_superuser=True 或 role.slug='super-admin'）。
+
+    用于平台级管控接口——如 API 网关限流规则的增删改、系统级设置等，
+    普通租户成员即使拥有 gateway.manage 之类的 RBAC 权限也不可操作。
+    """
+    message = "仅超级管理员可执行此操作。"
+
+    def has_permission(self, request: "Request", view: "APIView") -> bool:
+        return _is_super_admin(getattr(request, "user", None))
+
+    def has_object_permission(self, request: "Request", view: "APIView", obj) -> bool:
+        return self.has_permission(request, view)
+
+
+# ---------------------------------------------------------------------------
 # 核心权限类
 # ---------------------------------------------------------------------------
 class HasTenantPermission(BasePermission):

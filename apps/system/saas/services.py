@@ -25,6 +25,7 @@ from typing import Any, Dict, List, Optional
 from django.conf import settings
 from django.core.management import call_command
 from django.db.models import Count, Q, Sum, QuerySet
+from django.utils import timezone
 from loguru import logger
 
 from .models import (
@@ -127,8 +128,27 @@ class TenantService:
         ]
 
     @staticmethod
-    def switch_tenant(user, tenant_id: Optional[str], session) -> Dict:
-        """切换当前活跃租户, 返回结果。传 None 清除上下文"""
+    def switch_tenant(user, tenant_id: Optional[str], session, request=None, access_token=None) -> Dict:
+        """切换当前活跃租户并重签 JWT（对齐参考项目 /tenants/switch）。
+
+        流程：
+          1) 校验成员关系（超管特例保留：可直接切任意活跃租户）；
+          2) 吊销当前 access 对应的旧会话（UserSession.revoked_at）→ 旧 token 立即失效；
+          3) 重签 access+refresh，写入新 tenant_id claim；
+          4) 为新 token 建会话记录（jti 绑定 user + 新租户）。
+
+        Args:
+            access_token: 当前请求的 validated token（SlidingJWT 认证下为
+                          AccessToken，含 jti）；API Key / Session 认证下为 None，
+                          则跳过旧会话吊销。
+        Returns:
+            {"msg", "tenant", "access", "refresh"}；无权限时 {"error"}
+        """
+        from django.utils import timezone as dj_timezone
+        from rest_framework_simplejwt.tokens import RefreshToken
+        from system.users.models import UserSession
+        from system.users.serializers import create_user_session
+
         if not tenant_id:
             session.pop("current_tenant_id", None)
             logger.info(f"用户 {user.username} 清除租户上下文")
@@ -136,7 +156,7 @@ class TenantService:
 
         is_super = user.is_superuser or getattr(user, "role", "user") == "admin"
         if is_super:
-            tenant = Tenant.objects.filter(id=tenant_id).first()
+            tenant = Tenant.objects.filter(id=tenant_id, status="active").first()
         else:
             member = (
                 TenantMember.objects.filter(
@@ -150,8 +170,44 @@ class TenantService:
         if not tenant:
             return {"error": "无权限访问该租户"}
 
+        # 1) 吊销旧会话（当前 access 的 jti）→ 旧 token 立即失效
+        if access_token is not None:
+            try:
+                old_jti = access_token.payload.get("jti")
+            except Exception:
+                old_jti = None
+            if old_jti:
+                revoked = UserSession.objects.filter(
+                    user=user, token_jti=old_jti, revoked_at__isnull=True
+                ).update(revoked_at=dj_timezone.now())
+                if revoked:
+                    logger.info(
+                        f"用户 {user.username} 切租户吊销旧会话 jti={old_jti}"
+                    )
+
+        # 2) 重签 token：携带新租户上下文 claim
+        refresh = RefreshToken.for_user(user)
+        refresh["tenant_id"] = str(tenant.id)
+        refresh["username"] = user.username
+        refresh["role_id"] = str(user.role.id) if user.role else None
+        refresh["email"] = user.email
+        # token_version 保持当前值：切租户只吊销当前会话，不注销其它设备。
+        # 从 DB 读最新值（传入的 user 实例可能是过期对象，避免 claim 与 DB 不一致
+        # 导致认证层 token_version 校验误杀新 token）。
+        if hasattr(user, "token_version"):
+            try:
+                user.refresh_from_db(fields=["token_version"])
+            except Exception:
+                pass
+            refresh["token_version"] = user.token_version or 0
+
+        # 3) 新 token 建会话记录
+        access = refresh.access_token
+        create_user_session(user, access, tenant.id, request)
+
+        # 4) 兼容旧逻辑：session 里写入当前租户（middleware 三源解析之一）
         session["current_tenant_id"] = str(tenant.id)
-        logger.info(f"用户 {user.username} 切换到租户 {tenant.name}")
+        logger.info(f"用户 {user.username} 切换到租户 {tenant.name}（Token 已重签）")
         return {
             "msg": f"已切换到 {tenant.name}",
             "tenant": {
@@ -159,6 +215,215 @@ class TenantService:
                 "name": tenant.name,
                 "slug": tenant.slug,
             },
+            "access": str(access),
+            "refresh": str(refresh),
+        }
+
+
+# ============================================================
+# 租户档案 / 生命周期 / 用量（效仿参考项目 operate_tenant_lifecycle）
+# ============================================================
+
+class TenantProfileService:
+    """租户档案生命周期与用量统计服务（对齐参考项目 tenants.py）。"""
+
+    # 生命周期状态 → Tenant.status 同步映射（参考项目 Tenant.is_active 布尔，
+    # 本项目 Tenant.status 三态：active / suspended / cancelled）
+    STATUS_BY_LIFECYCLE = {
+        'trial': Tenant.Status.ACTIVE,
+        'formal': Tenant.Status.ACTIVE,
+        'frozen': Tenant.Status.SUSPENDED,
+        'expired': Tenant.Status.SUSPENDED,
+        'archived': Tenant.Status.CANCELLED,
+    }
+
+    # 允许的动作（对齐 TenantLifecycleAction 枚举）
+    ACTION_CONVERT_TO_FORMAL = 'convert_to_formal'
+    ACTION_RENEW = 'renew'
+    ACTION_FREEZE = 'freeze'
+    ACTION_UNFREEZE = 'unfreeze'
+    ACTION_ARCHIVE = 'archive'
+    ACTIONS = {
+        ACTION_CONVERT_TO_FORMAL, ACTION_RENEW,
+        ACTION_FREEZE, ACTION_UNFREEZE, ACTION_ARCHIVE,
+    }
+
+    @classmethod
+    def get_or_create_profile(cls, tenant: Tenant) -> "TenantProfile":
+        """幂等获取/创建租户档案（对齐参考项目 ensure_tenant_profile）。"""
+        from .models import TenantProfile
+        profile = getattr(tenant, 'profile', None)
+        if profile is not None:
+            return profile
+        profile, _ = TenantProfile.objects.get_or_create(
+            tenant=tenant,
+            defaults={'lifecycle_status': 'formal', 'effective_at': timezone.now()},
+        )
+        return profile
+
+    @classmethod
+    def operate_lifecycle(
+        cls,
+        tenant: Tenant,
+        action: str,
+        service_expires_at=None,
+        frozen_reason: Optional[str] = None,
+        now=None,
+    ) -> Dict:
+        """执行租户生命周期动作（5 态状态机，对齐参考项目 operate_tenant_lifecycle）。
+
+        Args:
+            action: convert_to_formal / renew / freeze / unfreeze / archive
+            service_expires_at: renew 时必填，须为未来时间
+            frozen_reason: freeze 时必填
+            now: 注入当前时间（测试用）
+
+        Returns:
+            成功 {"msg", "tenant": {...}}；失败 {"error": "..."}
+        """
+        from django.utils import timezone as dj_tz
+        from .models import TenantProfile
+
+        if action not in cls.ACTIONS:
+            return {"error": f"无效的生命周期动作: {action}"}
+
+        now = now or dj_tz.now()
+        profile = cls.get_or_create_profile(tenant)
+        current_status = profile.effective_status(now=now)
+        profile_cls = TenantProfile.LifecycleStatus
+        # 操作前捕获：tenant.status 未被本方法修改，作为「活跃 → 非活跃」转变基线
+        # （参考项目用 tenant.is_active；本项目以 Tenant.status == active 等价）
+        was_active = tenant.status == Tenant.Status.ACTIVE
+
+        if action == cls.ACTION_CONVERT_TO_FORMAL:
+            # 仅 trial → formal（参考：Only a trial tenant can become formal）
+            if current_status != profile_cls.TRIAL:
+                return {"error": "仅试用中的租户可转正式"}
+            profile.lifecycle_status = profile_cls.FORMAL
+            profile.effective_at = profile.effective_at or now
+
+        elif action == cls.ACTION_RENEW:
+            # 续费：到期时间必须在未来；过期恢复 formal；冻结且到期/试用已过 → before_freeze 置 formal
+            if service_expires_at is None or service_expires_at <= now:
+                return {"error": "续费到期时间必须晚于当前时间"}
+            profile.service_expires_at = service_expires_at
+            if current_status == profile_cls.EXPIRED:
+                profile.lifecycle_status = profile_cls.FORMAL
+            elif current_status == profile_cls.FROZEN:
+                before = profile.lifecycle_status_before_freeze
+                trial_over = (
+                    before == profile_cls.TRIAL
+                    and profile.trial_ends_at is not None
+                    and profile.trial_ends_at <= now
+                )
+                if before == profile_cls.EXPIRED or trial_over:
+                    profile.lifecycle_status_before_freeze = profile_cls.FORMAL
+            elif current_status == profile_cls.ARCHIVED:
+                return {"error": "已归档租户不可续费"}
+
+        elif action == cls.ACTION_FREEZE:
+            # 冻结：必须填原因；frozen/archived 拒绝；记录冻结前状态
+            reason = (frozen_reason or "").strip()
+            if not reason:
+                return {"error": "冻结原因必填"}
+            if current_status in (profile_cls.FROZEN, profile_cls.ARCHIVED):
+                return {"error": "当前状态不可冻结"}
+            profile.lifecycle_status_before_freeze = current_status
+            profile.lifecycle_status = profile_cls.FROZEN
+            profile.frozen_at = now
+            profile.frozen_reason = reason
+
+        elif action == cls.ACTION_UNFREEZE:
+            # 解冻：仅 frozen；到期/试用已过须先续费
+            if current_status != profile_cls.FROZEN:
+                return {"error": "租户当前未冻结"}
+            restored = profile.lifecycle_status_before_freeze or profile_cls.FORMAL
+            trial_over = (
+                restored == profile_cls.TRIAL
+                and profile.trial_ends_at is not None
+                and profile.trial_ends_at <= now
+            )
+            if (
+                profile.service_expires_at is not None
+                and profile.service_expires_at <= now
+            ) or trial_over:
+                return {"error": "租户已过期，解冻前须先续费"}
+            profile.lifecycle_status = restored
+            profile.lifecycle_status_before_freeze = None
+            profile.frozen_at = None
+            profile.frozen_reason = None
+
+        elif action == cls.ACTION_ARCHIVE:
+            # 归档：清冻结前状态
+            profile.lifecycle_status = profile_cls.ARCHIVED
+            profile.lifecycle_status_before_freeze = None
+
+        # 同步 Tenant.status；活跃 → 非活跃转变时吊销该租户全部会话
+        final_status = profile.effective_status(now=now)
+        tenant.status = cls.STATUS_BY_LIFECYCLE.get(final_status, Tenant.Status.SUSPENDED)
+        profile.save()
+        tenant.save(update_fields=['status', 'updated_at'])
+        if was_active and final_status not in (profile_cls.TRIAL, profile_cls.FORMAL):
+            cls.revoke_tenant_sessions(tenant.id)
+
+        action_names = {
+            cls.ACTION_CONVERT_TO_FORMAL: "转正式",
+            cls.ACTION_RENEW: "续费",
+            cls.ACTION_FREEZE: "冻结",
+            cls.ACTION_UNFREEZE: "解冻",
+            cls.ACTION_ARCHIVE: "归档",
+        }
+        logger.info(
+            f"租户 {tenant.name} 生命周期动作[{action_names.get(action, action)}] → "
+            f"{final_status}（tenant.status={tenant.status}）"
+        )
+        return {
+            "msg": f"已{action_names.get(action, action)}",
+            "tenant": {
+                "id": str(tenant.id),
+                "name": tenant.name,
+                "slug": tenant.slug,
+                "status": tenant.status,
+                "lifecycle_status": final_status,
+            },
+        }
+
+    @staticmethod
+    def revoke_tenant_sessions(tenant_id: str) -> int:
+        """吊销指定租户全部未失效会话（对齐参考项目 revoke_tenant_sessions）。"""
+        from django.utils import timezone as dj_tz
+        from system.users.models import UserSession
+        return UserSession.objects.filter(
+            tenant_id=tenant_id, revoked_at__isnull=True,
+        ).update(revoked_at=dj_tz.now())
+
+    @staticmethod
+    def get_usage(tenant: Tenant) -> Dict:
+        """租户用量统计（对齐参考项目 get_member_count + get_file_usage）。
+
+        members: 活跃成员数（TenantMember.is_active=True）。
+        file_assets / storage_bytes: 本项目尚无 FileAsset 资产登记表（参考项目有），
+        暂以 0 占位；待资产登记模型落地后按 tenant_id 统计接入。
+        """
+        members = TenantMember.objects.filter(tenant=tenant, is_active=True).count()
+        return {
+            "tenant_id": str(tenant.id),
+            "tenant_name": tenant.name,
+            "members": members,
+            "file_assets": 0,
+            "storage_bytes": 0,
+            "plan": (
+                {
+                    "id": str(tenant.plan.id),
+                    "name": tenant.plan.name,
+                    "slug": tenant.plan.slug,
+                    "max_users": tenant.plan.max_users,
+                    "max_storage_mb": tenant.plan.max_storage_mb,
+                    "max_file_assets": tenant.plan.max_file_assets,
+                }
+                if tenant.plan_id
+                else None
+            ),
         }
 
 

@@ -15,6 +15,21 @@ class ImageProcessor:
     DEFAULT_QUALITY = 85
     SUPPORTED_FORMATS = {'JPEG', 'PNG', 'WEBP', 'GIF'}
 
+    # 水印字体候选（按平台优先级，含中文 CJK 字体；全失败才回退 ASCII 默认字体）
+    WATERMARK_FONT_CANDIDATES = (
+        # Windows
+        r"C:\Windows\Fonts\msyh.ttc",
+        r"C:\Windows\Fonts\simhei.ttf",
+        # macOS
+        "/System/Library/Fonts/PingFang.ttc",
+        "/Library/Fonts/Arial Unicode.ttf",
+        # Linux (Debian/Ubuntu 等，需安装对应字体包)
+        "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",  # 仅 ASCII
+        "arial.ttf",  # Pillow 内置查找
+    )
+
     def __init__(
         self,
         max_width: int = DEFAULT_MAX_WIDTH,
@@ -102,6 +117,22 @@ class ImageProcessor:
 
         return str(output_path)
 
+    def _load_font(self, font_size: int) -> "ImageFont.FreeTypeFont":
+        """按平台加载字体，优先支持中文（CJK）；找不到时回退默认字体并告警。
+
+        返回 FreeTypeFont；全部候选失败则返回 ASCII 默认字体。
+        """
+        for path in self.WATERMARK_FONT_CANDIDATES:
+            try:
+                return ImageFont.truetype(path, font_size)
+            except Exception:
+                continue
+        logger.warning(
+            "未找到系统字体（含中文），水印回退到 ASCII 默认字体；"
+            "含中文时可能渲染失败，生产环境请安装中文字体包（如 fonts-noto-cjk）。"
+        )
+        return ImageFont.load_default()
+
     def add_watermark(
         self,
         input_path: Union[str, Path],
@@ -147,33 +178,40 @@ class ImageProcessor:
             img = ImageOps.exif_transpose(img)
 
             if text:
-                watermark = Image.new('RGBA', img.size, (255, 255, 255, 0))
-                draw = ImageDraw.Draw(watermark)
-
                 try:
-                    font = ImageFont.truetype("arial.ttf", font_size)
-                except:
-                    font = ImageFont.load_default()
+                    font = self._load_font(font_size)
+                    watermark = Image.new('RGBA', img.size, (255, 255, 255, 0))
+                    draw = ImageDraw.Draw(watermark)
 
-                text_bbox = draw.textbbox((0, 0), text, font=font)
-                text_width = text_bbox[2] - text_bbox[0]
-                text_height = text_bbox[3] - text_bbox[1]
+                    text_bbox = draw.textbbox((0, 0), text, font=font)
+                    text_width = text_bbox[2] - text_bbox[0]
+                    text_height = text_bbox[3] - text_bbox[1]
 
-                x, y = self._calculate_position(
-                    img.size, (text_width, text_height), position
-                )
+                    x, y = self._calculate_position(
+                        img.size, (text_width, text_height), position
+                    )
 
-                color_with_opacity = (*color, int(255 * opacity))
-                draw.text((x, y), text, font=font, fill=color_with_opacity)
+                    color_with_opacity = (*color, int(255 * opacity))
+                    draw.text((x, y), text, font=font, fill=color_with_opacity)
 
-                if angle != 0:
-                    watermark = watermark.rotate(angle, expand=1)
-                    watermark = watermark.resize(img.size)
+                    if angle != 0:
+                        watermark = watermark.rotate(angle, expand=1)
+                        watermark = watermark.resize(img.size)
 
-                img = Image.alpha_composite(img, watermark)
+                    img = Image.alpha_composite(img, watermark)
+                except Exception as e:
+                    logger.warning(f"水印文字渲染失败，跳过文字水印: {e}")
 
-            img = img.convert('RGB')
-            img.save(output_path, format='JPEG', quality=self.quality)
+            # 保留原图格式：JPEG 转 RGB，其余（PNG/WEBP 等）保留 RGBA 透明通道
+            ext = output_path.suffix.lower().lstrip('.')
+            save_format = (
+                'JPEG' if ext in ('jpg', 'jpeg')
+                else ext.upper() if ext in ('png', 'webp', 'gif')
+                else 'PNG'
+            )
+            if save_format == 'JPEG':
+                img = img.convert('RGB')
+            img.save(output_path, format=save_format, quality=self.quality)
 
         logger.info(f"水印添加完成: {input_path} -> {output_path}")
         return str(output_path)

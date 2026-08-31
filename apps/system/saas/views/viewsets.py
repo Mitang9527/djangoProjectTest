@@ -1,8 +1,8 @@
 """
 SaaS 后台管理系统 — DRF ViewSets。
 """
-from rest_framework import viewsets, permissions
-from rest_framework.decorators import api_view, permission_classes as drf_permission_classes
+from rest_framework import viewsets, permissions, status
+from rest_framework.decorators import action, api_view, permission_classes as drf_permission_classes
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from django.utils.translation import gettext_lazy as _
@@ -27,7 +27,7 @@ from ..serializers import (
     OrderSerializer, InvoiceSerializer,
     GlobalConfigSerializer, FeatureFlagSerializer, ConfigHistorySerializer,
 )
-from ..services import PermissionService
+from ..services import PermissionService, TenantProfileService
 
 
 @extend_schema_view(
@@ -73,6 +73,49 @@ class TenantViewSet(BaseModelViewSet):
 
     def perform_create(self, serializer):
         super().perform_create(serializer)
+
+    @extend_schema(
+        summary='操作租户生命周期（转正式/续费/冻结/解冻/归档）',
+        tags=['SaaS'],
+        request={
+            'application/json': {
+                'type': 'object',
+                'required': ['action'],
+                'properties': {
+                    'action': {
+                        'type': 'string',
+                        'enum': ['convert_to_formal', 'renew', 'freeze', 'unfreeze', 'archive'],
+                    },
+                    'service_expires_at': {'type': 'string', 'format': 'date-time', 'description': '续费到期时间（renew 必填）'},
+                    'frozen_reason': {'type': 'string', 'description': '冻结原因（freeze 必填）'},
+                },
+            }
+        },
+    )
+    @action(detail=True, methods=['post'], url_path='lifecycle')
+    def lifecycle(self, request, pk=None):
+        """对齐参考项目 POST /tenants/{id}/lifecycle。"""
+        tenant = self.get_object()
+        body = request.data or {}
+        result = TenantProfileService.operate_lifecycle(
+            tenant,
+            action=body.get('action'),
+            service_expires_at=body.get('service_expires_at'),
+            frozen_reason=body.get('frozen_reason'),
+        )
+        if 'error' in result:
+            return Response({"detail": result["error"]}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result)
+
+    @extend_schema(
+        summary='租户用量统计（成员数/资产数/存储 vs 套餐配额）',
+        tags=['SaaS'],
+    )
+    @action(detail=True, methods=['get'], url_path='usage')
+    def usage(self, request, pk=None):
+        """对齐参考项目 GET /tenants/{id}/usage。"""
+        tenant = self.get_object()
+        return Response(TenantProfileService.get_usage(tenant))
 
 
 @extend_schema_view(

@@ -126,6 +126,34 @@ class PingView(APIView):
         })
 
 
+class PlatformInfoView(APIView):
+    """
+    平台信息端点 — GET /api/v1/ 返回平台名称、版本、运行状态、文档地址与环境。
+
+    公开无需认证/签名（已在 settings.API_SIGNATURE_EXCLUDE_PATHS 排除 /api/v1/）。
+    返回数据经 CustomRenderer 统一包装为 {status, code, message, data, errors}，
+    平台信息落在 data 字段内。
+    """
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = []
+
+    @extend_schema(
+        summary="平台信息",
+        description="返回平台名称、版本、运行状态、API 文档地址与当前环境（DEV/PROD）",
+        tags=["系统"],
+    )
+    def get(self, request):
+        return Response(
+            {
+                "name": settings.PLATFORM_NAME,
+                "version": settings.PLATFORM_VERSION,
+                "status": "running",
+                "documentation_url": settings.API_DOCS_URL,
+                "environment": "DEV" if settings.DEBUG else "PROD"
+            }
+        )
+
+
 class PingAuthView(APIView):
     """
     对照演示：把 authentication_classes 换成 JWT 后端后，请求如何被识别。
@@ -520,7 +548,7 @@ class ImageUploadView(APIView):
     
     @extend_schema(
         summary="图片上传",
-        description="图片上传接口，自动压缩并添加水印，含扩展名白名单校验",
+        description="图片上传接口，自动压缩、添加文字水印并生成缩略图；含扩展名白名单校验。可选字段 watermark_text 自定义水印文案（默认项目名）。",
         tags=["文件上传"]
     )
     @validate_image_upload(
@@ -563,6 +591,19 @@ class ImageUploadView(APIView):
                 )
             )
 
+            # 添加文字水印（默认项目名，前端可传 watermark_text 覆盖；位置/透明度用默认值）
+            watermark_text = (request.data.get('watermark_text') or settings.PROJECT_NAME)[:50]
+            watermarked_path = processor.add_watermark(
+                compressed_path,
+                output_path=os.path.join(
+                    settings.MEDIA_ROOT,
+                    'images/watermarked',
+                    os.path.basename(compressed_path)
+                ),
+                text=watermark_text,
+                position='bottom-right',
+            )
+
             # 创建缩略图
             thumbnail_path = processor.create_thumbnail(
                 original_path,
@@ -589,6 +630,7 @@ class ImageUploadView(APIView):
                     # 统一相对 MEDIA_URL 地址；relative_media_url 已处理跨平台斜杠
                     "original": relative_media_url(original_path),
                     "compressed": relative_media_url(compressed_path),
+                    "watermarked": relative_media_url(watermarked_path),
                     "thumbnail": relative_media_url(thumbnail_path),
                     "file_name": uploaded_file.name,
                     "file_size": uploaded_file.size,

@@ -1,0 +1,3 @@
+# 依赖目录不入库（package-lock.json 入库，保证可复现）
+node_modules/
+npm-debug.log*

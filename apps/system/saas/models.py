@@ -28,6 +28,8 @@ class Plan(models.Model):
     currency = models.CharField(_('货币'), max_length=10, default='CNY')
     max_users = models.IntegerField(_('最大用户数'), default=10)
     max_storage_mb = models.IntegerField(_('最大存储(MB)'), default=1024)
+    max_file_assets = models.IntegerField(_('最大文件资产数'), default=100)
+    is_default = models.BooleanField(_('默认套餐'), default=False)
     is_active = models.BooleanField(_('是否启用'), default=True)
     is_featured = models.BooleanField(_('是否推荐'), default=False)
     sort_order = models.IntegerField(_('排序'), default=0)
@@ -86,6 +88,10 @@ class Tenant(models.Model):
     description = models.TextField(_('描述'), blank=True)
     status = models.CharField(_('状态'), max_length=20, choices=Status.choices, default=Status.ACTIVE)
     plan = models.ForeignKey(Plan, on_delete=models.SET_NULL, null=True, related_name='tenants', verbose_name=_('套餐'))
+    initialization_template = models.ForeignKey(
+        'TenantInitializationTemplate', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='tenants', verbose_name=_('初始化模板'),
+    )
     billing_date = models.DateField(_('账单日期'), null=True, blank=True)
     stripe_customer_id = models.CharField(_('Stripe 客户 ID'), max_length=255, blank=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='created_tenants', verbose_name=_('创建者'))
@@ -230,6 +236,7 @@ class TenantMember(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='tenant_memberships', verbose_name=_('用户'))
     role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True, related_name='members', verbose_name=_('角色'))
     is_active = models.BooleanField(_('是否启用'), default=True)
+    is_default = models.BooleanField(_('默认租户'), default=False)
     joined_at = models.DateTimeField(_('加入时间'), auto_now_add=True)
     invited_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='invited_members', verbose_name=_('邀请者'))
 
@@ -242,6 +249,174 @@ class TenantMember(models.Model):
 
     def __str__(self):
         return f"{self.user.username} @ {self.tenant.name}"
+
+
+class TenantProfile(models.Model):
+    """
+    租户档案（效仿参考项目 TenantProfile）。
+
+    承载租户生命周期（trial/formal/frozen/expired/archived 5 态）、联系人、
+    收发款 / 余额、账户数与销售跟进信息；Tenant 保持轻量，仅存基础信息 + 套餐。
+    """
+    class LifecycleStatus(models.TextChoices):
+        TRIAL = 'trial', _('试用')
+        FORMAL = 'formal', _('正式')
+        FROZEN = 'frozen', _('冻结')
+        EXPIRED = 'expired', _('已过期')
+        ARCHIVED = 'archived', _('已归档')
+
+    tenant = models.OneToOneField(
+        Tenant, on_delete=models.CASCADE, primary_key=True,
+        related_name='profile', verbose_name=_('租户'),
+    )
+    contact_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='tenant_profiles_contact', verbose_name=_('联系人'),
+    )
+    contact_name = models.CharField(_('联系人姓名'), max_length=100, blank=True)
+    contact_mobile = models.CharField(_('联系人手机'), max_length=32, blank=True)
+    industry = models.IntegerField(_('行业'), null=True, blank=True)
+    tenant_type = models.IntegerField(_('租户类型'), null=True, blank=True)
+    address_code = models.CharField(_('地区编码'), max_length=100, blank=True)
+    address_detail = models.CharField(_('详细地址'), max_length=255, blank=True)
+    qualifications = models.CharField(_('资质'), max_length=500, blank=True)
+    website = models.CharField(_('官网'), max_length=255, blank=True)
+
+    # 收发款 / 余额 / 账户数
+    recharge_amount = models.DecimalField(_('充值金额'), max_digits=12, decimal_places=2, default=0)
+    payment_amount = models.DecimalField(_('消费金额'), max_digits=12, decimal_places=2, default=0)
+    balance_amount = models.DecimalField(_('余额'), max_digits=12, decimal_places=2, default=0)
+    account_count = models.PositiveIntegerField(_('账户数'), null=True, blank=True)
+
+    # 生命周期
+    lifecycle_status = models.CharField(
+        _('生命周期状态'), max_length=20, choices=LifecycleStatus.choices,
+        default=LifecycleStatus.FORMAL, db_index=True,
+    )
+    lifecycle_status_before_freeze = models.CharField(
+        _('冻结前状态'), max_length=20, choices=LifecycleStatus.choices,
+        null=True, blank=True,
+    )
+    effective_at = models.DateTimeField(_('生效时间'), null=True, blank=True)
+    trial_ends_at = models.DateTimeField(_('试用截止时间'), null=True, blank=True, db_index=True)
+    service_expires_at = models.DateTimeField(_('服务到期时间'), null=True, blank=True, db_index=True)
+    frozen_at = models.DateTimeField(_('冻结时间'), null=True, blank=True)
+    frozen_reason = models.CharField(_('冻结原因'), max_length=500, blank=True, null=True)
+
+    # 销售跟进
+    owner_name = models.CharField(_('客户负责人'), max_length=100, blank=True, db_index=True)
+    customer_source = models.CharField(_('客户来源'), max_length=100, blank=True, db_index=True)
+    follow_up_notes = models.CharField(_('跟进备注'), max_length=1000, blank=True)
+
+    created_at = models.DateTimeField(_('创建时间'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('更新时间'), auto_now=True)
+
+    class Meta:
+        app_label = 'saas'
+        verbose_name = _('租户档案')
+        verbose_name_plural = _('租户档案')
+
+    def __str__(self):
+        return f"{self.tenant.name} ({self.get_lifecycle_status_display()})"
+
+    def effective_status(self, now=None):
+        """有效生命周期状态：存储状态 + 时间派生（到期自动视为 expired）。
+
+        对齐参考项目 effective_lifecycle_status：
+        - frozen / archived 直接返回存储状态（不因时间变化）；
+        - 服务到期（service_expires_at <= now）→ expired；
+        - trial 且试用到期（trial_ends_at <= now）→ expired；
+        - 其余返回存储状态。
+        """
+        if now is None:
+            from django.utils import timezone
+            now = timezone.now()
+        if self.lifecycle_status in (self.LifecycleStatus.FROZEN, self.LifecycleStatus.ARCHIVED):
+            return self.lifecycle_status
+        if self.service_expires_at is not None and self.service_expires_at <= now:
+            return self.LifecycleStatus.EXPIRED
+        if (
+            self.lifecycle_status == self.LifecycleStatus.TRIAL
+            and self.trial_ends_at is not None
+            and self.trial_ends_at <= now
+        ):
+            return self.LifecycleStatus.EXPIRED
+        return self.lifecycle_status
+
+    @property
+    def is_active(self) -> bool:
+        """有效状态是否属于活跃（trial / formal）。"""
+        return self.effective_status() in (
+            self.LifecycleStatus.TRIAL, self.LifecycleStatus.FORMAL,
+        )
+
+
+class TenantPlanProfile(models.Model):
+    """
+    套餐档案（效仿参考项目 TenantPlanProfile，价格/配额留在 Plan）。
+
+    承载订阅统计（subscription_num / subscription_total_amount）与
+    展示字段（logo / published / order_num / remark）。
+    """
+    plan = models.OneToOneField(
+        Plan, on_delete=models.CASCADE, primary_key=True,
+        related_name='profile', verbose_name=_('套餐'),
+    )
+    package_type = models.IntegerField(_('套餐类型'), default=0)
+    logo = models.CharField(_('Logo'), max_length=500, blank=True)
+    published = models.IntegerField(_('上架状态'), default=0)
+    order_num = models.IntegerField(_('排序'), default=1)
+    subscription_num = models.IntegerField(_('订阅数'), default=0)
+    subscription_total_amount = models.DecimalField(
+        _('订阅总金额'), max_digits=12, decimal_places=2, default=0,
+    )
+    remark = models.CharField(_('备注'), max_length=500, blank=True)
+    created_at = models.DateTimeField(_('创建时间'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('更新时间'), auto_now=True)
+
+    class Meta:
+        app_label = 'saas'
+        verbose_name = _('套餐档案')
+        verbose_name_plural = _('套餐档案')
+
+    def __str__(self):
+        return f"{self.plan.name} profile"
+
+
+class TenantInitializationTemplate(models.Model):
+    """
+    租户初始化模板（效仿参考项目 TenantInitializationTemplate）。
+
+    租户创建时选模板：决定 root 部门名称 / 编码，以及 7 类种子数据的
+    初始化开关（岗位 / 字典 / 设置 / 存储渠道 / 消息模板 / 短信渠道 / 邮箱账户）。
+    阶段 2 先落模型与默认种子；各类种子数据随对应业务模块落地时消费。
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    code = models.SlugField(_('模板编码'), unique=True, max_length=100)
+    name = models.CharField(_('模板名称'), max_length=100)
+    description = models.CharField(_('描述'), max_length=500, blank=True)
+    root_department_code = models.CharField(_('根部门编码'), max_length=100, default='headquarters')
+    root_department_name = models.CharField(_('根部门名称'), max_length=100, default='总部')
+    seed_posts = models.BooleanField(_('种子：岗位'), default=True)
+    seed_dictionaries = models.BooleanField(_('种子：字典'), default=True)
+    seed_settings = models.BooleanField(_('种子：设置'), default=True)
+    seed_storage_channels = models.BooleanField(_('种子：存储渠道'), default=True)
+    seed_message_templates = models.BooleanField(_('种子：消息模板'), default=True)
+    seed_sms_channels = models.BooleanField(_('种子：短信渠道'), default=True)
+    seed_mail_accounts = models.BooleanField(_('种子：邮箱账户'), default=True)
+    is_default = models.BooleanField(_('默认模板'), default=False)
+    is_active = models.BooleanField(_('是否启用'), default=True)
+    created_at = models.DateTimeField(_('创建时间'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('更新时间'), auto_now=True)
+
+    class Meta:
+        app_label = 'saas'
+        verbose_name = _('租户初始化模板')
+        verbose_name_plural = _('租户初始化模板')
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.name
 
 
 class APILimitRule(models.Model):
@@ -259,6 +434,7 @@ class APILimitRule(models.Model):
         USER = 'user', '用户限流'
         TENANT = 'tenant', '租户限流'
         ENDPOINT = 'endpoint', '端点限流'
+        ANON = 'anon', '匿名限流'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(_('规则名称'), max_length=100)

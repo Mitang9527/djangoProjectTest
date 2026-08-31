@@ -162,18 +162,20 @@ MIDDLEWARE = [
     # 11.5 会话空闲超时（必须在认证之后；已登录用户超过阈值无操作则强制登出）
     'framework.security.idle_timeout.IdleTimeoutMiddleware',
 
-    # 12. API 签名验证（在认证之后，业务逻辑之前拦截非法请求）
+    # 12. API 网关（限流、访问日志）
+    #     必须放在签名中间件之前：让所有 /api 请求（含被签名拦截的 404/403）
+    #     都能被网关记录为完整的访问日志（method/path/status/耗时）。
+    'framework.gateway.middleware.GatewayMiddleware',
+
+    # 13. API 签名验证（在认证之后，业务逻辑之前拦截非法请求）
     'framework.api_signature.middleware.APISignatureMiddleware',
 
-    # 12.5 Authorization 头自动补全 Bearer 前缀（手动测试裸 token 免手敲 Bearer；
+    # 13.5 Authorization 头自动补全 Bearer 前缀（手动测试裸 token 免手敲 Bearer；
     #      已带 Bearer/Basic 等方案的头不受影响，X-API-Key 独立头不受影响）
     'framework.drf.auth_normalize.AuthorizationBearerMiddleware',
 
-    # 13. SaaS 多租户上下文注入（必须在具体业务和日志记录之前）
+    # 14. SaaS 多租户上下文注入（必须在具体业务和日志记录之前）
     'system.saas.middleware.TenantMiddleware',
-
-    # 14. API 网关（限流、请求日志）
-    'framework.gateway.middleware.GatewayMiddleware',
 
     # 15. 操作日志（放在业务中间件之后，确保能捕获完整的上下文）
     'system.core.middleware.OperationLogMiddleware',
@@ -342,6 +344,12 @@ SESSION_IDLE_TIMEOUT_REDIRECT_URL = getattr(global_config, "SESSION_IDLE_TIMEOUT
 CACHALOT_ENABLED = True
 CACHALOT_TIMEOUT = 30  # ORM 缓存 30 秒（避免权限/角色变更长时间不生效）
 CACHALOT_CACHE = 'default'
+# 迁移期间 cachalot 会缓存 django_content_type 查询并返回陈旧的空结果，
+# 导致 create_contenttypes 重复插入 -> UNIQUE constraint failed。
+# 仅在执行 migrate 命令时关闭查询缓存（不影响运行时缓存）。
+import sys as _sys
+if 'migrate' in _sys.argv:
+    CACHALOT_ENABLED = False
 # 忽略高频写入表（Session、日志等）
 CACHALOT_UNCACHABLE_TABLES = frozenset([
     'django_session',
@@ -392,6 +400,7 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_CLASSES': [
         'framework.gateway.throttle.IPThrottle',
         'framework.gateway.throttle.UserThrottle',
+        'framework.gateway.throttle.AnonThrottle',  # 仅对未登录请求生效（默认 60/m），登录用户直接放行
     ],
     'DEFAULT_THROTTLE_RATES': {
         'user': '500/hour',
@@ -484,14 +493,18 @@ if not CORS_ALLOW_ALL_ORIGINS:
 # 暴露滑动续期响应头，使浏览器前端能读取到新的 access token
 CORS_EXPOSE_HEADERS = ['X-Access-Token', 'X-Token-Refreshed']
 
-# API 网关限流配置
+# API 网关限流配置（自 env 注入：GATEWAY_THROTTLE_RATE_{IP|USER|TENANT|ANON|ENDPOINT}，
+# 对应 model.py global_config；留空时回退下列代码默认值）
 GATEWAY_THROTTLE_RATES = {
-    "ip":       "1000/h",    # 每 IP 每小时 1000 次
-    "user":     "500/h",     # 每用户每小时 500 次
-    "tenant":   "10000/h",   # 每租户每小时 10000 次
-    "anon":     "60/m",      # 匿名用户每分钟 60 次
-    "endpoint": "100/h",     # 每端点默认每小时 100 次
+    "ip":       getattr(global_config, "GATEWAY_THROTTLE_RATE_IP", "") or "1000/h",      # 每 IP 每小时 1000 次
+    "user":     getattr(global_config, "GATEWAY_THROTTLE_RATE_USER", "") or "500/h",     # 每用户每小时 500 次
+    "tenant":   getattr(global_config, "GATEWAY_THROTTLE_RATE_TENANT", "") or "10000/h", # 每租户每小时 10000 次
+    "anon":     getattr(global_config, "GATEWAY_THROTTLE_RATE_ANON", "") or "60/m",      # 匿名用户每分钟 60 次
+    "endpoint": getattr(global_config, "GATEWAY_THROTTLE_RATE_ENDPOINT", "") or "100/h", # 每端点默认每小时 100 次
 }
+
+# Redis 故障时限流策略：False=fail-closed（拒绝 429，默认）；True=fail-open（降级放行）
+GATEWAY_THROTTLE_REDIS_FAIL_OPEN = getattr(global_config, "GATEWAY_THROTTLE_REDIS_FAIL_OPEN", False)
 
 # API Key 认证配置 (外部系统对接)
 # 简单模式：key → username 映射，无需数据库。运行 `invoke secret.apikey` 生成新 Key。
@@ -533,16 +546,25 @@ API_SIGNATURE_PATHS = [
 # - 新增版本：此处追加（如 'v2'）并确保对应 app 提供 <version>_urls 模块
 API_VERSIONS = ['v1']
 
+# 平台信息（GET /api/v1/ 返回，集中可配，便于各环境覆盖）
+PLATFORM_NAME = "Django Enterprise Platform"
+PLATFORM_VERSION = "1.0.0"
+# API 文档地址（drf-spectacular 实际挂载在 /api/swagger/，未随业务 API 版本化）
+API_DOCS_URL = "/api/swagger/"
+
 # 排除签名验证的路径
 # 任何公开的 /api 接口,都必须在这儿加上，不然前端调取不到
 API_SIGNATURE_EXCLUDE_PATHS = [
     # ---- 用户认证（浏览器/SPA，JWT 鉴权，不做请求签名）----
     "/api/v1/users/*",
+
     # ---- SaaS 后台（浏览器/SPA，JWT 鉴权，不做请求签名）----
     "/api/v1/saas/*",
+
     # ---- 核心平台公开/监控/外部鉴权端点 ----
     # 核心平台已收口到 /api/v1/core/，其监控/外部端点落入 /api/* 签名拦截，
     # 需在此显式放行（探活/依赖检查/前端调用均不带签名头）。
+
     "/api/v1/core/ping/",
     "/api/v1/core/ping-auth/",
     "/api/v1/core/secure-info/",
@@ -556,6 +578,10 @@ API_SIGNATURE_EXCLUDE_PATHS = [
     "/api/v1/core/health/*",
     "/api/v1/core/system-status/",
     "/api/v1/core/token/info/",
+
+    # ---- 平台信息根端点（GET /api/v1/，公开元信息，免签名）----
+    "/api/v1/",
+
     # ---- 第一方 Web SPA（带 JWT 的浏览器客户端）走 JWT 鉴权，不做签名校验 ----
     "/api/v1/ai_studio/*",
     "/api/v1/ai_gateway/*",
@@ -765,7 +791,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # ----------------------------------------------------------------------------
 LOGS_DIR = os.path.join(BASE_DIR, 'logs')
 # 日志级别可由 LOG_LEVEL 环境变量覆盖（DEBUG/INFO/WARNING/ERROR），默认 DEBUG 时 DEBUG、否则 INFO
-LOG_LEVEL = os.environ.get("LOG_LEVEL", "DEBUG" if DEBUG else "INFO").upper()
+# ⚠️ 必须用 `or` 而不是 get() 的 default：.env 里写 "LOG_LEVEL=" 时环境变量存在但值为空串，
+LOG_LEVEL = (os.environ.get("LOG_LEVEL") or ("DEBUG" if DEBUG else "INFO")).upper()
 LogManager(log_dir=LOGS_DIR, level=LOG_LEVEL, debug=DEBUG)
 
 # Django's own logging configuration - 所有日志都转发到 loguru
@@ -836,6 +863,9 @@ SPECTACULAR_SETTINGS = {
     'DESCRIPTION': '企业级项目 API 接口文档',
     'VERSION': '2.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
+    # OpenAPI servers：为 Swagger UI Try it out 与 openapi-ts 生成的客户端提供默认后端地址。
+    # paths 已含 /api/v1 前缀，此处只写 host 根。联调/生产用 OPENAPI_INPUT 指向实际环境即可。
+    'SERVERS': [{'url': 'http://127.0.0.1:8300', 'description': '本地后端 (:8300)'}],
     # --- Swagger UI 增强 ---
     'SWAGGER_UI_SETTINGS': {
         'persistAuthorization': True,       # 刷新/复制链接后保留 JWT

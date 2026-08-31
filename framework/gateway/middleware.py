@@ -31,6 +31,7 @@ import json
 from typing import Callable
 
 from django.http import JsonResponse
+from django.urls import Resolver404, resolve
 from loguru import logger
 
 
@@ -73,8 +74,21 @@ class GatewayMiddleware:
         if not self._is_api_path(path):
             return
 
+        # 提前做 URL 解析并写入 request.resolver_match。
+        # 否则若下游中间件（如 API 签名中间件）在 URL 解析前就拦截请求
+        # （返回 403/404），request.resolver_match 永远不会被 Django 设置，
+        # 网关访问日志就无法拿到实际处理的视图（Handler=-）。
+        # Django 自身在视图阶段仍会重新解析并覆盖此值；被拦截的请求则保留本值。
+        if getattr(request, 'resolver_match', None) is None:
+            try:
+                request.resolver_match = resolve(getattr(request, 'path_info', path))
+            except Resolver404:
+                pass
+
         # 请求日志
         self._log_request(request, path)
+        # 记录开始时间，供响应阶段计算耗时
+        request._gateway_start_ts = time.time()
 
         # IP 级别限流（中间件层快速拦截）
         if self._should_throttle(path):
@@ -105,6 +119,34 @@ class GatewayMiddleware:
         user_id = user.pk if user and user.is_authenticated else 'anonymous'
         logger.debug(
             f"[Gateway] {method} {path} | IP={ip} | User={user_id}"
+        )
+
+    def _log_access(self, request, response, path: str):
+        """记录 API 访问日志（请求完成后，含状态码与耗时）"""
+        ip = self._get_client_ip(request)
+        method = request.method if hasattr(request, 'method') else 'UNKNOWN'
+        user = getattr(request, 'user', None)
+        user_id = user.pk if user and user.is_authenticated else 'anonymous'
+        status = getattr(response, 'status_code', 0)
+        start = getattr(request, '_gateway_start_ts', None)
+        duration_ms = f"{(time.time() - start) * 1000:.1f}" if start else "-"
+        try:
+            size = len(response.content) if hasattr(response, 'content') else 0
+        except (TypeError, AttributeError):
+            size = 0
+        # 解析实际处理的视图（DRF APIView 取 view_class + HTTP 方法）
+        handler = '-'
+        rm = getattr(request, 'resolver_match', None)
+        if rm is not None and getattr(rm, 'func', None) is not None:
+            func = rm.func
+            view_cls = getattr(func, 'view_class', None)
+            if view_cls is not None:
+                handler = f"{view_cls.__name__}.{method.lower()}"
+            else:
+                handler = getattr(func, '__name__', None) or getattr(rm, 'url_name', '-')
+        logger.info(
+            f"[Gateway] {method} {path} -> {status} "
+            f"({duration_ms}ms, {size}B) | Handler={handler} | IP={ip} | User={user_id}"
         )
 
     def _get_client_ip(self, request) -> str:
@@ -151,11 +193,14 @@ class GatewayMiddleware:
     # ── 响应后置处理 ────────────────────────────────
 
     def _process_response(self, request, response):
-        """注入限流响应头"""
+        """注入限流响应头并记录访问日志"""
         path = request.path if hasattr(request, 'path') else ''
 
         if not self._is_api_path(path):
             return response
+
+        # 访问日志：合并 method/path/status/耗时/字节数，一个请求一条记录
+        self._log_access(request, response, path)
 
         # 注入通用网关头
         response["X-Gateway"] = "WorkBuddy-Gateway/1.0"

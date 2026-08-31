@@ -8,7 +8,7 @@ from rest_framework.decorators import api_view, permission_classes as drf_permis
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema
 
-from ..permissions import HasTenantPermission
+from ..permissions import HasTenantPermission, IsSuperAdmin
 from ..models import APILimitRule
 from ..services import GatewayService
 
@@ -41,9 +41,9 @@ def gateway_rules_list_api(request):
     tags=['API 网关'],
 )
 @api_view(['POST'])
-@drf_permission_classes([permissions.IsAuthenticated, HasTenantPermission])
+@drf_permission_classes([permissions.IsAuthenticated, IsSuperAdmin])
 def gateway_rule_create_api(request):
-    """创建新的限流规则"""
+    """创建新的限流规则（仅超级管理员）"""
     name = request.data.get('name', '').strip()
     url_pattern = request.data.get('url_pattern', '').strip()
     throttle_type = request.data.get('throttle_type', 'ip')
@@ -90,9 +90,9 @@ def gateway_rule_create_api(request):
     tags=['API 网关'],
 )
 @api_view(['PUT', 'PATCH'])
-@drf_permission_classes([permissions.IsAuthenticated, HasTenantPermission])
+@drf_permission_classes([permissions.IsAuthenticated, IsSuperAdmin])
 def gateway_rule_update_api(request, rule_id):
-    """更新限流规则"""
+    """更新限流规则（仅超级管理员）"""
     try:
         rule = APILimitRule.objects.get(id=rule_id)
     except APILimitRule.DoesNotExist:
@@ -121,9 +121,9 @@ def gateway_rule_update_api(request, rule_id):
     tags=['API 网关'],
 )
 @api_view(['DELETE'])
-@drf_permission_classes([permissions.IsAuthenticated, HasTenantPermission])
+@drf_permission_classes([permissions.IsAuthenticated, IsSuperAdmin])
 def gateway_rule_delete_api(request, rule_id):
-    """删除限流规则"""
+    """删除限流规则（仅超级管理员）"""
     try:
         rule = APILimitRule.objects.get(id=rule_id)
         rule.delete()
@@ -137,9 +137,9 @@ def gateway_rule_delete_api(request, rule_id):
     tags=['API 网关'],
 )
 @api_view(['POST'])
-@drf_permission_classes([permissions.IsAuthenticated, HasTenantPermission])
+@drf_permission_classes([permissions.IsAuthenticated, IsSuperAdmin])
 def gateway_rule_toggle_api(request, rule_id):
-    """切换规则启用/禁用"""
+    """切换规则启用/禁用（仅超级管理员）"""
     try:
         rule = APILimitRule.objects.get(id=rule_id)
         rule.is_active = not rule.is_active

@@ -127,7 +127,12 @@ class ProjectSettings(BaseSettings):
 
     # 空闲超时排除路径前缀：这些路径不参与空闲计时（逗号分隔字符串或列表均可）。
     # 默认覆盖健康检查 / 静态 / 媒体 / 登录页 / SSO 流程，避免误踢或干扰探活。
-    SESSION_IDLE_TIMEOUT_EXEMPT_PATHS: list[str] = Field(
+    #
+    # ⚠️ 类型必须是 Any 而非 list[str]（与 ALLOWED_HOSTS / CORS_ALLOWED_ORIGINS 一致）：
+    # 声明为 list[str] 时 pydantic-settings 会先对环境变量做 JSON 解码，
+    # 逗号分隔字符串（如 "/api/health,/static"）会抛 JSONDecodeError 直接阻断启动。
+    # 用 Any 可让下方 validator 正常拆分逗号分隔值。
+    SESSION_IDLE_TIMEOUT_EXEMPT_PATHS: Any = Field(
         default_factory=lambda: [
             "/api/health",
             "/static",
@@ -198,6 +203,18 @@ class ProjectSettings(BaseSettings):
     
     # 安全配置
     SECURE_SSL_REDIRECT: bool = False
+
+    # --- API 网关限流配置 ---
+    # 速率格式：次数/周期（s|m|h|d），如 "1000/h"、"60/m"；留空回退代码默认值。
+    # 与 settings.GATEWAY_THROTTLE_RATES 一一对应，路由级 APILimitRule > 套餐 > 租户 > 此处全局默认。
+    GATEWAY_THROTTLE_RATE_IP: str = "1000/h"
+    GATEWAY_THROTTLE_RATE_USER: str = "500/h"
+    GATEWAY_THROTTLE_RATE_TENANT: str = "10000/h"
+    GATEWAY_THROTTLE_RATE_ANON: str = "60/m"
+    GATEWAY_THROTTLE_RATE_ENDPOINT: str = "100/h"
+    # Redis 故障时限流策略：False=fail-closed（拒绝 429，限流不因基础设施故障失效）；
+    # True=fail-open（降级放行，保证可用性）。默认 False。
+    GATEWAY_THROTTLE_REDIS_FAIL_OPEN: bool = False
 
     model_config = SettingsConfigDict(
         # 不再自动加载 env_file，使用我们统一的 env_loader
