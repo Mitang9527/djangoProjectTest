@@ -15,7 +15,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from framework.gateway.login_throttle import LoginThrottleService
-from framework.security.password import password_strength
+from framework.security.password import describe_weakness, password_strength
 
 # 统一防枚举文案：用户存在与否、发送成败，响应完全一致
 _GENERIC_OK = "如果该邮箱已注册，我们已发送密码重置邮件"
@@ -93,7 +93,12 @@ class PasswordResetRequestView(APIView):
         user = _resolve_user({"email": email, "username": username})
         if user is not None:
             token = default_token_generator.make_token(user)
-            _send_reset_email(user, token)
+            # 发信失败必须留痕：响应仍为统一文案（防枚举），否则用户永远收不到邮件且无任何线索
+            if not _send_reset_email(user, token):
+                logger.error(
+                    "[PasswordReset] 重置邮件发送失败，用户收不到重置链接 user_id={} email={}",
+                    user.id, user.email,
+                )
 
         # 成功/失败均计数（不因成功清零，防批量探测）
         LoginThrottleService.record_password_reset_attempt(request, target)
@@ -128,10 +133,9 @@ class PasswordResetConfirmView(APIView):
                             status=status.HTTP_400_BAD_REQUEST)
 
         # 强度校验（复用密码策略：5 项中 ≥4 项通过）
-        strength = password_strength(new_password)
-        if not strength["strong"]:
-            failed = [name for name, ok in strength["checks"].items() if not ok]
-            return Response({"detail": f"密码强度不足，未通过：{'、'.join(failed)}"},
+        if not password_strength(new_password)["strong"]:
+            failed = describe_weakness(new_password)
+            return Response({"detail": f"密码强度不足，需满足：{'、'.join(failed)}"},
                             status=status.HTTP_400_BAD_REQUEST)
 
         # 设新密码 + token_version 自增（全端旧 token 失效）+ 吊销全部会话

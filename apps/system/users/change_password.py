@@ -7,7 +7,7 @@ from rest_framework import permissions, serializers, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from framework.security.password import password_strength
+from framework.security.password import describe_weakness, password_strength
 
 
 class ChangePasswordSerializer(serializers.Serializer):
@@ -15,11 +15,10 @@ class ChangePasswordSerializer(serializers.Serializer):
     new_password = serializers.CharField(required=True, write_only=True, min_length=6, max_length=64)
 
     def validate_new_password(self, value):
-        strength = password_strength(value)
-        if not strength["strong"]:
-            failed = [name for name, ok in strength["checks"].items() if not ok]
+        if not password_strength(value)["strong"]:
+            failed = describe_weakness(value)
             raise serializers.ValidationError(
-                f"密码强度不足，未通过：{'、'.join(failed)}"
+                f"密码强度不足，需满足：{'、'.join(failed)}"
             )
         return value
 

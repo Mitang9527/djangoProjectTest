@@ -22,5 +22,26 @@ def password_strength(password: str) -> dict:
 
 
 def validate_password(password: str) -> list:
-    """返回未通过的检查项列表；空列表表示通过。"""
+    """返回未通过的检查项列表（原始键名）；空列表表示通过。"""
     return [name for name, ok in password_strength(password)["checks"].items() if not ok]
+
+
+def describe_weakness(password: str) -> list:
+    """未通过项的中文可读描述；空列表表示通过。
+
+    校验键名（length/upper/...）不能直接回给终端用户，统一在此转成中文。
+    长度项动态读取 PASSWORD_MIN_LEN，避免与 password_strength 的判定值脱节。
+    """
+    min_len = getattr(settings, "PASSWORD_MIN_LEN", 8)
+    labels = {
+        "length": f"长度至少 {min_len} 位",
+        "upper": "包含大写字母",
+        "lower": "包含小写字母",
+        "digit": "包含数字",
+        "special": "包含特殊字符",
+    }
+    return [
+        labels.get(name, name)
+        for name, ok in password_strength(password)["checks"].items()
+        if not ok
+    ]

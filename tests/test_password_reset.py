@@ -201,6 +201,11 @@ class PasswordResetConfirmTest(PasswordResetBase):
     def test_confirm_weak_password(self):
         resp = self._confirm(self.user, new_password="abc123")
         self.assertEqual(resp.status_code, 400, resp.content)
+        # 强度提示必须是中文可读项，不能回传 length/upper 等原始校验键
+        message = resp.json()["message"]
+        self.assertIn("需满足", message)
+        for raw_key in ("length", "upper", "lower", "digit", "special"):
+            self.assertNotIn(raw_key, message)
         # 密码未被修改
         self.assertEqual(self._login(), 200)
 
