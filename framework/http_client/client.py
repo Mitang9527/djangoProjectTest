@@ -1,33 +1,5 @@
 # sync-init: skip
-"""
-HTTPClient 核心
-===============
-
-``requests.Session`` 的企业级封装：
-
-- 复用 TCP 连接（urllib3 连接池）
-- 自动重试（指数退避 + 抖动）
-- 拦截器链（logging / timing / auth 可堆叠）
-- 统一超时
-- 统一异常（包装 requests.Timeout / ConnectionError / HTTPError）
-
-Quick start
------------
-
->>> client = HTTPClient(base_url="https://api.example.com")
->>> resp = client.get("/users/1")
->>> resp.raise_for_status()           # 由 requests 自身抛 HTTPError
->>> data = resp.json()                # 自动 Content-Type 解析
-
->>> with HTTPClient(base_url="...") as c:
-...     c.post("/login", json={"u": "x"})
-
-全局默认 client
----------------
-
->>> from framework.http_client import default_client
->>> default_client.get("https://httpbin.org/ip")
-"""
+"""HTTPClient：requests.Session 的企业级封装（连接池复用/指数退避重试/拦截器链/统一超时/异常包装）。"""
 from __future__ import annotations
 
 import random
@@ -51,47 +23,15 @@ from .exceptions import (
 )
 from .interceptors import Interceptor, LoggingInterceptor
 
-# ============================================================
-# 类型别名
-# ============================================================
-
 TimeoutSpec = Union[None, float, Tuple[float, float]]  # None / 单一值 / (connect, read)
 
 
-# ============================================================
-# 主类
-# ============================================================
-
-
 class HTTPClient:
-    """
-    通用 HTTP 客户端（基于 ``requests``）。
+    """通用 HTTP 客户端（基于 requests.Session）。
 
-    Parameters
-    ----------
-    base_url : str, optional
-        基础 URL，所有 ``get/post/...`` 第一个参数 path 会在拼接时使用。
-        留空则每个请求必须传完整 URL。
-    timeout : float | (connect, read)
-        默认 ``(5, 30)``。单次请求可通过 ``client.get(path, timeout=...)`` 覆盖。
-    max_retries : int
-        非 2xx 或网络错误时的最大重试次数，**0 表示不重试**，默认 3。
-    backoff_factor : float
-        指数退避基数（秒），第 N 次重试前等待 ``backoff_factor * 2**(N-1) + jitter``。
-    retry_on_status : tuple[int, ...]
-        哪些状态码触发重试，默认 ``(429, 500, 502, 503, 504)``。
-    pool_connections : int
-        urllib3 连接池数（不同 host），默认 10。
-    pool_maxsize : int
-        每个 host 最大连接数，默认 20。
-    headers : dict, optional
-        默认 headers，每次请求都会带上。
-    interceptors : list[Interceptor], optional
-        拦截器链，**按列表顺序**在请求前/响应后/错误时调用。
-    verify_ssl : bool
-        是否校验证书，默认 True。
-    raise_for_status : bool
-        是否在 2xx 之外自动抛 :class:`StatusError`，默认 True。
+    参数: base_url(留空则需传完整URL)/timeout(默认(5,30))/max_retries(0=不重试,默认3)
+    backoff_factor(第N次等待 base*2**(N-1)+jitter)/retry_on_status(默认429,500,502,503,504)
+    pool_connections(默认10)/pool_maxsize(默认20)/headers/interceptors(按序执行)/verify_ssl(默认True)/raise_for_status(默认True)
     """
 
     DEFAULT_TIMEOUT: TimeoutSpec = (5, 30)
@@ -120,12 +60,12 @@ class HTTPClient:
         self.retry_on_status = tuple(retry_on_status)
         self.raise_for_status = raise_for_status
 
-        # 1) session
+        # session
         self._session = requests.Session()
         if headers:
             self._session.headers.update(headers)
 
-        # 2) 适配器（连接池 + urllib3 Retry）
+        # 适配器（连接池 + urllib3 Retry）
         adapter = HTTPAdapter(
             pool_connections=pool_connections,
             pool_maxsize=pool_maxsize,
@@ -141,15 +81,11 @@ class HTTPClient:
         self._session.mount("https://", adapter)
         self._session.verify = verify_ssl
 
-        # 3) 拦截器链
+        # 拦截器链
         self.interceptors: List[Interceptor] = list(interceptors) if interceptors else [LoggingInterceptor()]
 
-        # 4) 锁：拦截器链非线程安全（用户自己保证？这里加锁更稳）
+        # 锁：拦截器链非线程安全
         self._lock = threading.RLock()
-
-    # ==========================================================
-    # 上下文管理
-    # ==========================================================
 
     def __enter__(self) -> "HTTPClient":
         return self
@@ -160,10 +96,6 @@ class HTTPClient:
     def close(self) -> None:
         self._session.close()
 
-    # ==========================================================
-    # URL 拼接
-    # ==========================================================
-
     def _build_url(self, path: str) -> str:
         if not path:
             return self.base_url
@@ -172,10 +104,6 @@ class HTTPClient:
         if self.base_url:
             return f"{self.base_url}/{path.lstrip('/')}"
         return path
-
-    # ==========================================================
-    # 高层方法
-    # ==========================================================
 
     def get(self, path: str, *, params: Any = None, headers: Any = None,
             timeout: TimeoutSpec = None, **kwargs: Any) -> requests.Response:
@@ -197,50 +125,24 @@ class HTTPClient:
                timeout: TimeoutSpec = None, **kwargs: Any) -> requests.Response:
         return self.request("DELETE", path, params=params, headers=headers, timeout=timeout, **kwargs)
 
-    # ==========================================================
-    # 核心：request
-    # ==========================================================
-
     def request(self, method: str, url: str, **kwargs: Any) -> requests.Response:
         """发起一次 HTTP 请求（含重试 + 拦截器 + 异常包装）。
 
-        Parameters
-        ----------
-        method : str
-        url : str
-            路径或完整 URL。
-        **kwargs
-            透传给 ``requests.Session.request``：params / json / data / headers /
-            files / timeout / cookies / auth 等。
-
-        Returns
-        -------
-        requests.Response
-            2xx 时直接返回。``raise_for_status=True``（默认）时非 2xx 会抛 :class:`StatusError`。
-
-        Raises
-        ------
-        StatusError
-            非 2xx 响应（且 ``raise_for_status=True``）。
-        TimeoutError
-            请求超时。
-        ConnectionError_
-            网络连接错误。
-        RetryExhaustedError
-            重试次数耗尽仍未成功。
+        :param method: HTTP 方法；url: 路径或完整 URL
+        :param kwargs: 透传 requests.Session.request（params/json/data/headers/files/timeout/cookies/auth）
+        :return: requests.Response；raise_for_status=True（默认）时非 2xx 抛 StatusError
+        :raises StatusError/TimeoutError/ConnectionError_/RetryExhaustedError
         """
         method = method.upper()
         full_url = self._build_url(url)
 
-        # 默认 timeout
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = self.timeout
 
-        # 拦截器：before_request（链式改写 kwargs）
+        # 拦截器：before_request 链式改写 kwargs
         kwargs = self._run_before(method, full_url, kwargs)
 
-        # 重试循环（应用层 max_retries 控制；urllib3 Retry 已在适配器层做了一次）
-        # 我们的 max_retries 是**应用层**概念：与拦截器协调更灵活
+        # 应用层重试（适配器层 urllib3 Retry 已做一次；与拦截器协调更灵活）
         last_exc: Optional[BaseException] = None
         total_attempts = self.max_retries + 1
         for attempt in range(1, total_attempts + 1):
@@ -275,7 +177,6 @@ class HTTPClient:
 
             elapsed_ms = (time.perf_counter() - t0) * 1000
 
-            # 状态码判断
             if 200 <= response.status_code < 300:
                 self._run_after(method, full_url, response, elapsed_ms)
                 return response
@@ -304,8 +205,7 @@ class HTTPClient:
             # 不重试 / 4xx（不可重试状态）/ 最后一次仍然失败
             last_exc = status_err
             if is_retryable and attempt >= total_attempts:
-                # 重试耗尽：包成 RetryExhaustedError
-                # 注意：on_error 已经按"中间失败"模式发过 N-1 次；最后一次仍发 on_error
+                # 重试耗尽：包成 RetryExhaustedError（on_error 已发 N-1 次，最后一次仍发）
                 self._run_on_error(method, full_url, last_exc, elapsed_ms)
                 raise RetryExhaustedError(
                     f"Retry exhausted after {total_attempts} attempts: "
@@ -329,10 +229,6 @@ class HTTPClient:
             attempts=total_attempts,
             last_error=last_exc,
         )
-
-    # ==========================================================
-    # 拦截器辅助
-    # ==========================================================
 
     def _run_before(self, method: str, url: str, kwargs: Dict[str, Any]) -> Dict[str, Any]:
         with self._lock:
@@ -372,14 +268,9 @@ class HTTPClient:
                     interceptor.on_error(method, url, exc, elapsed_ms)
 
     def _sleep_backoff(self, attempt: int) -> None:
-        # 指数退避 + 抖动
         base = self.backoff_factor * (2 ** (attempt - 1))
         jitter = random.uniform(0, self.backoff_factor)
         time.sleep(base + jitter)
-
-    # ==========================================================
-    # 便捷
-    # ==========================================================
 
     @property
     def session(self) -> requests.Session:
@@ -399,10 +290,7 @@ class HTTPClient:
         )
 
 
-# ============================================================
-# 全局默认 client（懒汉）
-# ============================================================
-
+# 全局默认 client（懒创建，见 __getattr__ 兼容别名）
 _default_client: Optional[HTTPClient] = None
 _default_lock = threading.Lock()
 

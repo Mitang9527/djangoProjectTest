@@ -249,6 +249,97 @@ class AlertHistory(models.Model):
         return f"[{self.get_level_display()}] {self.title}"
 
 
+class MessageTemplate(models.Model):
+    """站内信消息模板
+
+    站内信由模板驱动：业务方以 code 引用模板（如 welcome / quota_warning），
+    发送时按 context 渲染 {placeholder} 占位符，保证内容一致性与可维护性。
+    """
+
+    code = models.CharField(max_length=64, unique=True, verbose_name='模板编码')
+    title = models.CharField(max_length=200, verbose_name='标题')
+    content = models.TextField(verbose_name='内容', help_text='支持 {placeholder} 占位符')
+    html_content = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name='HTML 内容',
+        help_text='可选，前端富文本渲染；缺省时用 content',
+    )
+    is_active = models.BooleanField(default=True, verbose_name='是否启用')
+
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+
+    class Meta:
+        db_table = 'message_template'
+        verbose_name = '站内信模板'
+        verbose_name_plural = '站内信模板'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['code', 'is_active'], name='idx_msg_tpl_code_active'),
+        ]
+
+    def __str__(self):
+        return f"{self.code} - {self.title}"
+
+
+class InAppMessage(models.Model):
+    """站内信（用户收件箱）
+
+    由 InAppNotificationService 写入，用户侧只读；
+    列表/未读数/标记已读见 InAppMessageViewSet。
+    """
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='in_app_messages',
+        verbose_name='收件人',
+    )
+    tenant = models.ForeignKey(
+        'saas.Tenant',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='in_app_messages',
+        verbose_name='租户',
+    )
+    title = models.CharField(max_length=200, verbose_name='标题')
+    content = models.TextField(verbose_name='内容')
+    level = models.CharField(
+        max_length=20,
+        choices=AlertLevel.choices,
+        default=AlertLevel.INFO,
+        verbose_name='级别',
+    )
+    read_at = models.DateTimeField(null=True, blank=True, verbose_name='阅读时间')
+
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+
+    class Meta:
+        db_table = 'in_app_message'
+        verbose_name = '站内信'
+        verbose_name_plural = '站内信'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'read_at'], name='idx_inapp_user_read'),
+            models.Index(fields=['tenant', 'read_at'], name='idx_inapp_tenant_read'),
+        ]
+
+    def __str__(self):
+        return f"[{self.get_level_display()}] {self.title}"
+
+    @property
+    def is_read(self) -> bool:
+        return self.read_at is not None
+
+    def mark_read(self) -> None:
+        """标记已读（幂等，已读时不再写库）"""
+        if not self.read_at:
+            self.read_at = timezone.now()
+            self.save(update_fields=['read_at'])
+
+
 class AlertNotificationConfig(models.Model):
     """告警通知配置"""
 

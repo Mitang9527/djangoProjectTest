@@ -248,7 +248,6 @@ class Command(BaseCommand):
         ).delete()
         logger.info("  已删除角色: {} 条", deleted_role)
 
-        # 删除默认租户
         deleted_tenant, _ = Tenant.objects.filter(slug=DEFAULT_TENANT_SLUG).delete()
         logger.info("  已删除租户: {} 条", deleted_tenant)
 

@@ -42,7 +42,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
         
         await self.accept()
         
-        # 发送欢迎消息
         await self.send(text_data=json.dumps({
             'type': 'system',
             'message': f'欢迎加入房间: {self.room_name}',
@@ -93,7 +92,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
         username = event['user']
         message_type = event.get('message_type', 'chat')
         
-        # 发送给 WebSocket
         await self.send(text_data=json.dumps({
             'type': message_type,
             'message': message,
@@ -125,7 +123,6 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         
         await self.accept()
         
-        # 发送连接成功消息
         await self.send(text_data=json.dumps({
             'type': 'system',
             'message': '通知通道已连接',

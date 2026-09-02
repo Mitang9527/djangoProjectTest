@@ -1,12 +1,17 @@
 """
 SaaS 后台管理系统 — 配置中心 API 接口。
+
+- 读（登录即可）：get_config_value / get_all_configs / get_config_groups / get_public_configs
+- 写（平台级管控，仅超管 IsSuperAdmin）：set_config_value / delete_config_value / reload_configs
 """
-from rest_framework import permissions
-from rest_framework.decorators import api_view, permission_classes as drf_permission_classes
-from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema
+from rest_framework import permissions
+from rest_framework.decorators import api_view
+from rest_framework.decorators import permission_classes as drf_permission_classes
+from rest_framework.response import Response
 
 from ..models import GlobalConfig
+from ..permissions import IsSuperAdmin
 from ..services import ConfigCenterService
 
 
@@ -26,12 +31,12 @@ def get_config_value(request):
     key = request.query_params.get('key', '')
     if not key:
         return Response({"detail": "key 参数不能为空"}, status=400)
-    exists = GlobalConfig.objects.filter(key=key, is_active=True).exists()
+    config = GlobalConfig.objects.filter(key=key, is_active=True).first()
 
     return Response({
         "key": key,
-        "value": value,
-        "exists": exists
+        "value": config.parsed_value if config else None,
+        "exists": config is not None,
     })
 
 
@@ -47,6 +52,23 @@ def get_all_configs(request):
     category = request.query_params.get('category')
     configs = ConfigCenterService.get_all_configs(category=category)
     return Response(configs)
+
+
+@extend_schema(
+    summary='Get config groups',
+    tags=['Config Center'],
+    responses={200: {'type': 'array', 'items': {'type': 'object'}}}
+)
+@api_view(['GET'])
+@drf_permission_classes([permissions.IsAuthenticated])
+def get_config_groups(request):
+    """按分类分组返回全部配置（系统设置中心分组管理）。
+
+    返回有序分组列表：每个分组含 code / name / description 与 configs 明细
+    （key / name / value / config_type / description / is_public 等），
+    供前端设置中心按分组渲染表单。
+    """
+    return Response(ConfigCenterService.get_config_groups())
 
 
 @extend_schema(
@@ -81,7 +103,7 @@ def get_public_configs(request):
     },
 )
 @api_view(['POST'])
-@drf_permission_classes([permissions.IsAuthenticated])
+@drf_permission_classes([IsSuperAdmin])
 def set_config_value(request):
     """设置配置（新增或更新）"""
     key = request.data.get('key', '')
@@ -115,12 +137,35 @@ def set_config_value(request):
 
 
 @extend_schema(
+    summary='Delete config value',
+    tags=['Config Center'],
+    responses={200: {'type': 'object', 'properties': {
+        'status': {'type': 'string'},
+        'key': {'type': 'string'},
+    }}}
+)
+@api_view(['DELETE'])
+@drf_permission_classes([IsSuperAdmin])
+def delete_config_value(request):
+    """删除配置（平台级管控，仅超管）"""
+    key = request.query_params.get('key', '')
+    if not key:
+        return Response({"detail": "key 参数不能为空"}, status=400)
+
+    result = ConfigCenterService.delete_config(key=key, user=request.user)
+    if 'error' in result:
+        return Response({"detail": result["error"]}, status=400)
+
+    return Response({"status": "ok", "key": key})
+
+
+@extend_schema(
     summary='Reload configs',
     tags=['Config Center'],
 )
 @api_view(['POST'])
-@drf_permission_classes([permissions.IsAuthenticated])
+@drf_permission_classes([IsSuperAdmin])
 def reload_configs(request):
-    """强制刷新配置缓存"""
+    """强制刷新配置缓存（平台级管控，仅超管）"""
     result = ConfigCenterService.reload_configs()
     return Response(result)

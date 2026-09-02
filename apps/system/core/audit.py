@@ -32,6 +32,49 @@ def get_current_user():
     return None
 
 
+def get_client_ip(request=None):
+    """获取客户端 IP（考虑反向代理；无请求时返回 None）"""
+    if request is None:
+        return None
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        return x_forwarded_for.split(',')[0].strip()
+    return request.META.get('REMOTE_ADDR')
+
+
+def record_login_log(*, email, status='success', user=None, tenant_id=None,
+                     request=None, failure_reason=None):
+    """写入租户级登录日志（对齐参考项目 create_login_log）。
+
+    仅在登录流程的显式调用点写入（LoginService / TokenService / DemoLogin /
+    主登录 / OIDC），避免信号双写。失败静默，绝不阻断登录主流程。
+    """
+    try:
+        from django.apps import apps
+        LoginLog = apps.get_model('core', 'LoginLog')
+        request = request or get_current_request()
+        # 显式校验租户存在：SQLite 延迟外键约束下 create 不抛异常（异常在
+        # 事务边界才暴露），若不在 try 内拦截会漏到调用方/测试 teardown。
+        if tenant_id is not None and not (
+            apps.get_model('saas', 'Tenant')
+            .objects.filter(pk=tenant_id).exists()
+        ):
+            logger.warning(f"record_login_log: 租户 {tenant_id} 不存在，跳过登录日志")
+            return None
+        return LoginLog.objects.create(
+            tenant_id=tenant_id,
+            user=user if (user and getattr(user, 'pk', None)) else None,
+            email=email or (user.email if user else '') or '',
+            ip=get_client_ip(request) or '',
+            user_agent=(request.META.get('HTTP_USER_AGENT', '')[:500] if request else ''),
+            status=status,
+            failure_reason=failure_reason or '',
+        )
+    except Exception as e:
+        logger.error(f"Error writing login log: {e}")
+        return None
+
+
 def _json_safe(value):
     """将 ORM 字段原始值转换为 JSON 可序列化形式（审计快照用）。
 
@@ -80,12 +123,19 @@ def is_model_excluded(instance):
     exclude_models = {
         'core.auditlog',
         'core.auditexcludemodel',
+        'core.loginlog',
+        'core.operationlog',
         'admin.logentry',
         'sessions.session',
         'migrations.migration',
         'contenttypes.contenttype',
         'auth.permission',
         'django_celery_beat.*',
+        # 事务 Outbox 三表：基础设施内部状态表，每次投递状态变更均被审计
+        # 会带来写放大与噪音，且对业务审计无价值
+        'framework.outboxevent',
+        'framework.eventdelivery',
+        'framework.inboxreceipt',
     }
     
     if f"{app_label}.{model_name}" in exclude_models:

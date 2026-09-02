@@ -28,6 +28,9 @@ from mozilla_django_oidc.auth import OIDCAuthenticationBackend
 from mozilla_django_oidc.views import OIDCAuthenticationCallbackView
 
 from loguru import logger
+
+from system.core.audit import record_login_log
+
 User = get_user_model()
 
 
@@ -63,6 +66,8 @@ class OIDCBackend(OIDCAuthenticationBackend):
             email=email or "",
             nickname=claims.get("name", username),
         )
+        # 按 IdP 角色 claim 绑定本地系统角色（建号时一次，之后每次登录由 update_user 同步）
+        self._apply_role_mapping(user, claims)
         logger.info(f"[OIDC] 自动创建用户: username={username}, email={email}")
         return user
 
@@ -79,7 +84,64 @@ class OIDCBackend(OIDCAuthenticationBackend):
         if changed:
             user.save()
             logger.info(f"[OIDC] 更新用户信息: username={user.username}")
+        # 每次登录同步角色（IdP 端角色变更下次登录自动生效）
+        if self._apply_role_mapping(user, claims):
+            logger.info(f"[OIDC] 同步用户角色: username={user.username}")
         return user
+
+    # ------------------------------------------------------------------
+    # 角色映射（OIDC_ROLE_CLAIM + OIDC_ROLE_MAP）
+    # ------------------------------------------------------------------
+
+    def _resolve_role_slug(self, claims) -> str | None:
+        """
+        从 claims 解析出第一个可命中的本地角色 slug。
+
+        规则:
+        - 角色取值：claims[OIDC_ROLE_CLAIM]，兼容 str 或 list[str]。
+        - 命中链：OIDC_ROLE_MAP 显式映射（IdP 值 → 本地 slug）；
+          未在映射表中的值，若与本地系统角色 slug 同名则直通命中。
+        - 仅返回本地真实存在的「系统角色」（tenant 为空 且 is_active）的 slug，
+          否则返回 None（未命中忽略，不报错）。
+        """
+        role_claim = getattr(settings, "OIDC_ROLE_CLAIM", "roles")
+        role_map = getattr(settings, "OIDC_ROLE_MAP", {}) or {}
+        raw = claims.get(role_claim)
+        if not raw:
+            return None
+        values = raw if isinstance(raw, (list, tuple)) else [raw]
+        # 延迟导入 Role，避免 oidc 模块 import 时耦合 saas（循环导入风险）
+        from system.saas.models import Role
+
+        for value in values:
+            if not value:
+                continue
+            # 显式映射优先；无映射时尝试直通（同名 slug）
+            slug = role_map.get(value, value)
+            exists = Role.objects.filter(
+                tenant__isnull=True, slug=slug, is_active=True
+            ).exists()
+            if exists:
+                return slug
+        return None
+
+    def _apply_role_mapping(self, user, claims) -> bool:
+        """
+        把 IdP 角色绑定到 user.role（单 FK，取第一个命中）。
+
+        Returns: 是否发生变更（绑定/解绑）。未命中且用户本无角色时返回 False。
+        """
+        from system.saas.models import Role
+
+        slug = self._resolve_role_slug(claims)
+        role = None
+        if slug:
+            role = Role.objects.filter(tenant__isnull=True, slug=slug, is_active=True).first()
+        if user.role_id != (role.id if role else None):
+            user.role = role
+            user.save(update_fields=["role"])
+            return True
+        return False
 
 
 class OIDCCallbackView(OIDCAuthenticationCallbackView):
@@ -117,6 +179,14 @@ class OIDCCallbackView(OIDCAuthenticationCallbackView):
                 user, access,
                 refresh.payload.get("tenant_id"),
                 getattr(self, "request", None),
+                notify_new_device=True,
+            )
+            # 租户级登录日志（成功）
+            record_login_log(
+                email=user.email or user.username, status='success',
+                user=user,
+                tenant_id=refresh.payload.get("tenant_id"),
+                request=getattr(self, "request", None),
             )
             self._oidc_jwt = {
                 "access": str(access),

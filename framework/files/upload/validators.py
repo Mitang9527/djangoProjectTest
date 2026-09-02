@@ -29,11 +29,8 @@ except (ImportError, OSError):
 class FileValidator:
     """文件验证器"""
 
-    # 对应的 MIME 类型白名单（与扩展名保持同步）。
-    # 启用 python-magic 时按真实文件内容检测；未启用时按 mimetypes
-    # 从扩展名猜测（见 _validate_mime_type 的降级处理）。
-    # 注意：部分扩展（.csv/.rtf/.avi）在不同平台 mimetypes 猜测值不同，
-    # 此处按本项目实测的 Windows mimetypes 猜测值对齐，并兼容常见 magic 值。
+    # MIME 白名单（与扩展名同步）：有 magic 按真实内容检测，否则 mimetypes 猜扩展名。
+    # 部分扩展（.csv/.rtf/.avi）不同平台 mimetypes 猜测不同，此处按 Windows 实测值对齐。
     DEFAULT_ALLOWED_TYPES = {
         # 图片
         'image/jpeg',
@@ -109,20 +106,11 @@ class FileValidator:
 
     DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 
-    # 视频类单独放宽：视频容器天然比图片/文档大，统一 10MB 上限会误伤正常业务。
-    # 视频单文件上限默认 100MB，可通过 settings.FILE_UPLOAD_MAX_VIDEO_FILE_SIZE 覆盖。
+    # 视频单独放宽：默认 100MB，可通过 settings.FILE_UPLOAD_MAX_VIDEO_FILE_SIZE 覆盖
     DEFAULT_MAX_VIDEO_FILE_SIZE: int = 100 * 1024 * 1024  # 100MB
 
-    # ------------------------------------------------------------------
-    # 扩展名白名单设计原则（安全铁律）：
-    # 绝不使用黑名单（如禁止 .exe/.sh）——黑客可用 .php5/.phtml/.shtml/.
-    # cgi/.pl/.py/.htaccess 等无数变体绕过黑名单。只允许明确已知安全的
-    # 格式；白名单之外的扩展名一律拒绝。
-    # ------------------------------------------------------------------
-
-    # 图片：常见位图 + 广泛支持的格式（.bmp/.ico/.tiff）。
-    # ⚠️ SVG(.svg) 刻意不纳入：image/svg+xml 可内嵌 <script>，是已知 XSS
-    #    向量；若业务确需 SVG，须先做 XML 净化（bleach / defusedxml）再单独放行。
+    # 白名单铁律：绝不黑名单（.php5/.phtml/.shtml/.cgi/.pl/.py/.htaccess 等无数变体可绕过），只放行已知安全格式
+    # 图片；⚠️ SVG 刻意不纳入：image/svg+xml 可内嵌 <script> 是 XSS 向量，确需须先 XML 净化（bleach/defusedxml）
     DEFAULT_IMAGE_EXTENSIONS = {
         '.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.ico', '.tiff', '.tif',
         '.heic', '.heif', '.avif',
@@ -169,11 +157,11 @@ class FileValidator:
         self.allowed_types = allowed_types or self.DEFAULT_ALLOWED_TYPES
         self.max_file_size = max_file_size or self.DEFAULT_MAX_FILE_SIZE
 
-        # 视频类单独上限：传入时优先，否则用默认 100MB 放宽值
+        # 视频类单独上限：传入优先，否则用默认 100MB 放宽值
         self.max_video_file_size = max_video_file_size or self.DEFAULT_MAX_VIDEO_FILE_SIZE
         self.enable_virus_scan = enable_virus_scan
 
-        # 未显式传入时启用默认严格白名单；绝不退化为「无限制」
+        # 未显式传入时启用默认严格白名单，绝不退化为「无限制」
         self.allowed_extensions = allowed_extensions or self.DEFAULT_ALLOWED_EXTENSIONS
         self.mime_magic = magic.Magic(mime=True) if _HAS_MAGIC else None
 
@@ -184,12 +172,7 @@ class FileValidator:
         return ext.lower() in FileValidator.DEFAULT_VIDEO_EXTENSIONS
 
     def validate(self, file: UploadedFile) -> Tuple[bool, Optional[str]]:
-        """
-        验证文件
-
-        Returns:
-            (是否通过, 错误信息)
-        """
+        """验证文件：扩展名 → 大小 → MIME →（可选）病毒扫描；返回 (是否通过, 错误信息)。"""
         try:
             self._validate_extension(file)
             self._validate_size(file)
@@ -205,11 +188,7 @@ class FileValidator:
             return False, str(e)
 
     def _validate_extension(self, file: UploadedFile):
-        """验证文件扩展名（严格白名单 + 小写归一化）
-
-        永远不信任用户传来的后缀：用 os.path.splitext 提取后缀并统一小写，
-        使 .JPG 与 .jpg 等价识别；仅放行白名单内明确已知的格式，其余一律拒绝。
-        """
+        """验证扩展名（严格白名单 + 小写归一化，使 .JPG 与 .jpg 等价识别）。"""
         # os.path.splitext 兼容无后缀 / 多点的文件名（a.b.exe -> .exe）
         _, ext = os.path.splitext(file.name)
         ext = ext.lower()
@@ -223,18 +202,12 @@ class FileValidator:
             )
 
     def _validate_size(self, file: UploadedFile):
-        """验证文件大小
-
-        视频类（扩展名命中 DEFAULT_VIDEO_EXTENSIONS）使用放宽后的
-        max_video_file_size（默认 100MB），其余类型仍受 max_file_size（默认 10MB）约束。
-        """
+        """验证大小：视频类用 max_video_file_size（默认 100MB），其余 max_file_size（默认 10MB）。"""
         file_size = file.size
-        # 视频单独放宽：避免视频被通用 10MB 上限误伤
         effective_limit = (
             self.max_video_file_size if self._is_video(file) else self.max_file_size
         )
         if file_size > effective_limit:
-            # 提示当前生效的是哪一类上限，便于前端理解
             limit_label = "视频类" if effective_limit is self.max_video_file_size else "通用"
             raise FileTooLargeError(
                 f"文件过大 ({file_size / 1024 / 1024:.2f}MB), "
@@ -253,8 +226,7 @@ class FileValidator:
         if self.mime_magic is not None:
             # python-magic 可用：按真实文件内容检测（权威闸门）
             detected_mime = self.mime_magic.from_buffer(content)
-            # 内容无法判定（空串/None，例如极短或罕见封装）时，降级用扩展名猜测，
-            # 避免误拒扩展名白名单已批准的合法文件。
+            # 内容无法判定（空串/None）时降级用扩展名猜测，避免误拒合法文件
             if not detected_mime:
                 guessed, _ = mimetypes.guess_type(file.name)
                 detected_mime = guessed
@@ -264,11 +236,9 @@ class FileValidator:
                         f"不允许的文件类型: {detected_mime}, "
                         f"允许的类型: {', '.join(self.allowed_types)}"
                     )
-            # detected_mime 仍为 None（mimetypes 也不认识）→ 扩展名白名单已批准，放过
+            # detected_mime 仍为 None → 扩展名白名单已批准，放过
         else:
-            # 降级：按扩展名猜测。猜不出（None 或空串）说明 mimetypes 不认识
-            # 该扩展，此时扩展名白名单已先批准，直接放过，避免误拒合法扩展
-            #（如 .webp/.flv/.md；部分平台 mimetypes 对未知扩展返回空串 ''）。
+            # 降级：mimetypes 猜不出时扩展名白名单已先批准，直接放过（如 .webp/.flv/.md）
             guessed, _ = mimetypes.guess_type(file.name)
             if not guessed:
                 return
@@ -279,10 +249,7 @@ class FileValidator:
                 )
 
     def _scan_virus(self, file: UploadedFile):
-        """
-        扫描文件病毒（可选功能）
-        这里提供一个基础实现，实际生产环境可以接入 ClamAV 等专业病毒扫描服务
-        """
+        """扫描病毒（可选）：基础实现，生产可接入 ClamAV 等专业服务。"""
         file.seek(0)
         content = file.read()
         file.seek(0)
@@ -307,9 +274,7 @@ def validate_file_type(
     file: UploadedFile,
     allowed_types: Optional[Set[str]] = None
 ) -> bool:
-    """
-    便捷函数：验证文件类型
-    """
+    """便捷：验证文件类型（不通过抛 InvalidFileTypeError）。"""
     validator = FileValidator(allowed_types=allowed_types)
     is_valid, error = validator.validate(file)
     if not is_valid:
@@ -321,9 +286,7 @@ def validate_file_size(
     file: UploadedFile,
     max_size: Optional[int] = None
 ) -> bool:
-    """
-    便捷函数：验证文件大小
-    """
+    """便捷：验证文件大小（不通过抛 FileTooLargeError）。"""
     validator = FileValidator(max_file_size=max_size)
     is_valid, error = validator.validate(file)
     if not is_valid:
@@ -332,9 +295,7 @@ def validate_file_size(
 
 
 def scan_file_for_virus(file: UploadedFile) -> bool:
-    """
-    便捷函数：扫描病毒
-    """
+    """便捷：扫描病毒（不通过抛 FileSecurityError）。"""
     validator = FileValidator(enable_virus_scan=True)
     is_valid, error = validator.validate(file)
     if not is_valid:
@@ -348,17 +309,11 @@ def safe_file_upload(
     validator: Optional[FileValidator] = None,
     random_filename: bool = True
 ) -> str:
-    """
-    安全文件上传函数
+    """安全上传：验证后按 MEDIA_ROOT/upload_dir 保存，支持随机文件名。
 
-    Args:
-        file: 上传的文件对象
-        upload_dir: 上传目录
-        validator: 文件验证器
-        random_filename: 是否使用随机文件名
-
-    Returns:
-        保存后的文件路径
+    :param file: 上传文件对象；upload_dir: 上传子目录
+    :param validator: 文件验证器（默认 FileValidator()）；random_filename: 是否用随机名
+    :return: 保存后的文件路径（绝对路径，如需访问 URL 用 relative_media_url 转换）
     """
     if validator is None:
         validator = FileValidator()
@@ -386,15 +341,9 @@ def safe_file_upload(
 
 
 def relative_media_url(abs_path: str) -> str:
-    """将 ``MEDIA_ROOT`` 下的绝对路径转为相对 ``MEDIA_URL`` 的访问地址。
+    """将 MEDIA_ROOT 下绝对路径转为相对 MEDIA_URL 的访问地址（统一正斜杠）。
 
-    统一用于上传接口的返回，解决两个既有问题：
-
-    1. 直接回吐 ``safe_file_upload`` 的绝对路径会暴露服务器目录结构（信息泄露）；
-    2. Windows 下 ``os.path.join`` 产生的反斜杠混入 URL 不规范。
-
-    返回结果统一为正斜杠的相对地址（如 ``media/uploads/abc.png``），
-    与 ``settings.MEDIA_URL`` 一致，可直接拼成可访问 URL。
+    避免两个问题：① 回吐绝对路径暴露服务器目录结构（信息泄露）；② Windows 反斜杠混入 URL。
     """
     abs_path = os.path.abspath(abs_path)
     media_root = os.path.abspath(str(settings.MEDIA_ROOT))

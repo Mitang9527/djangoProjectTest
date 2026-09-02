@@ -60,7 +60,6 @@ def require_signature(
                     except (json.JSONDecodeError, UnicodeDecodeError):
                         pass
 
-                # 验证签名
                 verifier.verify_request(
                     method=method,
                     path=path,

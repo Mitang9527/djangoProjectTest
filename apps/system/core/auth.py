@@ -13,6 +13,9 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from loguru import logger
 
+from system.core.audit import record_login_log
+from framework.gateway.login_throttle import LoginThrottleService
+
 User = get_user_model()
 
 
@@ -55,6 +58,11 @@ class DemoLoginView(APIView):
             logger.warning(
                 f"[DEMO-LOGIN] 禁用状态尝试登录 username={request.data.get('username')} ip={ip}"
             )
+            record_login_log(
+                email=(request.data.get('username') or '').strip(),
+                status='failed', request=request,
+                failure_reason='demo_login_disabled',
+            )
             return Response(
                 {"detail": "演示登录已禁用，请使用正式登录方式（注册 / OIDC SSO）"},
                 status=status.HTTP_403_FORBIDDEN,
@@ -62,8 +70,18 @@ class DemoLoginView(APIView):
         username = (request.data.get('username') or '').strip()
         if not username:
             logger.info(f"[DEMO-LOGIN] 用户名为空 ip={ip}")
+            record_login_log(email='', status='failed', request=request,
+                             failure_reason='empty_username')
             return Response(
                 {"detail": "请输入用户名"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 登录限流预检：演示登录同样受 IP / 用户名双维度保护（防暴力刷账号）
+        if LoginThrottleService.is_login_rate_limited(request, username):
+            logger.warning(f"[DEMO-LOGIN] 触发登录限流 username={username} ip={ip}")
+            record_login_log(email=username, status='failed', request=request,
+                             failure_reason='rate_limited')
+            return Response({"detail": "尝试过于频繁，请稍后再试"},
+                            status=status.HTTP_429_TOO_MANY_REQUESTS)
 
         user, created = User.objects.get_or_create(username=username)
         if not user.email and '@' in username:
@@ -84,11 +102,18 @@ class DemoLoginView(APIView):
         # 先取 access 实例复用（属性每次访问生成新 jti，否则会话 jti 与 access 不一致）
         access = refresh.access_token
         # 写入会话记录（jti 绑定 user+tenant）：切租户 / 登出吊销后旧 access 立即失效
-        create_user_session(user, access, tenant_id, request)
+        create_user_session(user, access, tenant_id, request, notify_new_device=True)
         logger.info(
             f"[DEMO-LOGIN] 登录成功 user_id={user.id} username={user.username} "
             f"new_created={created} is_staff={user.is_staff} ip={ip}"
         )
+        # 租户级登录日志（成功）
+        record_login_log(
+            email=user.email or user.username, status='success',
+            user=user, tenant_id=tenant_id, request=request,
+        )
+        # 登录成功清零 IP / 用户名双维度计数与锁定
+        LoginThrottleService.clear_failed_login_attempts(request, username)
         data = {
             'access': str(access),
             'refresh': str(refresh),

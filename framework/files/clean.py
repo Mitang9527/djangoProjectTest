@@ -21,7 +21,6 @@ def del_sub_dir(path):
         if os.path.isdir(c_path):
             shutil.rmtree(c_path)
 
-#删除多个目录下的文件
 def delete_files_in_directory(directories):
     """
     删除多个目录下的所有文件和子目录。
@@ -58,7 +57,6 @@ def delete_files_in_directory(directories):
         logger.info(f"已完成删除目录 '{directory}' 下的所有文件和子目录。")
 
 
-#删除给定的目录及其所有内容
 def remove_directories(directories):
 
     for directory in directories:

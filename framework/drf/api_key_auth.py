@@ -1,28 +1,11 @@
 """
 API Key 认证 — 为外部系统提供简单安全的认证方式。
 
-授权方式:
-    Authorization: Bearer <api_key>
-    X-API-Key: <api_key>
+授权方式：``Authorization: Bearer <api_key>`` 或 ``X-API-Key: <api_key>``。
 
-用法:
-    # settings.py 中注册
-    REST_FRAMEWORK = {
-        "DEFAULT_AUTHENTICATION_CLASSES": [
-            "framework.drf.api_key_auth.APIKeyAuthentication",
-            ...
-        ],
-    }
-
-    # settings.py 中配置 key 映射 (简单模式, 无需数据库)
-    API_KEYS = {
-        "sk-xxxx-xxxx-xxxx": "admin",         # key → username
-        "mcp-external-service": "system_bot",
-    }
-
-    # 或在 Django Admin / 模型中使用 APIKey 模型 (生产模式)
-    # python manage.py makemigrations && migrate
-    # 然后在 Admin 界面管理 Key
+用法：settings.py 的 REST_FRAMEWORK.DEFAULT_AUTHENTICATION_CLASSES 中加入
+``framework.drf.api_key_auth.APIKeyAuthentication``；再配置 ``API_KEYS`` 字典
+（key → username，简单模式无需数据库），或在 Admin/模型中使用 APIKey 模型（生产模式）。
 """
 
 from __future__ import annotations
@@ -40,33 +23,22 @@ from rest_framework.request import Request
 
 User = get_user_model()
 
-# ---------------------------------------------------------------
 # 常量
-# ---------------------------------------------------------------
 
 HEADER_API_KEY = "HTTP_X_API_KEY"
 HEADER_AUTHORIZATION = "HTTP_AUTHORIZATION"
 BEARER_PREFIX = "bearer "
 API_KEY_PREFIX = "sk-"
 
-# ---------------------------------------------------------------
 # Authentication
-# ---------------------------------------------------------------
 
 
 class APIKeyAuthentication(authentication.BaseAuthentication):
-    """
-    API Key 认证后端。
+    """API Key 认证后端。
 
-    查找顺序:
-    1. Header: X-API-Key: <key>
-    2. Header: Authorization: Bearer <key>
-
-    验证顺序:
-    1. settings.API_KEYS 字典 (简单模式, key→username 映射)
-    2. APIKey 数据库模型 (如果存在)
-
-    Key 支持明文和 SHA256 哈希两种形式。
+    查找顺序：X-API-Key → Authorization: Bearer。
+    验证顺序：settings.API_KEYS 字典（简单模式，key→username 映射）→ APIKey
+    数据库模型（如果存在）。Key 支持明文与 SHA256 哈希两种形式。
     """
 
     keyword = "Bearer"
@@ -173,32 +145,18 @@ class APIKeyAuthentication(authentication.BaseAuthentication):
         return hashlib.sha256(key.encode()).hexdigest()
 
 
-# ---------------------------------------------------------------
 # 工具函数
-# ---------------------------------------------------------------
 
 
 def generate_api_key(prefix: str = API_KEY_PREFIX) -> str:
-    """
-    生成安全的 API Key。
-
-    格式: sk-{32位随机hex}
-
-    示例:
-        >>> generate_api_key()
-        'sk-a1b2c3d4e5f6...'
-    """
+    """生成安全的 API Key，格式 ``sk-{32位随机hex}``。"""
     random_part = secrets.token_hex(16)
     return f"{prefix}{random_part}"
 
 
-# ---------------------------------------------------------------
-# drf-spectacular 扩展
-# ---------------------------------------------------------------
-# 为 APIKeyAuthentication 注册 OpenAPI 安全方案, 消除 schema 生成时的
-# "could not resolve authenticator" 警告。drf-spectacular 在类定义时自动
-# 将其登记进扩展注册表, 无需在 SPECTACULAR_SETTINGS 中额外声明。
-
+# drf-spectacular 扩展：为 APIKeyAuthentication 注册 OpenAPI 安全方案，消除 schema
+# 生成时的 "could not resolve authenticator" 警告；drf-spectacular 自动登记，
+# 无需在 SPECTACULAR_SETTINGS 中额外声明。
 
 try:
     from drf_spectacular.extensions import OpenApiAuthenticationExtension
@@ -223,20 +181,6 @@ except ImportError:  # drf-spectacular 未安装时静默跳过, 不影响认证
     pass
 
 
-# ---------------------------------------------------------------
-# APIKey 模型 (可选, 在 core app 中定义)
-# ---------------------------------------------------------------
-# 如需模型支持, 在 apps/core/models.py 中添加:
-#
-# class APIKey(models.Model):
-#     user = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="api_keys")
-#     name = models.CharField(max_length=100, help_text="标识用途")
-#     key = models.CharField(max_length=128, unique=True, help_text="明文 Key (仅创建时可见)")
-#     key_hash = models.CharField(max_length=64, unique=True, help_text="SHA256 哈希")
-#     is_active = models.BooleanField(default=True)
-#     expires_at = models.DateTimeField(null=True, blank=True)
-#     last_used_at = models.DateTimeField(null=True, blank=True)
-#     created_at = models.DateTimeField(auto_now_add=True)
-#
-#     def is_expired(self) -> bool:
-#         return self.expires_at is not None and timezone.now() > self.expires_at
+# APIKey 模型（可选，在 core app 中定义）：
+# 字段 user/name/key(明文,仅创建时可见)/key_hash(SHA256)/is_active/expires_at/
+# last_used_at/created_at + is_expired() 方法；可在 Django Admin 管理。

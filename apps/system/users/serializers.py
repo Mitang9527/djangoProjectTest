@@ -54,13 +54,13 @@ class UserRegisterSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data.pop('password_confirm')
-        # 处理 mobile 为空字符串的情况，存入数据库应为 None
+        # mobile 空串→None
         if not validated_data.get('mobile'):
             validated_data['mobile'] = None
             
         user = User.objects.create_user(**validated_data)
         
-        # 为新用户自动分配默认的普通成员角色
+        # 分配默认普通成员角色
         try:
             Role = apps.get_model('saas', 'Role')
             default_role = Role.objects.filter(slug='member', tenant__isnull=True, is_active=True).first()
@@ -68,7 +68,7 @@ class UserRegisterSerializer(serializers.ModelSerializer):
                 user.role = default_role
                 user.save(update_fields=['role'])
         except Exception as e:
-            # 如果获取默认角色失败也不影响用户创建
+            # 默认角色获取失败不影响创建
             pass
             
         return user
@@ -99,6 +99,10 @@ class UserLoginSerializer(serializers.Serializer):
     """用户登录序列化器：仅验证基础格式"""
     username = serializers.CharField(required=True)
     password = serializers.CharField(write_only=True, required=True)
+    mfa_code = serializers.CharField(
+        required=False, allow_blank=True, write_only=True,
+        help_text="MFA 二次验证码（TOTP 6 位或恢复码），用户启用 MFA 后必填",
+    )
 
 class TestApiSerializer(serializers.Serializer):
     """测试接口序列化器"""
@@ -106,16 +110,9 @@ class TestApiSerializer(serializers.Serializer):
     status = serializers.BooleanField(default=True, help_text="状态标识")
 
 def resolve_login_tenant(request, user) -> str | None:
-    """
-    登录时解析要写入 JWT 的 tenant_id（多租户上下文 claim）。
-
-    优先级（对齐参考项目 is_default 语义）：
-      1) 请求体显式携带 tenant_id / tenantId（必须已是该租户活跃成员）；
-      2) 否则取用户「is_default=True」的活跃成员关系（默认租户）；
-      3) 再否则取首个活跃成员关系；
-      4) 无成员关系（如超管 / 系统用户）返回 None。
-
-    仅在函数内惰性导入 saas 模型，避免模块加载期循环依赖。
+    """登录时解析要写入 JWT 的 tenant_id（多租户上下文 claim）。
+    优先级：1)请求体 tenant_id/tenantId（须是活跃成员）→ 2)is_default=True 默认租户 → 3)首个活跃成员 → 4)无则 None。
+    惰性导入 saas 模型避免循环依赖。
     """
     from system.saas.models import TenantMember
 
@@ -139,26 +136,16 @@ def resolve_login_tenant(request, user) -> str | None:
     return str(member.tenant_id) if member else None
 
 
-def create_user_session(user, access_token, tenant_id=None, request=None):
-    """
-    签发 access token 后统一写入会话记录（效仿参考项目 create_login_token）。
-
-    会话以 token_jti 绑定 user + tenant，供认证层校验：
-      - 切租户 / 登出时吊销对应 jti 会话 → 该 access 立即失效；
-      - 会话记录存在则强制校验（revoked 即拒绝），记录不存在（存量旧 token）放行。
-
-    Args:
-        user: 用户对象
-        access_token: simplejwt AccessToken（须已生成 jti；新 token 默认自动生成）
-        tenant_id: 租户 ID 字符串 / UUID / None
-        request: 可选，用于记录 IP 与 User-Agent
-
-    Returns:
-        UserSession | None（无 jti 时返回 None，不阻断签发）
+def create_user_session(user, access_token, tenant_id=None, request=None,
+                        notify_new_device=False):
+    """签发 access token 后统一写入会话记录（jti 绑定 user+tenant，供认证层校验）。
+    Args: user; access_token(须已生成 jti); tenant_id; request(记录 IP/UA);
+         notify_new_device: 登录类签发点 True（新设备提醒），刷新/切租户/改密重签保持 False。
+    Returns: UserSession | None（无 jti 返回 None，不阻断签发）。
     """
     from system.users.models import UserSession
 
-    # 注意：simplejwt Token 无迭代协议，须用 .payload（dict(AccessToken) 会 KeyError）
+    # 注意：Token 无迭代协议，须用 .payload（dict(token) 会 KeyError）
     payload = access_token.payload
     jti = payload.get('jti')
     if not jti:
@@ -167,7 +154,7 @@ def create_user_session(user, access_token, tenant_id=None, request=None):
     exp = payload.get('exp')
     exp_dt = None
     if isinstance(exp, (int, float)):
-        # Django 5.2 已移除 django.utils.timezone.utc，用标准库 timezone.utc
+        # Django 5.2 移除 django.utils.timezone.utc，改用标准库 timezone.utc
         exp_dt = _dt.fromtimestamp(exp, tz=_dt_tz.utc)
     elif isinstance(exp, timezone.datetime):
         exp_dt = exp
@@ -182,7 +169,7 @@ def create_user_session(user, access_token, tenant_id=None, request=None):
         except Exception:
             pass
 
-    return UserSession.objects.create(
+    session = UserSession.objects.create(
         user=user,
         tenant_id=tenant_id,
         token_jti=jti,
@@ -190,16 +177,17 @@ def create_user_session(user, access_token, tenant_id=None, request=None):
         user_agent=ua,
         expires_at=exp_dt,
     )
+    # 新设备（IP+UA 首次出现）站内信提醒（best-effort）
+    if notify_new_device:
+        from system.users.login_security import maybe_notify_new_device_login
+
+        maybe_notify_new_device_login(user, session, request)
+    return session
 
 
 def attach_tenant_claim(token, request, user) -> str | None:
-    """
-    把登录时解析到的默认租户写入 JWT claim（多租户上下文）。
-
-    供全部 JWT 签发点（标准登录 / DemoLogin / OIDC / LoginService /
-    TokenService）统一调用，避免各自重复解析逻辑。
-    - 无租户上下文（系统超管 / 新用户暂无成员关系）时返回 None，不写 claim；
-    - 调用方可用返回值把 tenant_id 同步放进登录响应，供前端感知默认租户。
+    """把登录时解析到的默认租户写入 JWT claim，供全部 JWT 签发点统一调用。
+    无租户上下文返回 None 不写 claim；调用方可把返回值同步进登录响应供前端感知默认租户。
     """
     tenant_id = resolve_login_tenant(request, user)
     if tenant_id:
@@ -207,15 +195,47 @@ def attach_tenant_claim(token, request, user) -> str | None:
     return tenant_id
 
 
+def issue_login_tokens(user, request=None, notify_new_device=True) -> dict:
+    """统一 JWT 签发链（登录类签发点收敛于此，避免各端点复制逻辑）。
+    流程：RefreshToken.for_user → token_version 自增写 claim（单设备语义）→ 租户 claim → access 实例复用（jti 与会话一致）→ 会话记录 → 登录日志。
+    Args: user; request(租户/IP/UA/日志); notify_new_device(登录类 True，非登录路径 False)。Returns: {"access","refresh"}。
+    """
+    from rest_framework_simplejwt.tokens import RefreshToken
+
+    from system.core.audit import record_login_log
+
+    refresh = RefreshToken.for_user(user)
+    # 令牌版本戳：每次登录自增并写入 claim，使该用户所有旧 token 立即失效
+    if hasattr(user, "token_version"):
+        user.token_version = (user.token_version or 0) + 1
+        user.save(update_fields=["token_version"])
+        refresh["token_version"] = user.token_version
+    # 多租户 claim：默认租户
+    tenant_id = attach_tenant_claim(refresh, request, user)
+    # 先取 access 实例复用（jti 与会话一致）
+    access = refresh.access_token
+    tokens = {"access": str(access), "refresh": str(refresh)}
+    # 会话记录（jti 绑定 user+tenant）：切租户/登出吊销后旧 access 失效
+    create_user_session(user, access, tenant_id, request, notify_new_device=notify_new_device)
+    record_login_log(
+        email=user.email or user.username, status='success',
+        user=user, tenant_id=tenant_id, request=request,
+    )
+    return tokens
+
+
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-    """自定义 JWT Token 序列化器，添加用户信息"""
+    """自定义 JWT Token 序列化器，添加用户信息 + MFA 二次验证"""
+
+    mfa_code = serializers.CharField(
+        required=False, allow_blank=True, write_only=True,
+        help_text="MFA 二次验证码（TOTP 6 位或恢复码），用户启用 MFA 后必填",
+    )
 
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
 
-        # 添加自定义声明
-        # 注入自定义 claims 到 token
         token['username'] = user.username
         token['role_id'] = str(user.role.id) if user.role else None
         token['email'] = user.email
@@ -229,24 +249,61 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         return token
 
     def validate(self, attrs):
-        # 生成 refresh/access + 拼 data.user
-        data = super().validate(attrs)      # SimpleJWT 父类在此生成 refresh/access
+        try:
+            # 父类在此生成 refresh/access；认证失败抛 AuthenticationFailed
+            data = super().validate(attrs)
+        except Exception as e:
+            from system.core.audit import record_login_log
+            from framework.gateway.login_throttle import LoginThrottleService
+            username = attrs.get(self.username_field, '') or ''
+            # 登录失败计数（IP+用户名双维度，防暴力破解）
+            LoginThrottleService.record_failed_login_attempt(
+                self.context.get('request'), username)
+            record_login_log(
+                email=username,
+                status='failed', request=self.context.get('request'),
+                failure_reason='bad_credentials',
+            )
+            raise e
 
-        # 注入多租户上下文 claim：把默认租户写入 refresh（simplejwt 刷新时
-        # 会自动将该 claim 复制到新 access）。
+        # MFA 校验：启用 MFA 须携带 mfa_code；失败计入限流；此时 self.user 必然存在
+        from system.users.services import verify_mfa_for_login
+        mfa_ok, mfa_reason = verify_mfa_for_login(self.user, attrs.get('mfa_code'))
+        if not mfa_ok:
+            from rest_framework_simplejwt.exceptions import AuthenticationFailed
+            from framework.gateway.login_throttle import LoginThrottleService
+            from system.core.audit import record_login_log
+
+            LoginThrottleService.record_failed_login_attempt(
+                self.context.get('request'), self.user.username)
+            record_login_log(
+                email=self.user.email or self.user.username, status='failed',
+                request=self.context.get('request'),
+                failure_reason='mfa_failed',
+            )
+            raise AuthenticationFailed({
+                "detail": "需要二次验证" if mfa_reason == "mfa_required" else "二次验证失败",
+                "code": mfa_reason,  # 'mfa_required' | 'mfa_failed'
+            })
+
+        # 多租户 claim 写入 refresh（simplejwt 刷新时自动复制到新 access）
         request = self.context.get('request')
         refresh = RefreshToken(data['refresh'])
         tenant_id = attach_tenant_claim(refresh, request, self.user)
-        # 注意：refresh.access_token 每次访问都新建实例（新 jti），先取实例复用，
-        # 并始终用该实例重写 access/refresh，保证与下面会话记录的 jti 一致。
+        # 注意：先取 access 实例复用并重写，保证会话记录 jti 与 access 一致
         access = refresh.access_token
         data['refresh'] = str(refresh)
         data['access'] = str(access)
 
-        # 写入会话记录（jti 绑定 user+tenant）：切租户 / 登出吊销后旧 access 立即失效
-        create_user_session(self.user, access, tenant_id, request)
+        # 会话记录（jti 绑定 user+tenant）：切租户/登出吊销后旧 access 失效
+        create_user_session(self.user, access, tenant_id, request, notify_new_device=True)
 
-        # 添加用户信息到响应
+        from system.core.audit import record_login_log
+        record_login_log(
+            email=self.user.email or self.user.username, status='success',
+            user=self.user, tenant_id=tenant_id, request=request,
+        )
+
         data['user'] = {
             'id': self.user.id,
             'username': self.user.username,
@@ -256,6 +313,10 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             'role_name': self.user.role.name if self.user.role else None,
             'tenant_id': tenant_id,
         }
+
+        # 成功清零 IP/用户名双维度计数
+        from framework.gateway.login_throttle import LoginThrottleService
+        LoginThrottleService.clear_failed_login_attempts(request, self.user.username)
 
         return data
 
@@ -276,7 +337,7 @@ class RefreshTokenSerializer(serializers.Serializer):
             refresh.set_exp()
             refresh.set_iat()
 
-        # 新 access 写入会话记录（新 jti），旧 refresh 已 blacklist
+        # 新 access 写会话记录（新 jti），旧 refresh 已 blacklist
         access = refresh.access_token
         data = {"access": str(access)}
         if jwt_api_settings.ROTATE_REFRESH_TOKENS:
@@ -319,7 +380,7 @@ class UserManageSerializer(serializers.ModelSerializer):
         return data
 
     def to_internal_value(self, data):
-        # 兼容处理：如果提供了 role 字段，将其复制到 role_id
+        # 兼容：提供 role 字段则复制到 role_id
         if 'role' in data and 'role_id' not in data:
             data = data.copy()
             data['role_id'] = data['role']
@@ -342,7 +403,6 @@ class UserManageSerializer(serializers.ModelSerializer):
             validated_data['mobile'] = None
         user = User.objects.create_user(**validated_data)
         
-        # 处理角色关联
         if role_id:
             Role = apps.get_model('saas', 'Role')
             try:
@@ -365,7 +425,6 @@ class UserManageSerializer(serializers.ModelSerializer):
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         
-        # 处理角色关联
         if role_id is not None:  # 允许显式设置为 None
             if role_id:
                 Role = apps.get_model('saas', 'Role')
@@ -430,10 +489,7 @@ class LogoutSerializer(serializers.Serializer):
 
 
 class UserManageSerializerV2(UserManageSerializer):
-    """
-    v2 用户管理序列化器：继承 v1（UserManageSerializer），仅增加 version 标记字段，
-    作为「版本迭代只重写差异」的范例。鉴权 / 过滤 / 权限逻辑全部复用 v1。
-    """
+    """v2 用户管理序列化器：继承 v1 仅增加 version 字段，鉴权/过滤/权限逻辑全部复用 v1（版本迭代只重写差异范例）。"""
     version = serializers.SerializerMethodField()
 
     class Meta(UserManageSerializer.Meta):
@@ -441,4 +497,29 @@ class UserManageSerializerV2(UserManageSerializer):
 
     def get_version(self, obj):
         return 'v2'
+
+
+# MFA 双因子认证序列化器（对齐 Fast-Vben-Admin core/mfa.py）
+
+class MfaSetupSerializer(serializers.Serializer):
+    """生成 MFA 绑定：已启用用户须提供当前 TOTP 或恢复码（防劫持换绑）"""
+    mfa_code = serializers.CharField(
+        required=False, allow_blank=True, write_only=True,
+        help_text="当前 MFA 验证码（TOTP 6 位或恢复码），仅已启用 MFA 的用户必填",
+    )
+
+
+class MfaConfirmSerializer(serializers.Serializer):
+    """确认绑定：提交 Authenticator App 中的 6 位 TOTP 码"""
+    code = serializers.CharField(required=True, write_only=True, help_text="6 位 TOTP 验证码")
+
+
+class MfaDisableSerializer(serializers.Serializer):
+    """禁用 MFA：提交 TOTP 码或恢复码任一验证通过即可"""
+    code = serializers.CharField(required=True, write_only=True, help_text="TOTP 6 位验证码或恢复码")
+
+
+class MfaRecoverySerializer(serializers.Serializer):
+    """重新生成恢复码：须提交 6 位 TOTP 验证码（确认仍持有 Authenticator）"""
+    code = serializers.CharField(required=True, write_only=True, help_text="6 位 TOTP 验证码")
 

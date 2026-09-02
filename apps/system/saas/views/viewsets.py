@@ -1,7 +1,7 @@
 """
 SaaS 后台管理系统 — DRF ViewSets。
 """
-from rest_framework import viewsets, permissions, status
+from rest_framework import viewsets, permissions, status, serializers
 from rest_framework.decorators import action, api_view, permission_classes as drf_permission_classes
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, extend_schema_view
@@ -9,6 +9,7 @@ from django.utils.translation import gettext_lazy as _
 
 from djangoProjectTest.viewsets import BaseModelViewSet
 from framework.cache.view_cache import drf_cache_view, T_1_MINUTE, TAG_PERMISSIONS
+from framework.db.reference_guards import ReferenceGuardMixin, raise_if_referenced
 
 from ..permissions import (
     ReadWriteTenantPermission,
@@ -17,17 +18,19 @@ from ..permissions import (
 from ..mixins import TenantQuerysetMixin
 from ..models import (
     Plan, PlanFeature, Tenant, TenantSubscription, TenantConfig,
-    Permission, Role, TenantMember, Order, Invoice,
+    Permission, Role, Department, Post, UserPost,
+    TenantMember, Order, Invoice,
     GlobalConfig, FeatureFlag, ConfigHistory,
 )
 from ..serializers import (
     PlanSerializer, PlanFeatureSerializer, TenantSerializer,
     TenantSubscriptionSerializer, TenantConfigSerializer,
-    PermissionSerializer, RoleSerializer, TenantMemberSerializer,
+    PermissionSerializer, RoleSerializer, DepartmentSerializer,
+    PostSerializer, UserPostSerializer, TenantMemberSerializer,
     OrderSerializer, InvoiceSerializer,
     GlobalConfigSerializer, FeatureFlagSerializer, ConfigHistorySerializer,
 )
-from ..services import PermissionService, TenantProfileService
+from ..services import PermissionService, TenantProfileService, TenantOrgService
 
 
 @extend_schema_view(
@@ -66,13 +69,16 @@ class PlanFeatureViewSet(BaseModelViewSet):
     partial_update=extend_schema(summary='Partially update a tenant', tags=['SaaS']),
     destroy=extend_schema(summary='Delete a tenant', tags=['SaaS']),
 )
-class TenantViewSet(BaseModelViewSet):
+class TenantViewSet(ReferenceGuardMixin, BaseModelViewSet):
+    """租户管理；删除前参考完整性守卫拦截（有角色/部门/订单等引用时 409）。"""
     queryset = Tenant.objects.select_related('plan', 'created_by').all()
     serializer_class = TenantSerializer
     permission_classes = [permissions.IsAuthenticated, ReadWriteTenantPermission.for_module("tenant")]
 
     def perform_create(self, serializer):
-        super().perform_create(serializer)
+        """创建租户后消费初始化模板（根部门 + 岗位种子，对齐参考初始化流程）。"""
+        tenant = serializer.save()
+        TenantOrgService.apply_initialization_template(tenant)
 
     @extend_schema(
         summary='操作租户生命周期（转正式/续费/冻结/解冻/归档）',
@@ -154,7 +160,8 @@ class TenantConfigViewSet(TenantQuerysetMixin, BaseModelViewSet):
     partial_update=extend_schema(summary='Partially update a permission', tags=['SaaS']),
     destroy=extend_schema(summary='Delete a permission', tags=['SaaS']),
 )
-class PermissionViewSet(BaseModelViewSet):
+class PermissionViewSet(ReferenceGuardMixin, BaseModelViewSet):
+    """权限 CRUD；删除前参考完整性守卫拦截（被 Role.permissions M2M 引用时 409）。"""
     queryset = Permission.objects.all()
     serializer_class = PermissionSerializer
     permission_classes = [permissions.IsAuthenticated, ReadWriteTenantPermission.for_module("role")]
@@ -220,10 +227,143 @@ def permissions_grouped(request):
     destroy=extend_schema(summary='Delete a role', tags=['SaaS']),
 )
 class RoleViewSet(TenantQuerysetMixin, BaseModelViewSet):
-    queryset = Role.objects.prefetch_related('permissions').all()
+    queryset = Role.objects.prefetch_related('permissions', 'data_scope_departments').all()
     serializer_class = RoleSerializer
     permission_classes = [permissions.IsAuthenticated, ReadWriteTenantPermission.for_module("role")]
+    filterset_fields = ['tenant', 'is_active', 'data_scope']
+
+    def perform_create(self, serializer):
+        """创建角色；自定义数据权限部门同步由 RoleSerializer.create 完成。"""
+        serializer.save()
+
+    def perform_update(self, serializer):
+        """更新角色：系统角色保护（同步由 RoleSerializer.update 完成）。"""
+        role = self.get_object()
+        data = serializer.validated_data
+
+        # 系统角色保护：不可取消系统标记、不可改 slug
+        if role.is_system and data.get('is_system') is False:
+            raise serializers.ValidationError(
+                {'is_system': ['系统角色不能被取消系统标记']})
+        if role.is_system and data.get('slug') and data['slug'] != role.slug:
+            raise serializers.ValidationError(
+                {'slug': ['系统角色的标识不能修改']})
+
+        serializer.save()
+
+    def destroy(self, request, *args, **kwargs):
+        """删除角色：系统角色 / 已分配用户 / 被引用保护（对齐参考 delete_role）。"""
+        role = self.get_object()
+        if role.is_system:
+            return Response(
+                {"detail": "系统角色不能删除"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if TenantMember.objects.filter(role=role).exists():
+            return Response(
+                {"detail": "角色已分配给用户，不能删除"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        # 参考完整性守卫：User.role / RoleDataScopeDepartment.role 引用（409）
+        raise_if_referenced(Role, role.pk)
+        return super().destroy(request, *args, **kwargs)
+
+
+@extend_schema_view(
+    list=extend_schema(summary='List all departments', tags=['SaaS']),
+    create=extend_schema(summary='Create a department', tags=['SaaS']),
+    retrieve=extend_schema(summary='Retrieve a department', tags=['SaaS']),
+    update=extend_schema(summary='Update a department', tags=['SaaS']),
+    partial_update=extend_schema(summary='Partially update a department', tags=['SaaS']),
+    destroy=extend_schema(summary='Archive a department', tags=['SaaS']),
+)
+class DepartmentViewSet(TenantQuerysetMixin, BaseModelViewSet):
+    """部门管理（效仿参考 departments.py）：软归档删除、树校验、负责人校验。"""
+    queryset = Department.objects.select_related('parent', 'leader_user').all()
+    serializer_class = DepartmentSerializer
+    permission_classes = [permissions.IsAuthenticated, ReadWriteTenantPermission.for_module("user")]
+    filterset_fields = ['tenant', 'is_active', 'parent']
+    search_fields = ['name', 'code', 'remark']
+    ordering_fields = ['sort', 'created_at', 'name']
+    ordering = ['sort', 'created_at']
+
+    def get_queryset(self):
+        """列表/详情默认排除已归档节点（对齐参考 archived_at.is_(None)）。"""
+        queryset = super().get_queryset()
+        if self.action in ('list', 'retrieve'):
+            queryset = queryset.filter(archived_at__isnull=True)
+        return queryset
+
+    def perform_create(self, serializer):
+        tenant = getattr(self.request, 'tenant', None)
+        kwargs = {'tenant': tenant} if tenant is not None else {}
+        serializer.save(**kwargs)
+
+    def perform_update(self, serializer):
+        serializer.save()
+
+    def destroy(self, request, *args, **kwargs):
+        """软归档删除：有子部门 / 有成员时拒绝（对齐参考 delete_department）。"""
+        department = self.get_object()
+        if Department.objects.filter(parent=department, archived_at__isnull=True).exists():
+            return Response(
+                {"detail": "存在子部门，不能删除"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if TenantMember.objects.filter(department=department, is_active=True).exists():
+            return Response(
+                {"detail": "部门下存在成员，不能删除"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        from django.utils import timezone as dj_tz
+        department.is_active = False
+        department.archived_at = dj_tz.now()
+        department.save(update_fields=['is_active', 'archived_at', 'updated_at'])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@extend_schema_view(
+    list=extend_schema(summary='List all posts', tags=['SaaS']),
+    create=extend_schema(summary='Create a post', tags=['SaaS']),
+    retrieve=extend_schema(summary='Retrieve a post', tags=['SaaS']),
+    update=extend_schema(summary='Update a post', tags=['SaaS']),
+    partial_update=extend_schema(summary='Partially update a post', tags=['SaaS']),
+    destroy=extend_schema(summary='Archive a post', tags=['SaaS']),
+)
+class PostViewSet(TenantQuerysetMixin, BaseModelViewSet):
+    """岗位管理（效仿参考 posts.py）：软归档删除、绑定用户保护。"""
+    queryset = Post.objects.all()
+    serializer_class = PostSerializer
+    permission_classes = [permissions.IsAuthenticated, ReadWriteTenantPermission.for_module("user")]
     filterset_fields = ['tenant', 'is_active']
+    search_fields = ['name', 'code', 'remark']
+    ordering_fields = ['sort', 'created_at', 'name']
+    ordering = ['sort', 'created_at']
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if self.action in ('list', 'retrieve'):
+            queryset = queryset.filter(archived_at__isnull=True)
+        return queryset
+
+    def perform_create(self, serializer):
+        tenant = getattr(self.request, 'tenant', None)
+        kwargs = {'tenant': tenant} if tenant is not None else {}
+        serializer.save(**kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        """软归档删除：已绑定用户时拒绝（对齐参考 delete_post）。"""
+        post = self.get_object()
+        if UserPost.objects.filter(post=post).exists():
+            return Response(
+                {"detail": "岗位已分配给用户，不能删除"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        from django.utils import timezone as dj_tz
+        post.is_active = False
+        post.archived_at = dj_tz.now()
+        post.save(update_fields=['is_active', 'archived_at', 'updated_at'])
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 @extend_schema_view(
@@ -235,9 +375,49 @@ class RoleViewSet(TenantQuerysetMixin, BaseModelViewSet):
     destroy=extend_schema(summary='Delete a tenant member', tags=['SaaS']),
 )
 class TenantMemberViewSet(TenantQuerysetMixin, BaseModelViewSet):
-    queryset = TenantMember.objects.select_related('user', 'tenant', 'role', 'invited_by').all()
+    queryset = TenantMember.objects.select_related('user', 'tenant', 'role', 'invited_by', 'department').all()
     serializer_class = TenantMemberSerializer
     permission_classes = [permissions.IsAuthenticated, ReadWriteTenantPermission.for_module("user")]
+
+    @extend_schema(
+        summary='查询/设置成员岗位（效仿参考 /users/{id}/posts）',
+        tags=['SaaS'],
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {'post_ids': {'type': 'array', 'items': {'type': 'string', 'format': 'uuid'}}},
+            }
+        },
+    )
+    @action(detail=True, methods=['get', 'put'], url_path='posts')
+    def posts(self, request, pk=None):
+        member = self.get_object()
+
+        if request.method == 'PUT':
+            post_ids = request.data.get('post_ids') or []
+            unique_ids = {str(pid) for pid in post_ids}
+            if unique_ids:
+                existing = {
+                    str(pid) for pid in Post.objects.filter(
+                        tenant=member.tenant, id__in=unique_ids,
+                    ).values_list('id', flat=True)
+                }
+                if existing != unique_ids:
+                    return Response(
+                        {"detail": "部分岗位不存在或不属于当前租户"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+            UserPost.objects.filter(tenant=member.tenant, user=member.user).delete()
+            if unique_ids:
+                UserPost.objects.bulk_create([
+                    UserPost(tenant=member.tenant, user=member.user, post_id=pid)
+                    for pid in unique_ids
+                ])
+
+        items = UserPost.objects.filter(
+            tenant=member.tenant, user=member.user,
+        ).select_related('post')
+        return Response(UserPostSerializer(items, many=True).data)
 
 
 @extend_schema_view(

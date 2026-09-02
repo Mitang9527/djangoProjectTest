@@ -20,7 +20,6 @@ from framework.reliability import retry
 )
 def _run_export(model_label: str, fmt: str, fields, filters, filename):
     """带重试的数据导出（失败退避后重试，避免大导出因瞬时故障丢失）。"""
-    # 获取基础配置
     base_config = EXPORTABLE_MODELS.get(model_label)
     if not base_config:
         raise ValueError(f"模型 {model_label} 未注册导出配置")
@@ -37,7 +36,6 @@ def _run_export(model_label: str, fmt: str, fields, filters, filename):
         order_by=base_config.order_by,
     )
 
-    # 创建导出器
     exporter = get_exporter(config, fmt)
 
     # 导出到临时文件

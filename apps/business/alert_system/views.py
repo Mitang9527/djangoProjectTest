@@ -14,6 +14,7 @@ from rest_framework import status, viewsets, filters as drf_filters
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django.db.models import Q
+from django.utils import timezone
 from rest_framework.response import Response
 
 from django_filters.rest_framework import DjangoFilterBackend
@@ -26,6 +27,8 @@ from .models import (
     AlertSilence,
     AlertHistory,
     AlertNotificationConfig,
+    MessageTemplate,
+    InAppMessage,
 )
 from .serializers import (
     AlertRuleSerializer,
@@ -36,6 +39,8 @@ from .serializers import (
     ResolveActionSerializer,
     TriggerAlertSerializer,
     TestNotifySerializer,
+    MessageTemplateSerializer,
+    InAppMessageSerializer,
 )
 from .services import AlertEngine, NotificationDispatcher
 
@@ -258,3 +263,80 @@ def alert_stats(request):
     """告警统计面板数据"""
     stats = AlertEngine.get_stats()
     return Response(stats)
+
+
+# ---------------------------------------------------------------
+# 站内信
+# ---------------------------------------------------------------
+
+class MessageTemplateViewSet(BaseModelViewSet):
+    """站内信模板（读公开、写仅管理员）"""
+
+    queryset = MessageTemplate.objects.all()
+    serializer_class = MessageTemplateSerializer
+    filterset_fields = ["is_active"]
+    search_fields = ["code", "title", "content"]
+    ordering_fields = ["created_at", "updated_at"]
+    ordering = ["-created_at"]
+
+    def get_permissions(self):
+        # 模板影响所有用户的站内信渲染，写操作仅管理员
+        if self.action in ("create", "update", "partial_update", "destroy"):
+            return [IsAdminUser()]
+        return [IsAuthenticated()]
+
+
+class InAppMessageViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    站内信 — 当前用户收件箱（只读）。
+
+    路由:
+        GET  /api/alert_system/in-app-messages/                → 我的消息列表
+        GET  /api/alert_system/in-app-messages/unread_count/   → 未读数
+        POST /api/alert_system/in-app-messages/read_all/       → 全部标记已读
+        POST /api/alert_system/in-app-messages/{id}/mark_read/ → 单条标记已读
+    """
+
+    permission_classes = [IsAuthenticated]
+    pagination_class = StandardPagination
+    filter_backends = [DjangoFilterBackend, drf_filters.SearchFilter, drf_filters.OrderingFilter]
+
+    serializer_class = InAppMessageSerializer
+    filterset_fields = ["level", "read_at"]
+    search_fields = ["title", "content"]
+    ordering_fields = ["created_at", "read_at"]
+    ordering = ["-created_at"]
+
+    def get_queryset(self):
+        # 只能看到自己的消息；管理员不例外（站内信是个人收件箱，无全局视角）
+        return InAppMessage.objects.filter(user=self.request.user)
+
+    @action(detail=False, methods=["get"], url_path="unread_count")
+    def unread_count(self, request):
+        """未读消息数（列表页红点）"""
+        count = InAppMessage.objects.filter(
+            user=request.user, read_at__isnull=True
+        ).count()
+        return Response({"unread_count": count})
+
+    @action(detail=True, methods=["post"], url_path="mark_read")
+    def mark_read(self, request, pk=None):
+        """标记单条为已读（幂等）"""
+        message = self.get_object()
+        message.mark_read()
+        return Response(
+            {"detail": "已标记为已读", "code": "mark_read_ok"},
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=False, methods=["post"], url_path="read_all")
+    def read_all(self, request):
+        """全部标记为已读"""
+        qs = InAppMessage.objects.filter(user=request.user, read_at__isnull=True)
+        count = qs.count()
+        if count:
+            qs.update(read_at=timezone.now())
+        return Response(
+            {"detail": f"已将 {count} 条消息标记为已读", "code": "read_all_ok"},
+            status=status.HTTP_200_OK,
+        )

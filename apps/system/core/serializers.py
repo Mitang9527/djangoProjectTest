@@ -1,6 +1,8 @@
-from rest_framework import serializers
 from django.utils import timezone
-from .models import AuditLog, APIKey
+from rest_framework import serializers
+
+from .models import APIKey, AuditLog, DictItem, DictType, FileAsset, LoginLog, Menu, OperationLog
+
 
 class AuditLogSerializer(serializers.ModelSerializer):
     """
@@ -20,6 +22,38 @@ class AuditLogSerializer(serializers.ModelSerializer):
         read_only_fields = [
             'id', 'data_hash', 'previous_hash', 'is_tampered', 'created_at',
         ]
+
+
+class LoginLogSerializer(serializers.ModelSerializer):
+    """登录日志序列化器（对齐参考 LoginLogPublic）"""
+    user_name = serializers.CharField(source='user.username', read_only=True, default='', allow_null=True)
+    tenant_name = serializers.CharField(source='tenant.name', read_only=True, default='', allow_null=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+
+    class Meta:
+        model = LoginLog
+        fields = (
+            'id', 'tenant', 'tenant_name', 'user', 'user_name',
+            'email', 'ip', 'user_agent', 'status', 'status_display',
+            'failure_reason', 'created_at',
+        )
+        read_only_fields = fields
+
+
+class OperationLogSerializer(serializers.ModelSerializer):
+    """操作日志序列化器（对齐参考 OperationLogPublic）"""
+    user_name = serializers.CharField(source='user.username', read_only=True, default='', allow_null=True)
+    tenant_name = serializers.CharField(source='tenant.name', read_only=True, default='', allow_null=True)
+
+    class Meta:
+        model = OperationLog
+        fields = (
+            'id', 'tenant', 'tenant_name', 'user', 'user_name', 'email',
+            'module', 'action', 'method', 'path', 'status_code',
+            'duration_ms', 'ip', 'user_agent',
+            'request_summary', 'response_summary', 'created_at',
+        )
+        read_only_fields = fields
 
 class SystemStatusSerializer(serializers.Serializer):
     """
@@ -107,3 +141,113 @@ class ApiKeySerializer(serializers.ModelSerializer):
         if not obj.expires_at:
             return None
         return max(int((obj.expires_at - timezone.now()).total_seconds()), 0)
+
+
+class DictTypeSerializer(serializers.ModelSerializer):
+    """字典类型序列化器（对齐 Fast-Vben-Admin DictionaryTypePublic）"""
+    item_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DictType
+        fields = (
+            'id', 'name', 'code', 'tenant', 'is_active', 'is_system',
+            'remark', 'item_count', 'created_at', 'updated_at',
+        )
+        # tenant 只读：归属由 perform_create 按当前租户上下文写入，禁客户端指定/迁移
+        read_only_fields = ('id', 'tenant', 'is_system', 'created_at', 'updated_at')
+
+    def get_item_count(self, obj) -> int:
+        return getattr(obj, 'item_count', None) or obj.items.count()
+
+
+class DictItemSerializer(serializers.ModelSerializer):
+    """字典项序列化器（对齐 Fast-Vben-Admin DictionaryItemPublic）"""
+    type_code = serializers.CharField(source='type.code', read_only=True)
+    type_name = serializers.CharField(source='type.name', read_only=True)
+
+    class Meta:
+        model = DictItem
+        fields = (
+            'id', 'type', 'type_code', 'type_name', 'tenant',
+            'label', 'value', 'sort', 'is_active', 'remark',
+            'created_at', 'updated_at',
+        )
+        # tenant 只读（同 DictType）：归属由 perform_create 按当前租户上下文写入
+        read_only_fields = ('id', 'tenant', 'created_at', 'updated_at')
+
+
+class MenuSerializer(serializers.ModelSerializer):
+    """
+    平台级菜单序列化器（树形：children 递归展开，供管理端与 my-menus 共用）。
+
+    权限过滤场景（my-menus）下，调用方把过滤后的子树挂在实例的 ``_children``
+    属性上，序列化器优先渲染缓存子树，避免 ``obj.children.all()`` 把无权节点带出。
+    """
+    children = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Menu
+        fields = (
+            'id', 'parent', 'name', 'route_name', 'path', 'component',
+            'icon', 'type', 'permission', 'sort', 'is_visible', 'is_active',
+            'children', 'created_at', 'updated_at',
+        )
+        read_only_fields = ('id', 'created_at', 'updated_at')
+
+    def get_children(self, obj):
+        cached = getattr(obj, '_children', None)
+        if cached is not None:
+            if not cached:
+                return []
+            return MenuSerializer(cached, many=True).data
+        children = obj.children.all().order_by('sort', 'created_at')
+        if not children:
+            return []
+        return MenuSerializer(children, many=True).data
+
+    def validate(self, attrs):
+        mtype = attrs.get('type', getattr(self.instance, 'type', 'menu') if self.instance else 'menu')
+        permission = attrs.get(
+            'permission',
+            getattr(self.instance, 'permission', '') if self.instance else '',
+        )
+        if mtype == 'button' and not permission:
+            raise serializers.ValidationError({'permission': '按钮类型必须绑定权限码'})
+        return attrs
+
+
+def _human_size(num_bytes: int) -> str:
+    """字节数转可读文本（B/KB/MB/GB）。"""
+    size = float(num_bytes or 0)
+    for unit in ('B', 'KB', 'MB', 'GB', 'TB'):
+        if size < 1024 or unit == 'TB':
+            return f"{size:.1f} {unit}" if unit != 'B' else f"{int(size)} B"
+        size /= 1024
+    return f"{num_bytes} B"
+
+
+class FileAssetSerializer(serializers.ModelSerializer):
+    """文件资产序列化器（管理端点 + 配额看板共用）。"""
+    tenant_name = serializers.CharField(source='tenant.name', read_only=True, default='', allow_null=True)
+    user_name = serializers.CharField(source='user.username', read_only=True, default='', allow_null=True)
+    category_display = serializers.CharField(source='get_category_display', read_only=True)
+    url = serializers.SerializerMethodField()
+    size_display = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FileAsset
+        fields = (
+            'id', 'tenant', 'tenant_name', 'user', 'user_name',
+            'category', 'category_display',
+            'file_name', 'file_path', 'url', 'file_size', 'size_display',
+            'content_type', 'is_deleted', 'created_at',
+        )
+        read_only_fields = fields
+
+    def get_url(self, obj) -> str:
+        # 返回可访问的相对 MEDIA_URL 地址，杜绝绝对路径泄露
+        from framework.files.upload import relative_media_url
+        return relative_media_url(obj.file_path)
+
+    def get_size_display(self, obj) -> str:
+        return _human_size(obj.file_size)

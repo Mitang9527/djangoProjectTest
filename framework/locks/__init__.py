@@ -2,8 +2,7 @@
 分布式锁工具包
 ==============
 
-提供 RedisLock（单节点）与 RedLock（多节点）实现，
-支持重入、自动续期、公平锁等高级特性。
+提供 RedisLock（单节点）与 RedLock（多节点），支持重入、自动续期、公平锁。
 
 快速开始
 --------
@@ -11,10 +10,8 @@
 **基础用法**::
 
     from framework.locks import RedisLock
-
     with RedisLock("order:123:pay", ttl=30):
-        do_payment()
-    # 自动释放
+        do_payment()          # 自动释放
 
 **手动控制**::
 
@@ -27,17 +24,15 @@
 
 **自动续期（看门狗）**::
 
-    # 长任务执行期间，每 ttl/3 自动续期一次
+    # 长任务执行期间每 ttl/3 自动续期一次
     with RedisLock("long_task", ttl=30, auto_renewal=True):
         run_long_task()
 
 **作为装饰器**::
 
     from framework.locks import locked
-
     @locked(key=lambda order_id: f"order:{order_id}:pay", ttl=30)
-    def pay(order_id):
-        ...
+    def pay(order_id): ...
 """
 from .core import (
     LockBackend,

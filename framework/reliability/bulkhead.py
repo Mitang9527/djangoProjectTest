@@ -47,7 +47,6 @@ class Bulkhead:
         self.store = store or get_state_store()
         # 进程内 semaphore（保证本地原子性）
         self._sem = threading.BoundedSemaphore(max_concurrent)
-        # 统计
         self.metrics = {
             "calls_total": 0,
             "calls_rejected": 0,

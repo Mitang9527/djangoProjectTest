@@ -202,6 +202,14 @@ class Role(models.Model):
     """
     角色表
     """
+    class DataScope(models.TextChoices):
+        """数据权限范围（效仿参考项目 DataScope 5 态）"""
+        ALL = 'all', _('全部数据')
+        DEPARTMENT = 'department', _('本部门数据')
+        DEPARTMENT_AND_CHILDREN = 'department_and_children', _('本部门及子部门数据')
+        SELF = 'self', _('仅本人数据')
+        CUSTOM = 'custom', _('自定义部门数据')
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='roles', null=True, blank=True, verbose_name=_('租户'))
     name = models.CharField(_('名称'), max_length=100)
@@ -209,6 +217,10 @@ class Role(models.Model):
     description = models.TextField(_('描述'), blank=True)
     is_system = models.BooleanField(_('是否系统角色'), default=False)
     is_active = models.BooleanField(_('是否启用'), default=True)
+    data_scope = models.CharField(
+        _('数据权限'), max_length=32, choices=DataScope.choices,
+        default=DataScope.SELF, db_index=True,
+    )
     permissions = models.ManyToManyField(Permission, related_name='roles', blank=True, verbose_name=_('权限'))
     created_at = models.DateTimeField(_('创建时间'), auto_now_add=True)
     updated_at = models.DateTimeField(_('更新时间'), auto_now=True)
@@ -227,6 +239,134 @@ class Role(models.Model):
         return f"{self.tenant.name if self.tenant else 'System'} - {self.name}"
 
 
+class Department(models.Model):
+    """
+    部门（效仿参考项目 Department）。
+
+    租户级组织树节点：
+    - parent 自引用（同一租户内）；leader_user 指向成员用户（同一租户成员）。
+    - 删除 = 软归档（archived_at 置位 + is_active=False），列表默认排除归档节点。
+    - code 在租户内唯一。
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='departments', verbose_name=_('租户'))
+    name = models.CharField(_('名称'), max_length=100)
+    code = models.CharField(_('编码'), max_length=100)
+    parent = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='children', verbose_name=_('上级部门'),
+    )
+    leader_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='led_departments', verbose_name=_('负责人'),
+    )
+    sort = models.IntegerField(_('排序'), default=0)
+    is_active = models.BooleanField(_('是否启用'), default=True)
+    remark = models.CharField(_('备注'), max_length=255, blank=True)
+    archived_at = models.DateTimeField(_('归档时间'), null=True, blank=True, db_index=True)
+    created_at = models.DateTimeField(_('创建时间'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('更新时间'), auto_now=True)
+
+    class Meta:
+        app_label = 'saas'
+        verbose_name = _('部门')
+        verbose_name_plural = _('部门')
+        ordering = ['sort', 'created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['tenant', 'code'], name='uq_department_tenant_code'),
+        ]
+        indexes = [
+            models.Index(fields=['tenant', 'archived_at'], name='idx_department_tenant_archived'),
+        ]
+
+    def __str__(self):
+        return self.name
+
+
+class Post(models.Model):
+    """
+    岗位（效仿参考项目 Post）。
+
+    租户级；删除 = 软归档。code 在租户内唯一。
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='posts', verbose_name=_('租户'))
+    name = models.CharField(_('名称'), max_length=100)
+    code = models.CharField(_('编码'), max_length=100)
+    sort = models.IntegerField(_('排序'), default=0)
+    is_active = models.BooleanField(_('是否启用'), default=True)
+    remark = models.CharField(_('备注'), max_length=255, blank=True)
+    archived_at = models.DateTimeField(_('归档时间'), null=True, blank=True, db_index=True)
+    created_at = models.DateTimeField(_('创建时间'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('更新时间'), auto_now=True)
+
+    class Meta:
+        app_label = 'saas'
+        verbose_name = _('岗位')
+        verbose_name_plural = _('岗位')
+        ordering = ['sort', 'created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['tenant', 'code'], name='uq_post_tenant_code'),
+        ]
+        indexes = [
+            models.Index(fields=['tenant', 'archived_at'], name='idx_post_tenant_archived'),
+        ]
+
+    def __str__(self):
+        return self.name
+
+
+class UserPost(models.Model):
+    """
+    用户-岗位绑定（效仿参考项目 UserPost）。
+
+    复合唯一约束 (tenant, user, post)，同一用户在同一租户下可挂多个岗位。
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='user_posts', verbose_name=_('租户'))
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='user_posts', verbose_name=_('用户'))
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='user_posts', verbose_name=_('岗位'))
+    created_at = models.DateTimeField(_('创建时间'), auto_now_add=True)
+
+    class Meta:
+        app_label = 'saas'
+        verbose_name = _('用户岗位')
+        verbose_name_plural = _('用户岗位')
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['tenant', 'user', 'post'], name='uq_userpost_tenant_user_post'),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} - {self.post.name}"
+
+
+class RoleDataScopeDepartment(models.Model):
+    """
+    角色自定义数据权限-部门关联（效仿参考项目 RoleDataScopeDepartment）。
+
+    仅当 Role.data_scope == 'custom' 时使用；role+department 在租户内唯一。
+    tenant 冗余外键便于按租户整体清理与隔离查询。
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name='data_scope_departments', verbose_name=_('角色'))
+    department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name='data_scope_roles', verbose_name=_('部门'))
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='data_scope_links', verbose_name=_('租户'))
+    created_at = models.DateTimeField(_('创建时间'), auto_now_add=True)
+
+    class Meta:
+        app_label = 'saas'
+        verbose_name = _('角色数据权限部门')
+        verbose_name_plural = _('角色数据权限部门')
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['tenant', 'role', 'department'], name='uq_roledatascope_tenant_role_dept'),
+        ]
+
+    def __str__(self):
+        return f"{self.role.name} -> {self.department.name}"
+
+
 class TenantMember(models.Model):
     """
     租户成员表
@@ -235,6 +375,10 @@ class TenantMember(models.Model):
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='members', verbose_name=_('租户'))
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='tenant_memberships', verbose_name=_('用户'))
     role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True, related_name='members', verbose_name=_('角色'))
+    department = models.ForeignKey(
+        Department, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='members', verbose_name=_('部门'),
+    )
     is_active = models.BooleanField(_('是否启用'), default=True)
     is_default = models.BooleanField(_('默认租户'), default=False)
     joined_at = models.DateTimeField(_('加入时间'), auto_now_add=True)
@@ -642,8 +786,8 @@ class GlobalConfig(models.Model):
     def parsed_value(self):
         """根据类型解析配置值"""
         if self.value is None or self.value == '':
-            return self.parse_value(self.default_value) if self.default_value else None
-        return self.parse_value(self.value)
+            return self.parse_value(self.default_value, self.config_type) if self.default_value else None
+        return self.parse_value(self.value, self.config_type)
 
     @staticmethod
     def parse_value(value_str, config_type=ConfigType.STRING):

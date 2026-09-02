@@ -9,7 +9,7 @@
 - **@bulkhead**：隔离舱（限制并发）
 - **@fallback**：失败兜底（返回默认值或调用备用函数）
 
-四件套可任意组合使用。状态共享：熔断器按 name 全进程唯一，可注入到 metrics。
+四件套可任意组合使用。熔断器按 name 全进程唯一，可注入 metrics。
 
 快速开始
 --------
@@ -17,50 +17,35 @@
 **重试**::
 
     from framework.reliability import retry
-
-    @retry(max_attempts=3, backoff="exponential", jitter=True,
-           retry_on=(requests.RequestException,))
-    def call_third_party():
-        return requests.get("https://api.example.com/data")
-
+    @retry(max_attempts=3, backoff="exponential", jitter=True, retry_on=(requests.RequestException,))
+    def call_third_party(): ...
 
 **熔断器**::
 
     from framework.reliability import circuit_breaker
-
-    @circuit_breaker(name="payment_api", failure_threshold=5,
-                     recovery_time=30, expected_exceptions=(PaymentError,))
-    def charge_credit_card(order):
-        ...
-
+    @circuit_breaker(name="payment_api", failure_threshold=5, recovery_time=30,
+                     expected_exceptions=(PaymentError,))
+    def charge_credit_card(order): ...
 
 **隔离舱**::
 
     from framework.reliability import bulkhead
-
     @bulkhead(name="email_send", max_concurrent=20, max_wait=5.0)
-    def send_email(to, subject, body):
-        ...
-
+    def send_email(to, subject, body): ...
 
 **降级**::
 
     from framework.reliability import fallback
-
     @fallback(default=lambda *a, **kw: {"cached": True, "data": []})
-    def get_recommendations(user_id):
-        ...
-
+    def get_recommendations(user_id): ...
 
 **组合使用**::
 
     from framework.reliability import retry, circuit_breaker, fallback
-
     @fallback(default=lambda uid: [])
     @retry(max_attempts=3)
     @circuit_breaker(name="inventory", failure_threshold=10, recovery_time=60)
-    def get_inventory(uid):
-        ...
+    def get_inventory(uid): ...
 """
 from .retry import retry, RetryPolicy
 from .circuit_breaker import (

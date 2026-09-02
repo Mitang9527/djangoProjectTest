@@ -1,63 +1,63 @@
 """
-操作日志中间件 — 无侵入记录所有 API 请求。
-
-特性:
-- 记录: 用户、IP、方法、路径、状态码、响应耗时、User-Agent
-- 异步写入: 使用线程池避免阻塞请求 (或者: 使用 loguru + 离线分析)
-- 异常隔离: 中间件异常不影响业务请求
-- 可配置: 仅记录 /api/ 路径，跳过健康检查、静态文件
-
-模式选择:
-  MODE = "db"  → 写入 AuditLog 模型 (适合中小流量)
-  MODE = "log" → 写入 loguru (适合高流量, 后续用 ELK/Loki 分析)
-
-# settings.py 启用:
-MIDDLEWARE = [
-    ...
-    'apps.system.core.middleware.OperationLogMiddleware',
-]
+操作日志中间件 — 无侵入记录业务写操作（POST/PUT/PATCH/DELETE），对齐参考项目 OperationLog。
+仅记录以 /api/v1/ 开头的写操作，跳过日志端点（防自审计死循环）与登录/注册/改密（走 LoginLog）；
+写 core.OperationLog（租户级）+ 下沉 loguru（保留 ELK/Loki 分析能力）；写库失败静默，try/finally 保证 500 也记录；
+用户优先 request.user，否则解析 Bearer JWT claims（DRF 认证在视图内，中间件拿不到 request.user）。
+settings 启用须置于 TenantMiddleware 之后（其注入 request.tenant_id）。
 """
 
 from __future__ import annotations
 
+import json
+import re
 import time
-import threading
-from typing import Optional
+from typing import Optional, Tuple
 
 from django.http import HttpRequest, HttpResponse
 from loguru import logger
 
 # API 请求日志使用专用 logger → api-{date}.log
 from framework.log_utils import api_logger
-from system.core.audit import set_current_request
+from system.core.audit import set_current_request, get_client_ip
 
 
-# ---- 配置 ----
+# 只记录写操作（读操作由网关/访问日志覆盖）
+WRITE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
-# 写入模式: "db" → AuditLog 模型; "log" → loguru
-MODE = "log"
+# 只记录业务 API 前缀
+LOG_PATH_PREFIX = "/api/v1/"
 
-# 只记录以下路径前缀的请求 (空列表 = 记录所有)
-LOG_PATH_PREFIXES = ["/api/", "/admin/"]
+# 跳过以下路径前缀（不写 OperationLog 表；登录类由 LoginLog 专项记录）
+SKIP_PATH_PREFIXES = (
+    "/api/v1/core/logs/",         # 日志查询端点自身，防自审计死循环
+    "/api/v1/core/ping/",         # 健康探测
+    "/api/v1/core/demo-login/",   # 演示登录（LoginLog 记录）
+    "/api/v1/users/login/",       # 主登录（LoginLog 记录）
+    "/api/v1/users/jwt/login/",   # 标准 JWT 登录（LoginLog 记录）
+    "/api/v1/users/register/",    # 注册（含凭证，注册流程记录）
+    "/api/v1/users/oidc/",        # OIDC 登录/回调（LoginLog 记录）
+    "/api/v1/users/password/",    # 改密/重置等敏感凭证操作
+)
 
-# 跳过以下路径
-SKIP_PATHS = [
-    "/api/health/",
-    "/api/docs/",
-    "/api/schema/",
-    "/static/",
-    "/media/",
-    "/favicon.ico",
-]
+# Authorization 头解析（Bearer <token>）
+_AUTH_RE = re.compile(r"^Bearer\s+(.+)$", re.IGNORECASE)
 
-# 日志级别阈值 (只记录 >= 此状态码的请求, 0 = 全部)
-MIN_STATUS_CODE = 0
+# 请求方法 → 动作（对齐参考项目：DELETE→delete / PATCH→update / POST→create / PUT→update）
+_ACTION_MAP = {
+    "POST": "create",
+    "PUT": "update",
+    "PATCH": "update",
+    "DELETE": "delete",
+}
 
+# 请求摘要中跳过的敏感键（含子串匹配，防密码/令牌泄露进日志）
+_SENSITIVE_KEY_SUBSTRINGS = ("password", "token", "secret", "api_key", "refresh")
 
-# ---- 中间件 ----
+_MAX_SUMMARY_LEN = 1000
+
 
 class OperationLogMiddleware:
-    """请求级操作日志中间件"""
+    """请求级操作日志中间件 — 写 OperationLog 表 + 下沉 loguru"""
 
     def __init__(self, get_response):
         self.get_response = get_response
@@ -65,151 +65,180 @@ class OperationLogMiddleware:
     def __call__(self, request: HttpRequest) -> HttpResponse:
         # 设置当前请求到线程本地存储，供审计系统使用
         set_current_request(request)
-        
-        # 判断是否需要记录
+
         if not self._should_log(request):
-            response = self.get_response(request)
-            set_current_request(None)
-            return response
+            try:
+                return self.get_response(request)
+            finally:
+                set_current_request(None)
 
-        start_time = time.monotonic()
-        response = self.get_response(request)
-        elapsed_ms = round((time.monotonic() - start_time) * 1000, 2)
+        # 坑：提前快照 JSON body——视图/DRF 解析后会消耗请求数据流，
+        # 之后（_record 阶段）再读 request.body 会抛 RawPostDataException
+        if "application/json" in request.META.get("CONTENT_TYPE", ""):
+            try:
+                request._oplog_body = request.body[: 64 * 1024]
+            except Exception:  # noqa: BLE001
+                request._oplog_body = b""
 
-        # 异常隔离: 日志记录失败不影响响应
+        start = time.perf_counter()
+        response = None
         try:
-            self._record(request, response, elapsed_ms)
-        except Exception:
-            pass  # 静默失败
-        
-        # 清除当前请求
-        set_current_request(None)
+            response = self.get_response(request)
+            return response
+        finally:
+            elapsed_ms = round((time.perf_counter() - start) * 1000)
+            # 异常隔离：记录失败不影响响应；try/finally 保证 500 异常也记录
+            try:
+                self._record(request, response, elapsed_ms)
+            except Exception as e:  # noqa: BLE001
+                logger.debug(f"[OPLOG] 操作日志写入失败(静默): {e}")
+            finally:
+                set_current_request(None)
 
-        return response
-
-    # -----------------------------------------------------------
     # 内部方法
-    # -----------------------------------------------------------
 
     def _should_log(self, request: HttpRequest) -> bool:
-        """判断是否需要记录该请求"""
+        """判断是否需要记录: 写方法 + 业务 API 前缀 + 非跳过路径"""
+        if request.method not in WRITE_METHODS:
+            return False
         path = request.path
+        if not path.startswith(LOG_PATH_PREFIX):
+            return False
+        return not any(path.startswith(p) for p in SKIP_PATH_PREFIXES)
 
-        # 跳过不需要记录的路径
-        for skip in SKIP_PATHS:
-            if path.startswith(skip):
-                return False
+    def _record(self, request: HttpRequest, response: Optional[HttpResponse], elapsed_ms: int) -> None:
+        """写 OperationLog 表 + 下沉 loguru（失败由调用方静默）"""
+        from django.apps import apps
 
-        # 如果配置了前缀过滤, 只记录匹配的
-        if LOG_PATH_PREFIXES:
-            return any(path.startswith(p) for p in LOG_PATH_PREFIXES)
+        OperationLog = apps.get_model("core", "OperationLog")
 
-        return True
+        user, email, tenant_id = self._resolve_context(request)
+        module, action = self._derive_module_action(request)
+        status_code = response.status_code if response is not None else 500
 
-    def _record(self, request: HttpRequest, response: HttpResponse, elapsed_ms: float) -> None:
-        """记录日志 (根据 MODE 选择写入方式)"""
-        if response.status_code < MIN_STATUS_CODE:
-            return
-
-        if MODE == "log":
-            self._record_to_loguru(request, response, elapsed_ms)
-        else:
-            self._record_to_db(request, response, elapsed_ms)
-
-    def _record_to_loguru(self, request: HttpRequest, response: HttpResponse, elapsed_ms: float) -> None:
-        """写入 loguru (高性能, 推荐搭配 Loki/ELK)"""
-        user_str = (
-            request.user.username
-            if request.user and request.user.is_authenticated
-            else "anonymous"
+        OperationLog.objects.create(
+            tenant_id=tenant_id,
+            user=user,
+            email=email,
+            module=module,
+            action=action,
+            method=request.method,
+            path=request.path[:500],
+            status_code=status_code,
+            duration_ms=elapsed_ms,
+            ip=get_client_ip(request) or "",
+            user_agent=request.META.get("HTTP_USER_AGENT", "")[:500],
+            request_summary=self._request_summary(request),
         )
 
+        # 下沉 loguru（保留 ELK/Loki 分析能力）
+        self._record_to_loguru(request, status_code, elapsed_ms, email, module, action)
+
+    def _resolve_context(self, request: HttpRequest) -> Tuple[Optional[object], str, Optional[str]]:
+        """解析 (user, email, tenant_id)，失败兜底 (None, '', None)。
+        user: request.user（会话认证）→ JWT claims user_id（DB 回查）→ None；
+        tenant_id: request.tenant_id（TenantMiddleware 已按 X-Tenant-Id/JWT/session 解析）→ JWT claims tenant_id → None。"""
+        tenant_id = getattr(request, "tenant_id", None)
+        user = getattr(request, "user", None)
+        if user is None or not getattr(user, "is_authenticated", False):
+            user = None
+
+        payload = self._parse_jwt_payload(request)
+
+        if user is None and payload:
+            uid = payload.get("user_id")
+            if uid:
+                try:
+                    from django.contrib.auth import get_user_model
+                    user = get_user_model().objects.filter(pk=uid).first()
+                except Exception:  # noqa: BLE001
+                    user = None
+            if tenant_id is None:
+                tenant_id = payload.get("tenant_id")
+
+        email = user.email if (user and getattr(user, "email", None)) else ""
+        if not email and payload:
+            email = payload.get("email", "") or ""
+        # 兜底：无邮箱时用用户名作为账号标识（与 record_login_log 口径一致）
+        if not email and user is not None:
+            email = getattr(user, "username", "") or ""
+        return user, email, tenant_id
+
+    def _parse_jwt_payload(self, request: HttpRequest) -> Optional[dict]:
+        """解析 Authorization Bearer JWT 的 claims（仅用于日志归属；校验失败返回 None）"""
+        header = request.META.get("HTTP_AUTHORIZATION", "")
+        m = _AUTH_RE.match(header)
+        if not m:
+            return None
+        try:
+            from rest_framework_simplejwt.tokens import AccessToken
+            return AccessToken(m.group(1)).payload
+        except Exception:  # noqa: BLE001
+            return None
+
+    @staticmethod
+    def _derive_module_action(request: HttpRequest) -> Tuple[str, str]:
+        """推导 module/action：module=去掉 /api/v1/ 后路径首段（如 /saas/departments/ → 'saas'）；
+        action=DELETE→delete / PATCH→update / POST→create / PUT→update。"""
+        rest = request.path[len(LOG_PATH_PREFIX):]
+        module = rest.split("/", 1)[0] if rest else ""
+        action = _ACTION_MAP.get(request.method, request.method.lower())
+        return module[:100], action
+
+    @staticmethod
+    def _request_summary(request: HttpRequest) -> str:
+        """请求摘要（脱敏）：仅记录 JSON body 的非敏感标量键；非 JSON/解析失败返回空串。
+        用视图执行前快照的 _oplog_body（视图消费数据流后 request.body 不可再读）。"""
+        content_type = request.META.get("CONTENT_TYPE", "")
+        if "application/json" not in content_type:
+            return ""
+        body = getattr(request, "_oplog_body", None)
+        if body is None:
+            body = getattr(request, "body", None) or b""
+        if not body:
+            return ""
+        try:
+            data = json.loads(body[: 64 * 1024] or b"{}")
+        except Exception:  # noqa: BLE001
+            return ""
+        if not isinstance(data, dict):
+            return ""
+        safe = {}
+        for k, v in data.items():
+            kl = k.lower()
+            if any(s in kl for s in _SENSITIVE_KEY_SUBSTRINGS):
+                continue
+            if isinstance(v, (dict, list)):
+                continue
+            if isinstance(v, (str, int, float, bool)) or v is None:
+                safe[k] = v
+        try:
+            return json.dumps(safe, ensure_ascii=False)[:_MAX_SUMMARY_LEN]
+        except Exception:  # noqa: BLE001
+            return ""
+
+    def _record_to_loguru(self, request: HttpRequest, status_code: int,
+                          elapsed_ms: int, email: str, module: str, action: str) -> None:
+        """写入 loguru（保留 ELK/Loki 分析能力）。坑：消息体含 {..} 会被当格式模板二次解析（见历史修复），
+        结构化字段一律走 bind 进 extra，文本消息用无花括号可读串。"""
         log_data = {
-            "user": user_str,
-            "ip": self._get_client_ip(request),
+            "user": email or "anonymous",
+            "ip": get_client_ip(request) or "unknown",
             "method": request.method,
             "path": request.path,
-            "status": response.status_code,
+            "status": status_code,
             "elapsed_ms": elapsed_ms,
+            "module": module,
+            "action": action,
             "user_agent": request.META.get("HTTP_USER_AGENT", "")[:200],
         }
-
-        # 关键修复: loguru 会把「消息正文」当成格式模板二次解析。
-        # 若消息里包含 '{...}'(例如把 dict/list 直接 f-string 拼接进消息),
-        # 其中的 'user' / 'method' 等会被误当作格式字段, 触发 KeyError: 'user'。
-        # 因此:
-        #   1) 结构化字段通过 bind 进入 extra —— JSON sink 仍会采集(便于 ELK/Loki 过滤);
-        #   2) 文本消息改为「无花括号」的可读串, 彻底规避二次解析。
-        access_logger = api_logger.bind(user=user_str, **log_data)
+        access_logger = api_logger.bind(**log_data)
 
         text = (
-            f"[ACCESS] {request.method} {request.path} -> "
-            f"{response.status_code} ({elapsed_ms}ms) user={user_str}"
+            f"[OPLOG] {request.method} {request.path} -> "
+            f"{status_code} ({elapsed_ms}ms) module={module} action={action} user={email or 'anonymous'}"
         )
-
-        if response.status_code >= 400:
+        if status_code >= 400:
             access_logger.warning(text)
         else:
             access_logger.info(text)
-
-    def _record_to_db(self, request: HttpRequest, response: HttpResponse, elapsed_ms: float) -> None:
-        """写入 AuditLog 数据库模型 (异步)"""
-        # 延迟导入, 避免模型尚未加载
-        from django.apps import apps
-
-        user = request.user if request.user.is_authenticated else None
-        ip = self._get_client_ip(request)
-
-        action_info = {
-            "path": request.path,
-            "method": request.method,
-            "status": response.status_code,
-            "elapsed_ms": elapsed_ms,
-            "query_string": request.META.get("QUERY_STRING", ""),
-        }
-
-        # 在线程池中异步写入 (避免阻塞请求)
-        threading.Thread(
-            target=self._write_audit_log,
-            args=(user.id if user else None, ip, action_info, request.META.get("HTTP_USER_AGENT")),
-            daemon=True,
-        ).start()
-
-    @staticmethod
-    def _write_audit_log(user_id, ip, action_info, user_agent) -> None:
-        """异步写入 (在独立线程中执行, 持有独立 DB 连接)"""
-        from django.db import connections
-
-        # 强制关闭当前线程的旧连接, 获取新连接
-        for conn in connections.all():
-            conn.close_if_unusable_or_obsolete()
-
-        try:
-            from django.apps import apps
-            from django.contrib.auth import get_user_model
-
-            AuditLog = apps.get_model("core", "AuditLog")
-            User = get_user_model()
-
-            user = User.objects.get(pk=user_id) if user_id else None
-
-            AuditLog.objects.create(
-                user=user,
-                action="OTHER",
-                target_model=action_info.get("path", ""),
-                target_id=None,
-                action_info=action_info,
-                ip_address=ip,
-                user_agent=(user_agent or "")[:500],
-            )
-        except Exception as e:
-            # 即使异步写入失败也不要在主线程抛错
-            logger.debug(f"[OPLOG] 异步写入审计日志失败: {e}")
-
-    @staticmethod
-    def _get_client_ip(request: HttpRequest) -> str:
-        """获取客户端 IP (考虑反向代理)"""
-        x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
-        if x_forwarded_for:
-            return x_forwarded_for.split(",")[0].strip()
-        return request.META.get("REMOTE_ADDR", "unknown")

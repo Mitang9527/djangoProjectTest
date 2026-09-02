@@ -49,7 +49,6 @@ class Command(BaseCommand):
             logger.info("Check-only 模式，不执行轮换")
             return
 
-        # 检查是否需要轮换
         if not force and not self.should_rotate(manager, days):
             logger.info("当前密钥还不需要轮换")
             return

@@ -11,6 +11,8 @@ from .views import (
     TenantConfigViewSet,
     PermissionViewSet,
     RoleViewSet,
+    DepartmentViewSet,
+    PostViewSet,
     TenantMemberViewSet,
     OrderViewSet,
     InvoiceViewSet,
@@ -44,7 +46,9 @@ from .views import (
     get_config_value,
     get_all_configs,
     get_public_configs,
+    get_config_groups,
     set_config_value,
+    delete_config_value,
     reload_configs,
     check_feature_flag,
     get_user_features,
@@ -61,6 +65,8 @@ router.register(r'tenant-subscriptions', TenantSubscriptionViewSet)
 router.register(r'tenant-configs', TenantConfigViewSet)
 router.register(r'permissions', PermissionViewSet)
 router.register(r'roles', RoleViewSet)
+router.register(r'departments', DepartmentViewSet)
+router.register(r'posts', PostViewSet)
 router.register(r'tenant-members', TenantMemberViewSet)
 router.register(r'orders', OrderViewSet)
 router.register(r'invoices', InvoiceViewSet)
@@ -104,8 +110,10 @@ urlpatterns = [
     # 配置中心 API
     path('config-center/get/', get_config_value, name='config-get-api'),
     path('config-center/all/', get_all_configs, name='config-all-api'),
+    path('config-center/groups/', get_config_groups, name='config-groups-api'),
     path('config-center/public/', get_public_configs, name='config-public-api'),
     path('config-center/set/', set_config_value, name='config-set-api'),
+    path('config-center/delete/', delete_config_value, name='config-delete-api'),
     path('config-center/reload/', reload_configs, name='config-reload-api'),
     
     # 特性开关 API

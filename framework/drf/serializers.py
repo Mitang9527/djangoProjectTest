@@ -1,14 +1,7 @@
 # sync-init: skip
-"""
-DRF 增强序列化器
-================
+"""DRF 增强序列化器：批量操作 BulkSerializerMixin / 树形递归 RecursiveField / 字段加密 EncryptedField / 脱敏展示 DesensitizedCharField。
 
-- ``BulkSerializerMixin``  ——  批量创建 / 更新 / 删除
-- ``RecursiveSerializer``   ——  树形结构自动递归渲染
-- ``EncryptedField``        ——  字段级透明加解密（基于 framework.key_management）
-- ``DesensitizedCharField`` ——  自动脱敏展示
-
-零新增依赖：仅依赖 DRF + framework.key_management（已有）。
+零新增依赖：仅 DRF + framework.key_management。
 """
 from __future__ import annotations
 
@@ -19,32 +12,13 @@ from typing import Any, Dict, Iterable, List, Optional
 from rest_framework import serializers
 
 
-# ============================================================================
-# 1. 批量序列化
-# ============================================================================
-
 class BulkSerializerMixin:
-    """
-    混合类：为 ModelViewSet 增加 ``bulk_create`` / ``bulk_update`` / ``bulk_delete`` 行为。
+    """为 ModelViewSet 增加 bulk_create/bulk_update/bulk_delete：请求体为 list 即走批量分支。
 
-    用法
-    ----
-    >>> class UserSerializer(BulkSerializerMixin, serializers.ModelSerializer):
-    ...     class Meta:
-    ...         model = User
-    ...         fields = "__all__"
-    >>> class UserViewSet(BulkSerializerMixin, viewsets.ModelViewSet):
-    ...     serializer_class = UserSerializer
-
-    支持的请求体
-    ------------
-    - ``POST /users/bulk/``  :  ``[{"username": "a"}, {"username": "b"}]``
-    - ``PUT /users/bulk/``   :  ``[{"id": 1, "username": "a"}, ...]``
-    - ``DELETE /users/bulk/`` : ``{"ids": [1, 2, 3]}``
+    POST /users/bulk/ 传 [{...}]；PUT 传 [{"id":1,...}]；DELETE 传 {"ids":[1,2,3]}。
     """
 
-    # ViewSet 需要实现的钩子（提供 model 与 queryset）
-    # 使用时由 ViewSet 注入
+    # ViewSet 需要实现 model 与 queryset 钩子（使用时注入）
 
     def create(self, request, *args, **kwargs):
         if isinstance(request.data, list):
@@ -60,8 +34,6 @@ class BulkSerializerMixin:
         if isinstance(request.data, dict) and "ids" in request.data:
             return self._bulk_delete(request)
         return super().destroy(request, *args, **kwargs)
-
-    # ---- 内部实现 ----
 
     def _bulk_create(self, request):
         serializer = self.get_serializer(data=request.data, many=True)
@@ -106,26 +78,11 @@ class BulkSerializerMixin:
         serializer.save()
 
 
-# ============================================================================
-# 2. 树形结构序列化
-# ============================================================================
-
 class RecursiveField(serializers.Serializer):
-    """
-    递归引用自身的字段。配合 ModelSerializer 可渲染无限层级树。
+    """递归引用自身的字段，配合 ModelSerializer 渲染无限层级树。
 
-    用法
-    ----
-    >>> class CategorySerializer(serializers.ModelSerializer):
-    ...     children = RecursiveField(many=True, read_only=True)
-    ...     class Meta:
-    ...         model = Category
-    ...         fields = ["id", "name", "children"]
-
-    工作原理
-    --------
-    DRF 在类定义时尝试解析字段类型，会因「类未完成」失败。本类把解析延迟到
-    ``to_representation`` 调用时通过 ``self.parent.__class__`` 推断。
+    原理：DRF 在类定义时会尝试解析字段类型并因类未完成而失败，故把解析延迟到
+    to_representation 时通过 self.parent.__class__ 推断（惰性构造同类型实例）。
     """
 
     def __init__(self, **kwargs):
@@ -142,7 +99,7 @@ class RecursiveField(serializers.Serializer):
         if parent is None:
             return None
         cls = parent.__class__
-        # 构造一个同类型的实例，复用 fields 定义
+        # 构造同类型实例，复用 fields 定义
         self._resolved_serializer = cls(
             context=self.context, **self._recursive_kwargs
         )
@@ -155,23 +112,11 @@ class RecursiveField(serializers.Serializer):
         return ser.to_representation(value)
 
 
-# ============================================================================
-# 3. 字段级加密
-# ============================================================================
-
 class EncryptedField(serializers.CharField):
-    """
-    字段级透明加解密。
+    """字段级透明加解密：写入 DB 明文→密文(base64)，读取 API 密文→明文。
 
-    - 写入 DB：明文 → 密文（base64 编码）
-    - 读取 API：密文 → 明文
-
-    依赖 ``framework.key_management``；若未配置则降级为明文（不抛错）。
-
-    Examples
-    --------
-    >>> class UserSerializer(serializers.ModelSerializer):
-    ...     id_card = EncryptedField()
+    依赖 framework.key_management；未配置时降级为明文（不抛错）。
+    注意：加密字段不可用于 filter/order_by/distinct 等 DB 层操作（DB 存密文）。
     """
 
     def __init__(self, **kwargs):
@@ -208,31 +153,11 @@ class EncryptedField(serializers.CharField):
             return value
 
 
-# ============================================================================
-# 4. 脱敏展示
-# ============================================================================
-
 class DesensitizedCharField(serializers.CharField):
-    """
-    自动脱敏展示字段（仅在 ``to_representation`` 时处理，写入仍用明文）。
+    """自动脱敏展示字段（仅 to_representation 处理，写入仍用明文）。
 
-    Parameters
-    ----------
-    pattern : str
-        正则模式（必须包含 1 个分组，分组部分保留为 ``*``）。
-        默认手机号 11 位保留前 3 后 4。
-    keep_left : int
-        pattern 失效时，保留左侧 N 字符。
-    keep_right : int
-        pattern 失效时，保留右侧 N 字符。
-    mask_char : str
-        脱敏字符，默认 ``*``。
-
-    Examples
-    --------
-    >>> class UserSerializer(serializers.ModelSerializer):
-    ...     phone = DesensitizedCharField()
-    ...     id_card = DesensitizedCharField(pattern=r'(.{4}).*(.{4})')
+    参数: pattern(正则，须含 1 个分组，默认手机号保留前3后4) / keep_left / keep_right
+    （pattern 失效时保留左右 N 字符） / mask_char(默认 *)
     """
 
     DEFAULT_PATTERN = r'(1[3-9]\d)\d{4}(\d{4})'
@@ -271,15 +196,8 @@ class DesensitizedCharField(serializers.CharField):
         return s[: self.keep_left] + self.mask_char * middle_len + s[-self.keep_right:]
 
 
-# ============================================================================
-# 5. 通用基类
-# ============================================================================
-
 class BaseModelSerializer(serializers.ModelSerializer):
-    """
-    通用基类：统一时间字段格式化、id 转 string（前端 JS 大数安全）。
-    子类只需 ``class Meta: model = ...; fields = ...``。
-    """
+    """通用基类：时间字段统一 ISO8601、id 转 string（前端 JS 大数安全）。子类只需定义 Meta.model/fields。"""
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

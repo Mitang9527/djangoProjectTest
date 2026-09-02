@@ -1,7 +1,5 @@
 # sync-init: skip
-"""远程连接服务聚合包。
-
-统一管理 SSH / TCP / HTTP 等远程连接客户端及异常。
+"""远程连接服务聚合包：统一 SSH / TCP / HTTP 客户端及异常。
 
 模块结构::
 
@@ -13,50 +11,29 @@
 异常体系::
 
     TransportError                   -- 所有远程连接异常的根
-    +-- ConfigError                  -- 共享：配置错误
-    +-- ConnectionError              -- 共享：连接失败
-    |   +-- AuthError                -- 共享：认证失败
-    +-- TimeoutError                 -- 共享：超时
+    +-- ConfigError / ConnectionError(+AuthError) / TimeoutError   -- 共享
     +-- SSHError(TransportError)     -- SSH 业务基类
-    |   +-- SSHConfigError           -- SSH 配置错
-    |   +-- SSHConnectionError       -- SSH 连接错
-    |   +-- SSHAuthError             -- SSH 认证错
-    |   +-- SSHTimeoutError          -- SSH 超时
-    |   +-- SSHCommandError          -- SSH 命令失败
-    |   +-- SFTPError                -- SFTP 文件传输错
+    |   +-- SSHConfigError / SSHConnectionError / SSHAuthError
+    |   +-- SSHTimeoutError / SSHCommandError / SFTPError
     +-- TCPError(TransportError)     -- TCP 业务基类
-        +-- TCPConfigError           -- TCP 配置错
-        +-- TCPConnectionError       -- TCP 连接错
-        +-- TCPTimeoutError          -- TCP 超时
-        +-- TCPSendError             -- TCP 发送错
-        +-- TCPReceiveError          -- TCP 接收错
+        +-- TCPConfigError / TCPConnectionError / TCPTimeoutError
+        +-- TCPSendError / TCPReceiveError
 
 快速使用::
 
     from framework.ops import SSHClient, TCPClient, ConfigError, TimeoutError
 
-    # SSH
+    # SSH（含隧道转发）
     with SSHClient("10.0.0.1", "root", password="xxx") as ssh:
         result = ssh.execute("uname -a")
-        print(result.stdout)
         ssh.upload("/local/app.py", "/remote/app.py")
-
-    # SSH 隧道
-    with ssh.tunnel(local_port=3307, remote_host="db.internal",
-                    remote_port=3306) as tunnel:
-        # 本地 3307 端口经 SSH 转发到 db.internal:3306
+    with ssh.tunnel(local_port=3307, remote_host="db.internal", remote_port=3306):
         ...
 
-    # TCP
+    # TCP（含请求-响应）
     with TCPClient("127.0.0.1", 8080) as tcp:
         tcp.send("Hello")
         response = tcp.receive()
-        print(response)
-
-    # TCP 请求-响应
-    with TCPClient("127.0.0.1", 9000) as tcp:
-        resp = tcp.send_and_receive("PING")
-        print(resp)
 
     # 统一异常捕获——一个 except 抓全部远程连接异常
     try:
@@ -64,12 +41,7 @@
     except ConfigError:
         ...  # SSH/TCP/HTTP 任一配置错都走这里
 
-迁移说明：
-- 旧 `framework/ssh/` 和 `framework/tcp/` 已删除，全部归类到本包
-- 旧 `ssh_exceptions.py` / `tcp_exceptions.py` 已合并为 `exceptions.py`
-- 调用方需将 `from framework.ssh import X` 改为 `from framework.ops import X`
-- 旧 except SSHError / except TCPError 仍兼容（SSHError/TCPError 仍为合法类型）
-- HTTP 客户端请直接用 `framework.http_client`（之前已封装），本包通过转发 re-export 保持兼容
+兼容性：SSHError/TCPError 仍为合法类型（旧 except 不受影响）；HTTP 客户端请直接用 framework.http_client。
 """
 
 # SSH 客户端

@@ -1,10 +1,12 @@
 import hashlib
 import json
 import secrets
+import uuid
 from datetime import timedelta
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 from django.core.serializers.json import DjangoJSONEncoder
 from framework.drf.queryset import TimestampMixin
 
@@ -122,6 +124,48 @@ class AuditLog(models.Model):
         return tampered_logs
 
 
+class AuditLogArchive(models.Model):
+    """审计日志归档（TTL 清理时的合规保留副本）。
+
+    由 manage.py cleanup_logs 在删除过期 AuditLog 前按批次复制而来，
+    字段与 AuditLog 完全一致（含哈希链），另加 archived_at 记录归档时间。
+    归档表保留原始历史链，供合规审计/取证查询；在线 AuditLog 在清理后
+    级联重置链根，保持在线链自洽可验（verify_chain_integrity）。
+    """
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, verbose_name="操作人")
+    action = models.CharField(max_length=20, choices=AuditLog.ACTION_CHOICES, verbose_name="操作行为")
+    log_type = models.CharField(max_length=10, choices=AuditLog.LOG_TYPE_CHOICES, default='MODEL', verbose_name="日志类型")
+    target_model = models.CharField(max_length=100, verbose_name="目标模型", null=True, blank=True)
+    target_id = models.CharField(max_length=100, null=True, blank=True, verbose_name="目标ID")
+    old_data = models.JSONField(verbose_name="变更前数据", null=True, blank=True, encoder=DjangoJSONEncoder)
+    new_data = models.JSONField(verbose_name="变更后数据", null=True, blank=True, encoder=DjangoJSONEncoder)
+    changes = models.JSONField(verbose_name="变更详情", null=True, blank=True, encoder=DjangoJSONEncoder)
+    action_info = models.JSONField(verbose_name="详细信息", null=True, blank=True, encoder=DjangoJSONEncoder)
+    ip_address = models.GenericIPAddressField(verbose_name="IP地址", null=True, blank=True)
+    user_agent = models.TextField(verbose_name="浏览器指纹", null=True, blank=True)
+    request_path = models.CharField(max_length=500, null=True, blank=True, verbose_name="请求路径")
+    request_method = models.CharField(max_length=10, null=True, blank=True, verbose_name="请求方法")
+    data_hash = models.CharField(max_length=128, verbose_name="数据哈希", null=True, blank=True, db_index=True)
+    previous_hash = models.CharField(max_length=128, verbose_name="上一条哈希", null=True, blank=True, db_index=True)
+    is_tampered = models.BooleanField(default=False, verbose_name="是否被篡改")
+    created_at = models.DateTimeField(verbose_name="操作时间", db_index=True)
+    archived_at = models.DateTimeField(auto_now_add=True, verbose_name="归档时间", db_index=True)
+
+    class Meta:
+        db_table = 'core_audit_log_archive'
+        verbose_name = '审计日志归档'
+        verbose_name_plural = verbose_name
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['action', 'created_at']),
+            models.Index(fields=['user', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.user} - {self.action} - {self.target_model or self.log_type}"
+
+
 class AuditExcludeModel(models.Model):
     """排除审计的模型配置"""
     app_label = models.CharField(max_length=100, verbose_name="应用标签")
@@ -138,6 +182,93 @@ class AuditExcludeModel(models.Model):
 
     def __str__(self):
         return f"{self.app_label}.{self.model_name}"
+
+
+class LoginLog(models.Model):
+    """
+    登录日志（效仿参考项目 LoginLog，租户级）。
+
+    记录每次登录成功/失败：email / IP / User-Agent / 状态 / 失败原因。
+    由登录流程显式写入（record_login_log），列表按租户隔离查询。
+    与 AuditLog 的差异：专表、租户级、可被 /logs/login 分页查询；
+    AuditLog 仍承担防篡改哈希链的完整审计职责。
+    """
+    class Status(models.TextChoices):
+        SUCCESS = 'success', _('成功')
+        FAILED = 'failed', _('失败')
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        'saas.Tenant', on_delete=models.CASCADE, null=True, blank=True,
+        related_name='login_logs', verbose_name=_('租户'),
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+        related_name='login_logs', verbose_name=_('用户'),
+    )
+    email = models.CharField(_('邮箱/账号'), max_length=255, blank=True, db_index=True)
+    ip = models.CharField(_('IP'), max_length=100, blank=True)
+    user_agent = models.CharField(_('User-Agent'), max_length=500, blank=True)
+    status = models.CharField(_('状态'), max_length=20, choices=Status.choices, default=Status.SUCCESS, db_index=True)
+    failure_reason = models.CharField(_('失败原因'), max_length=255, blank=True)
+    created_at = models.DateTimeField(_('登录时间'), auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = 'core_login_log'
+        verbose_name = '登录日志'
+        verbose_name_plural = verbose_name
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['tenant', 'created_at'], name='idx_loginlog_tenant_created'),
+            models.Index(fields=['status', 'created_at'], name='idx_loginlog_status_created'),
+        ]
+
+    def __str__(self):
+        return f"{self.email} - {self.get_status_display()} - {self.created_at}"
+
+
+class OperationLog(models.Model):
+    """
+    操作日志（效仿参考项目 OperationLog，租户级）。
+
+    记录每次写操作（POST/PUT/PATCH/DELETE）的调用方信息与执行结果：
+    module / action / method / path / status_code / duration_ms / IP / UA。
+    由 OperationLogMiddleware 无侵入写入；列表按租户隔离查询。
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        'saas.Tenant', on_delete=models.CASCADE, null=True, blank=True,
+        related_name='operation_logs', verbose_name=_('租户'),
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+        related_name='operation_logs', verbose_name=_('用户'),
+    )
+    email = models.CharField(_('邮箱/账号'), max_length=255, blank=True)
+    module = models.CharField(_('模块'), max_length=100, blank=True, db_index=True)
+    action = models.CharField(_('动作'), max_length=100, blank=True)
+    method = models.CharField(_('请求方法'), max_length=10, blank=True)
+    path = models.CharField(_('请求路径'), max_length=500, blank=True, db_index=True)
+    status_code = models.IntegerField(_('状态码'), null=True, blank=True)
+    duration_ms = models.IntegerField(_('耗时(ms)'), default=0)
+    ip = models.CharField(_('IP'), max_length=100, blank=True)
+    user_agent = models.CharField(_('User-Agent'), max_length=500, blank=True)
+    request_summary = models.TextField(_('请求摘要'), blank=True)
+    response_summary = models.TextField(_('响应摘要'), blank=True)
+    created_at = models.DateTimeField(_('操作时间'), auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = 'core_operation_log'
+        verbose_name = '操作日志'
+        verbose_name_plural = verbose_name
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['tenant', 'created_at'], name='idx_oplog_tenant_created'),
+            models.Index(fields=['module', 'created_at'], name='idx_oplog_module_created'),
+        ]
+
+    def __str__(self):
+        return f"{self.method} {self.path} - {self.status_code}"
 
 
 class APIKey(TimestampMixin, models.Model):
@@ -230,3 +361,160 @@ class APIKey(TimestampMixin, models.Model):
             key_hash=cls.hash_key(raw),
             expires_at=expires_at,
         )
+
+
+class DictType(TimestampMixin, models.Model):
+    """字典类型（对齐 Fast-Vben-Admin DictionaryType）。
+
+    tenant 为空表示平台全局字典（所有租户可见）；非空表示租户私有字典。
+    同一租户内 code 唯一。
+    """
+    name = models.CharField(max_length=100, verbose_name='字典名称')
+    code = models.CharField(max_length=100, verbose_name='字典编码')
+    tenant = models.ForeignKey(
+        'saas.Tenant', on_delete=models.CASCADE, null=True, blank=True,
+        related_name='dict_types', verbose_name='所属租户',
+    )
+    is_active = models.BooleanField(default=True, verbose_name='是否启用')
+    is_system = models.BooleanField(default=False, verbose_name='系统内置')
+    remark = models.CharField(max_length=255, blank=True, verbose_name='备注')
+
+    class Meta:
+        verbose_name = '字典类型'
+        verbose_name_plural = verbose_name
+        ordering = ['-id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['tenant', 'code'], name='uq_dict_type_tenant_code'),
+        ]
+
+    def __str__(self):
+        return f"{self.name}({self.code})"
+
+
+class DictItem(TimestampMixin, models.Model):
+    """字典项（对齐 Fast-Vben-Admin DictionaryItem）。
+
+    tenant 语义同 DictType（空 = 平台全局，所有租户可见）。
+    同一租户下 (type, value) 唯一；sort 升序排列。
+    """
+    type = models.ForeignKey(
+        DictType, on_delete=models.CASCADE, related_name='items', verbose_name='字典类型')
+    tenant = models.ForeignKey(
+        'saas.Tenant', on_delete=models.CASCADE, null=True, blank=True,
+        related_name='dict_items', verbose_name='所属租户',
+    )
+    label = models.CharField(max_length=100, verbose_name='显示文本')
+    value = models.CharField(max_length=100, verbose_name='字典值')
+    sort = models.IntegerField(default=0, verbose_name='排序')
+    is_active = models.BooleanField(default=True, verbose_name='是否启用')
+    remark = models.CharField(max_length=255, blank=True, verbose_name='备注')
+
+    class Meta:
+        verbose_name = '字典项'
+        verbose_name_plural = verbose_name
+        ordering = ['sort', 'id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['tenant', 'type', 'value'], name='uq_dict_item_tenant_type_value'),
+        ]
+
+    def __str__(self):
+        return f"{self.label}={self.value}"
+
+
+class FileAsset(TimestampMixin, models.Model):
+    """
+    文件资产登记表（对齐参考项目 FileAsset）。
+
+    每次上传成功登记一条资产，租户用量统计（usage 的 file_assets / storage_bytes）
+    据此计算，使套餐配额 max_file_assets / max_storage_mb 可真实执行。
+
+    统计口径：
+    - 一次上传 = 一条资产（登记原始上传文件，压缩/水印/缩略图等派生产物不单独计数）；
+    - storage_bytes 统计原始上传大小（Sum(file_size)）。
+    """
+    class Category(models.TextChoices):
+        DOCUMENT = 'document', _('文档')
+        IMAGE = 'image', _('图片')
+        VIDEO = 'video', _('视频')
+        AUDIO = 'audio', _('音频')
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        'saas.Tenant', on_delete=models.CASCADE, null=True, blank=True,
+        related_name='file_assets', verbose_name=_('所属租户'),
+        help_text=_('空 = 无租户上下文上传（平台级/匿名登记）'),
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='file_assets', verbose_name=_('上传者'),
+    )
+    category = models.CharField(max_length=20, choices=Category.choices, default=Category.DOCUMENT, verbose_name=_('资产分类'))
+    file_name = models.CharField(max_length=255, verbose_name=_('原始文件名'))
+    file_path = models.CharField(max_length=500, db_index=True, verbose_name=_('存储路径'),
+                                 help_text=_('MEDIA_ROOT 下的绝对路径（保存产物）'))
+    file_size = models.BigIntegerField(default=0, verbose_name=_('文件大小(字节)'))
+    content_type = models.CharField(max_length=100, blank=True, verbose_name=_('MIME 类型'))
+    is_deleted = models.BooleanField(default=False, db_index=True, verbose_name=_('已删除'),
+                                     help_text=_('软删标记；统计与配额均排除已删除资产'))
+
+    class Meta:
+        verbose_name = _('文件资产')
+        verbose_name_plural = verbose_name
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['tenant', 'is_deleted'], name='idx_fileasset_tenant_deleted'),
+        ]
+
+    def __str__(self):
+        return f"{self.file_name} ({self.file_size} B)"
+
+
+class Menu(TimestampMixin, models.Model):
+    """
+    平台级动态菜单（对齐 Fast-Vben-Admin 菜单/权限体系）。
+
+    - 树形自引用；type 区分 目录/菜单/按钮；
+    - 目录/菜单可绑定权限码（Permission.slug，见 system.saas.permissions.PermissionSlug），
+      为空 = 登录可见；非空 = 用户拥有该权限码才可见；
+    - 按钮节点供前端按钮级权限（v-permission）使用，权限码必填；
+    - 平台级（无 tenant）：全平台共享一套，按用户角色权限过滤下发（my-menus 接口）。
+    """
+    class Type(models.TextChoices):
+        DIRECTORY = 'directory', _('目录')
+        MENU = 'menu', _('菜单')
+        BUTTON = 'button', _('按钮')
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    parent = models.ForeignKey(
+        'self', on_delete=models.CASCADE, null=True, blank=True,
+        related_name='children', verbose_name=_('上级菜单'),
+    )
+    name = models.CharField(_('名称'), max_length=100)
+    route_name = models.CharField(_('路由名'), max_length=100, blank=True)
+    path = models.CharField(_('路由路径'), max_length=200, blank=True,
+                            help_text='前端路由路径，如 /backend/ai')
+    component = models.CharField(_('组件'), max_length=200, blank=True,
+                                 help_text='前端组件路径，如 backend/ai')
+    icon = models.CharField(_('图标'), max_length=100, blank=True)
+    type = models.CharField(_('类型'), max_length=20, choices=Type.choices,
+                            default=Type.MENU, db_index=True)
+    permission = models.CharField(
+        _('权限码'), max_length=100, blank=True, db_index=True,
+        help_text='绑定 Permission.slug；目录/菜单为空 = 登录可见，按钮必填',
+    )
+    sort = models.IntegerField(_('排序'), default=0)
+    is_visible = models.BooleanField(_('可见'), default=True)
+    is_active = models.BooleanField(_('启用'), default=True)
+
+    class Meta:
+        verbose_name = _('菜单')
+        verbose_name_plural = verbose_name
+        ordering = ['sort', 'created_at']
+        indexes = [
+            models.Index(fields=['type', 'is_active'], name='idx_menu_type_active'),
+        ]
+
+    def __str__(self):
+        return self.name

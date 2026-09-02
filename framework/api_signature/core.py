@@ -339,7 +339,6 @@ class SignatureVerifier:
         if not secret_key:
             raise InvalidSignatureError("无效的 access_key")
 
-        # 验证签名
         verify_signature(
             signature=signature,
             secret_key=secret_key,

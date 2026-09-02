@@ -42,7 +42,6 @@ class APISignatureMiddleware(MiddlewareMixin):
         if not self.enabled:
             return None
 
-        # 检查路径是否需要验证
         if not self._should_verify_path(request.path):
             return None
 
@@ -86,7 +85,6 @@ class APISignatureMiddleware(MiddlewareMixin):
                 except (json.JSONDecodeError, UnicodeDecodeError):
                     pass
 
-            # 验证签名
             self.verifier.verify_request(
                 method=method,
                 path=path,

@@ -31,7 +31,6 @@ def auto_rotate_secret_key(days=30):
         
         manager = get_key_manager()
         
-        # 检查是否需要轮换
         if not should_rotate(manager, days):
             logger.info("当前密钥还不需要轮换")
             return {"status": "skipped", "message": "不需要轮换"}

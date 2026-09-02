@@ -14,6 +14,11 @@
     /api/alert_system/notification-configs/       → AlertNotificationConfigViewSet
     /api/alert_system/notification-configs/test/  → 测试通知渠道
     /api/alert_system/stats/                      → 告警统计面板
+    /api/alert_system/message-templates/          → MessageTemplateViewSet (模板)
+    /api/alert_system/in-app-messages/            → InAppMessageViewSet (站内信)
+    /api/alert_system/in-app-messages/unread_count/ → 未读数
+    /api/alert_system/in-app-messages/read_all/   → 全部已读
+    /api/alert_system/in-app-messages/{id}/mark_read/ → 单条已读
 """
 
 from django.urls import path, include
@@ -24,6 +29,8 @@ from .views import (
     AlertSilenceViewSet,
     AlertHistoryViewSet,
     AlertNotificationConfigViewSet,
+    MessageTemplateViewSet,
+    InAppMessageViewSet,
     alert_stats,
 )
 
@@ -37,6 +44,16 @@ router.register(
     r"notification-configs",
     AlertNotificationConfigViewSet,
     basename="alert-notification-config",
+)
+router.register(
+    r"message-templates",
+    MessageTemplateViewSet,
+    basename="message-template",
+)
+router.register(
+    r"in-app-messages",
+    InAppMessageViewSet,
+    basename="in-app-message",
 )
 
 urlpatterns = [

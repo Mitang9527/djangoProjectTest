@@ -302,15 +302,18 @@ class TestEscalation:
         ]
         alert_rule.save()
 
-        # 创建一条已过期的告警（5分钟前触发）
+        # 创建一条已过期的告警（10 分钟前触发；first/last_occurred_at 是
+        # auto_now_add，创建时传入会被覆盖，须创建后回写模拟历史时间）
         history = AlertHistory.objects.create(
             rule=alert_rule,
             level=AlertLevel.ERROR,
             title="escalation test",
             content="content",
-            first_occurred_at=timezone.now() - timedelta(minutes=10),
-            last_occurred_at=timezone.now() - timedelta(minutes=10),
         )
+        occurred = timezone.now() - timedelta(minutes=10)
+        history.first_occurred_at = occurred
+        history.last_occurred_at = occurred
+        history.save(update_fields=["first_occurred_at", "last_occurred_at"])
 
         count = AlertEngine.check_escalations()
         assert count == 1
@@ -336,6 +339,36 @@ class TestEscalation:
 
         count = AlertEngine.check_escalations()
         assert count == 0
+
+    def test_escalation_no_duplicate_when_already_escalated(self, alert_rule):
+        """行锁重判：已升级到目标级别（_escalated_to）的告警不重复升级/重发。
+
+        模拟两个 worker 并发场景下第二个 worker 锁内重读到的状态：
+        context 已带 _escalated_to → 跳过，count=0。
+        """
+        alert_rule.escalation_rules = [
+            {"delay_minutes": 5, "level": "critical", "channels": ["email"]}
+        ]
+        alert_rule.save()
+
+        history = AlertHistory.objects.create(
+            rule=alert_rule,
+            level=AlertLevel.ERROR,
+            title="dup escalation",
+            content="content",
+        )
+        occurred = timezone.now() - timedelta(minutes=10)
+        history.first_occurred_at = occurred
+        history.last_occurred_at = occurred
+        history.context = {"_escalated_to": "critical"}
+        history.save(update_fields=["first_occurred_at", "last_occurred_at", "context"])
+
+        count = AlertEngine.check_escalations()
+        assert count == 0
+
+        history.refresh_from_db()
+        assert history.level == "error"  # 未再次升级
+        assert history.context["_escalated_to"] == "critical"
 
 
 # ==================================================

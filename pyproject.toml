@@ -113,7 +113,7 @@ addopts = [
     "--cov-report=xml:coverage.xml",
     "--cov-fail-under=15",
 ]
-testpaths = ["tests", "apps"]
+testpaths = ["tests", "apps", "extensions"]
 markers = [
     "unit: 单元测试 (快速, 无外部依赖)",
     "integration: 集成测试 (需要 DB/Redis)",

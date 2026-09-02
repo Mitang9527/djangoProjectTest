@@ -174,9 +174,11 @@ class AlertEngine:
 
     @classmethod
     def acknowledge(cls, history_id: int, user) -> AlertHistory | None:
-        """确认告警"""
+        """确认告警（行锁防并发 lost update）。"""
         try:
-            history = AlertHistory.objects.get(pk=history_id)
+            # 锁行后再读判：并发双确认时串行化，避免都读到未确认后互相覆盖
+            with transaction.atomic():
+                history = AlertHistory.objects.select_for_update().get(pk=history_id)
         except AlertHistory.DoesNotExist:
             return None
 
@@ -194,9 +196,10 @@ class AlertEngine:
 
     @classmethod
     def resolve(cls, history_id: int, user) -> AlertHistory | None:
-        """解决告警"""
+        """解决告警（行锁防并发 lost update）。"""
         try:
-            history = AlertHistory.objects.get(pk=history_id)
+            with transaction.atomic():
+                history = AlertHistory.objects.select_for_update().get(pk=history_id)
         except AlertHistory.DoesNotExist:
             return None
 
@@ -229,6 +232,10 @@ class AlertEngine:
         遍历已确认但未解决 + 超过 escalation_rules.delay_minutes 的告警，
         自动提升级别并重新发送通知。
 
+        并发安全：逐条在事务内 ``select_for_update`` 锁行并重读最新状态
+        （``_escalated_to`` 防重），多 worker 同时跑定时任务时不会重复升级 /
+        重复发送。SQLite 下 select_for_update 为 no-op（单写者串行）。
+
         Returns:
             本次升级的告警数量
         """
@@ -245,44 +252,55 @@ class AlertEngine:
             if not history.rule or not history.rule.escalation_rules:
                 continue
 
-            for escalation in history.rule.escalation_rules:
-                delay_minutes = escalation.get("delay_minutes", 0)
-                target_level = escalation.get("level", "")
-
-                # 检查是否已超过升级时间
-                escalate_at = history.first_occurred_at + timedelta(minutes=delay_minutes)
-                if now < escalate_at:
-                    continue
-
-                # 检查是否已升级到该级别
-                if history.context.get("_escalated_to", "") == target_level:
-                    continue
-
-                # 执行升级
-                old_level = history.level
-                if target_level and target_level in dict(AlertLevel.choices):
-                    history.level = target_level
-
-                escalation_channels = escalation.get("channels", history.channels)
-                history.channels = list(set(history.channels + escalation_channels))
-
-                # 标记已升级
-                ctx = dict(history.context) if history.context else {}
-                ctx["_escalated_to"] = target_level
-                ctx["_escalated_at"] = now.isoformat()
-                ctx["_escalated_from"] = old_level
-                history.context = ctx
-
-                history.save(update_fields=["level", "channels", "context"])
-                escalated_count += 1
-
-                # 重新发送通知
-                cls._dispatch_async(history)
-
-                logger.warning(
-                    "告警 %s 升级: %s → %s",
-                    history.pk, old_level, target_level,
+            # 锁内处理该告警的全部到期升级（同一实例累积 context，
+            # 与改造前行为一致；锁内重读防并发重复升级）
+            with transaction.atomic():
+                locked = (
+                    AlertHistory.objects.select_for_update()
+                    .filter(pk=history.pk)
+                    .first()
                 )
+                if locked is None or locked.resolved:
+                    continue
+
+                for escalation in locked.rule.escalation_rules:
+                    delay_minutes = escalation.get("delay_minutes", 0)
+                    target_level = escalation.get("level", "")
+
+                    # 检查是否已超过升级时间
+                    escalate_at = locked.first_occurred_at + timedelta(minutes=delay_minutes)
+                    if now < escalate_at:
+                        continue
+
+                    # 锁内重判：已被其他 worker 升级到该级别 → 跳过
+                    if locked.context.get("_escalated_to", "") == target_level:
+                        continue
+
+                    # 执行升级
+                    old_level = locked.level
+                    if target_level and target_level in dict(AlertLevel.choices):
+                        locked.level = target_level
+
+                    escalation_channels = escalation.get("channels", locked.channels)
+                    locked.channels = list(set(locked.channels + escalation_channels))
+
+                    # 标记已升级
+                    ctx = dict(locked.context) if locked.context else {}
+                    ctx["_escalated_to"] = target_level
+                    ctx["_escalated_at"] = now.isoformat()
+                    ctx["_escalated_from"] = old_level
+                    locked.context = ctx
+
+                    locked.save(update_fields=["level", "channels", "context"])
+                    escalated_count += 1
+
+                    # 重新发送通知
+                    cls._dispatch_async(locked)
+
+                    logger.warning(
+                        "告警 %s 升级: %s → %s",
+                        locked.pk, old_level, target_level,
+                    )
 
         return escalated_count
 
@@ -407,6 +425,10 @@ class AlertEngine:
         """
         检查抑制窗口。
 
+        并发安全：窗口查询 + 命中更新 / 新建在事务内对命中行加锁
+        （``select_for_update``），多 worker 同时 evaluate 同一规则时不会
+        并发双建重复告警；SQLite 下 no-op（单写者天然串行）。
+
         Returns:
             (should_send, history)
             - should_send=True: 新告警或超过窗口，需要发送
@@ -415,42 +437,41 @@ class AlertEngine:
         now = timezone.now()
         window_start = now - timedelta(minutes=rule.suppression_window)
 
-        # 查找窗口内相同规则+相同标题的告警
-        existing = (
-            AlertHistory.objects.filter(
-                rule=rule,
-                title=title,
-                last_occurred_at__gte=window_start,
+        with transaction.atomic():
+            # 查找窗口内相同规则+相同标题的告警（锁命中行，防并发双建）
+            existing = (
+                AlertHistory.objects.filter(
+                    rule=rule,
+                    title=title,
+                    last_occurred_at__gte=window_start,
+                )
+                .order_by("-last_occurred_at")
+                .select_for_update()
+                .first()
             )
-            .order_by("-last_occurred_at")
-            .first()
-        )
 
-        if existing:
-            # 命中抑制 — 更新次数
-            existing.occurrences += 1
-            existing.last_occurred_at = now
-            # 检查是否超过最大触发次数
-            if existing.occurrences > rule.max_occurrences:
+            if existing:
+                # 命中抑制 — 更新次数
+                existing.occurrences += 1
+                existing.last_occurred_at = now
+                # 超过最大触发次数同样记为抑制（保留原语义）
                 existing.status = AlertStatus.SUPPRESSED
-            else:
-                existing.status = AlertStatus.SUPPRESSED
-            existing.save(update_fields=[
-                "occurrences", "last_occurred_at", "status",
-            ])
-            return False, existing
+                existing.save(update_fields=[
+                    "occurrences", "last_occurred_at", "status",
+                ])
+                return False, existing
 
-        # 新告警 — 创建记录
-        history = AlertHistory.objects.create(
-            rule=rule,
-            level=rule.level,
-            title=title,
-            content=content,
-            status=AlertStatus.PENDING,
-            channels=rule.channels,
-            context=context,
-        )
-        return True, history
+            # 新告警 — 创建记录
+            history = AlertHistory.objects.create(
+                rule=rule,
+                level=rule.level,
+                title=title,
+                content=content,
+                status=AlertStatus.PENDING,
+                channels=rule.channels,
+                context=context,
+            )
+            return True, history
 
     @classmethod
     def _record_silenced(

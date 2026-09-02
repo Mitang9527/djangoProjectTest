@@ -1,18 +1,7 @@
 # sync-init: skip
-"""
-分页核心实现
-============
+"""分页核心：PageNumber(?page)/LimitOffset(?limit,offset)/Cursor(O(1) 游标)/SearchResult/Auto。
 
-- BasePagination：所有分页器的抽象基类
-- PageNumberPagination：?page=1&page_size=20
-- LimitOffsetPagination：?limit=20&offset=40
-- CursorPagination：游标分页（O(1) 翻页，适合百万级）
-- SearchResultPagination：搜索专用，带 query/took_ms/highlights
-- AutoPagination：根据 settings.DEFAULT_PAGINATION_CLASS 自动选择
-
-注意：DRF 的 BasePagination 子类定义时会触发 ``api_settings.PAGE_SIZE`` 访问，
-本文件用**函数式动态创建**避免类级别的 settings 访问，确保未配置 Django
-时仍可被导入。
+注意：DRF BasePagination 子类定义时触发 api_settings.PAGE_SIZE 访问，本文件用函数式动态创建避免类级 settings 访问，未配置 Django 也可导入。
 """
 from __future__ import annotations
 
@@ -25,10 +14,6 @@ from rest_framework.exceptions import ParseError, ValidationError
 from rest_framework.response import Response
 from rest_framework.utils.urls import replace_query_param, remove_query_param
 
-
-# ============================================================================
-# 数据结构
-# ============================================================================
 
 @dataclass
 class PaginatedResponse:
@@ -62,18 +47,11 @@ class PaginatedResponse:
         return out
 
 
-# ============================================================================
-# 基础分页器（不继承 DRF BasePagination，避免类级别 settings 访问）
-# ============================================================================
-
 class BasePagination:
-    """
-    所有自定义分页器的基类（不依赖 DRF settings 即可被导入）。
+    """所有自定义分页器的基类（不依赖 DRF settings 即可导入）。
 
-    与 DRF 默认实现的差异：
-    1. 统一返回 schema（包含 count/page/pages/page_size/meta）
-    2. 自动注入 X-Pagination-* 响应头
-    3. page_size 可由 query string 动态指定（clamp 到 [1, max_page_size]）
+    与 DRF 默认差异：① 统一 schema(count/page/pages/page_size/meta)；② 自动注入 X-Pagination-* 头；
+    ③ page_size 可动态指定（clamp 到 [1, max_page_size]）。
     """
     page_size: Optional[int] = None
     max_page_size: Optional[int] = None
@@ -141,16 +119,8 @@ class BasePagination:
         return response
 
 
-# ============================================================================
-# Page Number 分页（自实现，不继承 DRF）
-# ============================================================================
-
 class PageNumberPagination(BasePagination):
-    """
-    经典分页：?page=1&page_size=20
-
-    适用：用户管理、订单列表、商品列表等需要展示总页数的场景
-    """
+    """经典分页 ?page=1&page_size=20，适用需展示总页数的场景。"""
     page_size: int = 20
     max_page_size: int = 200
     page_query_param: str = "page"
@@ -162,13 +132,11 @@ class PageNumberPagination(BasePagination):
         if not page_size:
             return None
 
-        # 计算总数
         try:
             count = queryset.count() if hasattr(queryset, "count") else len(list(queryset))
         except TypeError:
             count = len(list(queryset))
 
-        # 限制 page 范围
         try:
             page_num = int(request.query_params.get(self.page_query_param, 1))
         except (TypeError, ValueError):
@@ -220,16 +188,8 @@ class PageNumberPagination(BasePagination):
         return f"{url}?{self.page_query_param}={m['page'] - 1}&{self.page_size_query_param}={m['page_size']}"
 
 
-# ============================================================================
-# Limit/Offset 分页
-# ============================================================================
-
 class LimitOffsetPagination(BasePagination):
-    """
-    传统 limit/offset：?limit=20&offset=40
-
-    适用：与第三方系统对接、SQL 风格的接口
-    """
+    """传统 ?limit=20&offset=40，适用 SQL 风格/与第三方对接。"""
     default_limit: int = 20
     max_limit: int = 200
     limit_query_param: str = "limit"
@@ -294,25 +254,11 @@ class LimitOffsetPagination(BasePagination):
         return f"{url}?{self.limit_query_param}={m['limit']}&{self.offset_query_param}={prev_offset}"
 
 
-# ============================================================================
-# Cursor 分页
-# ============================================================================
-
 class CursorPagination(BasePagination):
-    """
-    游标分页：?cursor=eyJ0IjoxNzEyfQ==
+    """游标分页 ?cursor=base64({"o": field, "v": value})，O(1) 翻页适合百万级/无限滚动。
 
-    适用：
-    - 无限滚动（移动端列表）
-    - 百万级以上数据量
-    - 实时变化的数据（消息流、日志流）
-
-    视图需要设置：
-        pagination_class = CursorPagination
-        cursor_order_by = "-created_at"   # 必须
-        cursor_order_field = "id"         # 可选；用于 ties 时排序
-
-    游标格式：base64({"o": "field", "v": value})，不暴露 offset
+    视图须设置: pagination_class=CursorPagination；cursor_order_by="-created_at"(必须)；
+    cursor_order_field="id"(可选, ties 时排序)。
     """
     page_size: int = 20
     max_page_size: int = 200
@@ -352,8 +298,7 @@ class CursorPagination(BasePagination):
             if order_field != ordering:
                 raise ParseError("游标的排序方向与请求不一致")
             # 构造 WHERE 条件
-            if ordering.startswith("-"):
-                queryset = queryset.filter(**{f"{ordering[1:]}__lt": cursor_value})
+            if ordering.startswith("-"):                queryset = queryset.filter(**{f"{ordering[1:]}__lt": cursor_value})
             else:
                 queryset = queryset.filter(**{f"{ordering}__gt": cursor_value})
 
@@ -399,59 +344,25 @@ class CursorPagination(BasePagination):
         return f"{url}?{self.cursor_query_param}={self._prev_cursor}"
 
 
-# ============================================================================
-# 搜索结果分页
-# ============================================================================
-
 class SearchResultPagination(PageNumberPagination):
-    """
-    搜索结果分页：除了常规分页字段，视图层可在响应里追加::
+    """搜索结果分页：常规字段外，视图层可在响应 data 追加 query / took_ms / highlights / facets。
 
-        {
-            "count": 1234,
-            "results": [...],
-            "query": "搜索关键词",
-            "took_ms": 23,        # 后端查询耗时
-            "highlights": {...},  # 可选：高亮信息
-            "facets": {...},      # 可选：分面统计
-        }
-
-    视图层使用::
-
-        class SearchView(generics.ListAPIView):
-            pagination_class = SearchResultPagination
-
-            def list(self, request, *args, **kwargs):
-                start = time.monotonic()
-                queryset = self.filter_queryset(self.get_queryset())
-                page = self.paginate_queryset(queryset)
-                serializer = self.get_serializer(page, many=True)
-                response = self.get_paginated_response(serializer.data)
-                response.data["took_ms"] = int((time.monotonic() - start) * 1000)
-                response.data["query"] = request.query_params.get("q", "")
-                return response
+    视图用法：ListAPIView 中 paginate 后取 serializer.data，再追加
+    response.data["took_ms"] = int((time.monotonic()-start)*1000); response.data["query"] = request.query_params.get("q","")。
     """
     page_size: int = 20
     max_page_size: int = 100
 
 
-# ============================================================================
-# 自动选择分页器
-# ============================================================================
-
 class AutoPagination(BasePagination):
-    """
-    根据 settings.REST_FRAMEWORK.DEFAULT_PAGINATION_CLASS 自动选择分页器。
-
-    视图无需显式指定 pagination_class，遵循项目全局配置。
-    """
+    """按 settings.REST_FRAMEWORK.DEFAULT_PAGINATION_CLASS 自动选择分页器，视图无需指定。"""
     def paginate_queryset(self, queryset, request, view=None):
         from django.conf import settings
         from rest_framework.settings import api_settings as drf_settings
         self.request = request
         paginator_class = drf_settings.DEFAULT_PAGINATION_CLASS
         if not paginator_class:
-            # 没有配置时，fallback 到 PageNumberPagination
+            # 未配置时 fallback 到 PageNumberPagination
             inner = PageNumberPagination()
         elif isinstance(paginator_class, type):
             inner = paginator_class()
@@ -468,24 +379,13 @@ class AutoPagination(BasePagination):
         return Response({"results": data})
 
 
-# ============================================================================
-# 函数式工具
-# ============================================================================
-
 def get_paginator(
     name: str = "default",
     queryset: Optional[Sequence] = None,
     page: int = 1,
     page_size: int = 20,
 ) -> PaginatedResponse:
-    """
-    非 DRF 场景下的分页工具（用于普通函数、Celery 任务、脚本）。
-
-    Example::
-
-        result = get_paginator("default", queryset, page=2, page_size=50)
-        return Response(result.to_dict())
-    """
+    """非 DRF 场景的分页工具（普通函数/Celery 任务/脚本）：返回 PaginatedResponse，可用 .to_dict()。"""
     if queryset is None:
         queryset = []
     total = len(queryset)
@@ -508,14 +408,7 @@ def paginate_response(
     page: int = 1,
     page_size: int = 20,
 ) -> Dict[str, Any]:
-    """
-    简化版：传入 queryset + request（用于取 base url），返回可直接 Response() 的 dict。
-
-    Example::
-
-        def my_view(request):
-            return Response(paginate_response(User.objects.all(), request))
-    """
+    """简化版：传 queryset + request（取 base url），返回可直接 Response() 的 dict（含 next/previous URL）。"""
     result = get_paginator("default", queryset, page=page, page_size=page_size)
     data = result.to_dict()
     # 构造 next/previous URL（首末页显式置 None）

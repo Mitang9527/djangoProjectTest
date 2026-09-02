@@ -1,17 +1,12 @@
 """
-幂等键核心实现
-==============
+幂等键核心实现：提供 IdempotencyBackend 抽象接口、Redis/LocalMemory 实现、
+上下文管理器与装饰器。
 
-提供 IdempotencyBackend 抽象接口、Redis 实现、上下文管理器与装饰器。
-
-设计原则
---------
-
-1. **请求指纹（Fingerprint）**：相同 key 但不同参数 → 视为参数篡改，直接拒绝
-2. **状态机**：`PENDING` → `IN_PROGRESS` → `COMPLETED` / `FAILED`
-3. **并发安全**：使用 Redis SETNX + Lua 原子抢占，避免多个 worker 同时执行
-4. **失败可重试**：`retry_on_failure=True` 时，失败后允许重试（清掉 IN_PROGRESS 状态）
-5. **响应缓存**：成功后缓存完整响应（可序列化的对象），下次直接返回
+- 请求指纹：相同 key 不同参数 → 视为参数篡改，直接拒绝
+- 状态机：PENDING → IN_PROGRESS → COMPLETED / FAILED
+- 并发安全：Redis SETNX + Lua 原子抢占，避免多 worker 并发执行
+- 失败可重试：失败后允许重试（清掉 IN_PROGRESS 状态）
+- 响应缓存：成功后缓存完整响应（可序列化对象），下次直接返回
 """
 from __future__ import annotations
 
@@ -82,18 +77,10 @@ class IdempotencyRecord:
 
 
 class IdempotencyBackend:
-    """幂等后端抽象接口
-
-    生产推荐 Redis 实现；测试/离线可用 LocalMemory 实现。
-    """
+    """幂等后端抽象接口；生产推荐 Redis，测试/离线用 LocalMemory。"""
 
     def reserve(self, key: str, fingerprint: str, ttl: int) -> Optional[IdempotencyRecord]:
-        """尝试占位
-
-        Returns:
-            None → 占位成功，可以继续执行
-            IdempotencyRecord → 已存在该 key（可能是 in-progress / completed / failed）
-        """
+        """尝试占位。返回 None=占位成功可执行；返回记录=key 已存在（in-progress/completed/failed）。"""
         raise NotImplementedError
 
     def update_status(self, key: str, status: IdempotencyStatus,
@@ -110,17 +97,11 @@ class IdempotencyBackend:
         raise NotImplementedError
 
 
-# ============================================================
 # 后端：Redis
-# ============================================================
 class RedisIdempotencyBackend(IdempotencyBackend):
-    """基于 Redis 的幂等后端
+    """基于 Redis 的幂等后端。
 
-    Key 设计::
-
-        idem:{key}                  → 序列化的 IdempotencyRecord
-        idem:lock:{key}             → 短时锁（用于并发抢占的 owner token）
-
+    Key 设计：``idem:{key}`` → 序列化记录；``idem:lock:{key}`` → 抢占用短时锁。
     使用 SETNX + EX 原子抢占；状态字段独立于响应体，避免大响应污染 status 查询。
     """
 
@@ -214,9 +195,7 @@ class RedisIdempotencyBackend(IdempotencyBackend):
         cli.delete(self._key(key))
 
 
-# ============================================================
 # 后端：本地内存（兜底 + 测试）
-# ============================================================
 class LocalMemoryIdempotencyBackend(IdempotencyBackend):
     """线程不安全的进程内幂等后端（仅供单进程/测试使用）"""
 
@@ -264,9 +243,7 @@ class LocalMemoryIdempotencyBackend(IdempotencyBackend):
             self._store.pop(key, None)
 
 
-# ============================================================
 # 默认后端（懒加载）
-# ============================================================
 _default_backend: Optional[IdempotencyBackend] = None
 
 
@@ -285,15 +262,10 @@ def set_default_backend(backend: IdempotencyBackend) -> None:
     _default_backend = backend
 
 
-# ============================================================
 # 指纹生成
-# ============================================================
 def make_fingerprint(args: tuple, kwargs: dict, key_fields: Optional[Sequence[str]] = None) -> str:
-    """生成请求指纹
-
-    - key_fields 指定时：只对这些字段计算指纹（kwargs 不在 key_fields 中的会被忽略）
-    - 默认：对所有位置参数 + 关键字参数稳定排序后 hash
-    """
+    """生成请求指纹：key_fields 指定时仅计算这些字段（kwargs 优先，其余从 args 补）；
+    否则对所有位置参数 + 关键字参数稳定排序后 hash。"""
     if key_fields:
         # 只保留 key_fields 中的字段（kwargs 优先；不在 kwargs 的从 args 补）
         payload = {f: kwargs.get(f, args[i] if i < len(args) else None)
@@ -305,9 +277,7 @@ def make_fingerprint(args: tuple, kwargs: dict, key_fields: Optional[Sequence[st
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
-# ============================================================
 # 上下文管理器
-# ============================================================
 @dataclass
 class IdempotencyContext:
     """幂等上下文（业务侧使用）"""
@@ -349,7 +319,7 @@ def idempotent_context(
     backend: Optional[IdempotencyBackend] = None,
     raise_on_conflict: bool = True,
 ):
-    """幂等上下文管理器
+    """幂等上下文管理器。
 
     Args:
         key: 幂等键（业务侧保证唯一）
@@ -400,9 +370,7 @@ def idempotent_context(
         raise
 
 
-# ============================================================
 # 装饰器
-# ============================================================
 def idempotent(
     key_fields: Optional[Sequence[str]] = None,
     key_func: Optional[Callable[..., str]] = None,
@@ -411,26 +379,17 @@ def idempotent(
     raise_on_conflict: bool = True,
     ignore_fields: Optional[Sequence[str]] = None,
 ):
-    """幂等装饰器
+    """幂等装饰器。
 
     Args:
-        key_fields: 用于生成幂等键的字段名（按顺序拼接）
-        key_func: 自定义 key 生成函数（接收 *args, **kwargs，返回唯一字符串）
+        key_fields: 生成幂等键的字段名（按顺序拼接）
+        key_func: 自定义 key 生成函数（接收 *args/**kwargs，返回唯一字符串）
         ttl: 记录保留秒数
         backend: 自定义后端
         raise_on_conflict: 指纹冲突时是否抛异常
         ignore_fields: 计算 fingerprint 时忽略的字段（如 trace_id）
 
-    Examples::
-
-        @idempotent(key_fields=["order_id"], ttl=600)
-        def create_order(order_id, amount, user_id):
-            ...
-
-        @idempotent(key_fields=["order_id"], ignore_fields=["trace_id"], ttl=600)
-        def pay(order_id, amount, trace_id):
-            # trace_id 不参与 fingerprint（与防重无关）
-            ...
+    示例: ``@idempotent(key_fields=["order_id"], ttl=600)``
     """
     def decorator(func):
         @wraps(func)
@@ -458,10 +417,10 @@ def idempotent(
                 filtered_kwargs = {k: v for k, v in kwargs.items() if k not in ignore_fields}
                 filtered_args = tuple(
                     v for i, v in enumerate(args)
-                    # args 位置不直接对应 ignore_fields，跳过
+                    # args 位置无法精确映射 ignore_fields，整体保留
                     if True
                 )
-                # 仅从 kwargs 排除；args 整体保留（无法精确判断位置 → 字段映射）
+                # 仅从 kwargs 排除 ignore_fields
                 fingerprint = make_fingerprint(filtered_args, filtered_kwargs)
             else:
                 fingerprint = make_fingerprint(args, kwargs)

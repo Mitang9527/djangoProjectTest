@@ -77,7 +77,6 @@ class PDFExporter(BaseExporter):
         )
         elements.append(Paragraph(self.config.filename, title_style))
 
-        # 统计行
         count = queryset.count()
         summary_style = ParagraphStyle(
             'Summary',

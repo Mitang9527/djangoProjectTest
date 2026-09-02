@@ -23,6 +23,12 @@ BUILTIN_PERMISSIONS = [
         "desc": "可以查看系统管理相关页面和数据",
     },
     {
+        "slug": "system.manage",
+        "name": "管理系统",
+        "module": "system",
+        "desc": "可以管理系统后台等平台级资源（菜单/文件资产等）",
+    },
+    {
         "slug": "system.dashboard",
         "name": "查看系统仪表板",
         "module": "system",
@@ -217,6 +223,34 @@ BUILTIN_PERMISSIONS = [
         "name": "管理系统配置",
         "module": "system",
         "desc": "可以修改语言、主题等系统设置（兼容旧版）",
+    },
+
+    # ── 字典管理（对齐 Fast-Vben-Admin system:dict:*）─────────
+    {
+        "slug": "dict.view",
+        "name": "查看字典",
+        "module": "system",
+        "desc": "可以查看字典类型与字典项",
+    },
+    {
+        "slug": "dict.manage",
+        "name": "管理字典",
+        "module": "system",
+        "desc": "可以创建、编辑、删除字典类型与字典项",
+    },
+
+    # ── 文件资产（对齐 Fast-Vben-Admin file asset 管理）───────
+    {
+        "slug": "file.view",
+        "name": "查看文件资产",
+        "module": "system",
+        "desc": "可以查看文件资产列表与详情",
+    },
+    {
+        "slug": "file.manage",
+        "name": "管理文件资产",
+        "module": "system",
+        "desc": "可以删除、恢复文件资产",
     },
 ]
 

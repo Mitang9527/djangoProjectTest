@@ -1,14 +1,11 @@
 """
-分布式锁核心实现
-================
+分布式锁核心实现：基于 Redis SET NX EX + Lua 脚本。
 
-基于 Redis SET NX EX + Lua 脚本实现：
-
-- **互斥**：NX 选项保证原子抢占
-- **防误删**：释放时用 Lua 校验 token 匹配
-- **可重入**：同一 owner 可多次获取（thread-local owner id）
-- **看门狗**：长任务执行期间自动续期，避免 TTL 过期
-- **公平锁**：可选 FIFO 队列（基于 ZSET 实现）
+- 互斥：NX 选项保证原子抢占
+- 防误删：释放时用 Lua 校验 token 匹配
+- 可重入：同一 owner 可多次获取（thread-local owner id）
+- 看门狗：长任务执行期间自动续期，避免 TTL 过期
+- 公平锁：可选 FIFO 队列（基于 ZSET 实现）
 """
 from __future__ import annotations
 
@@ -27,9 +24,7 @@ from typing import Callable, List, Optional, Sequence, Union
 from loguru import logger
 
 
-# ============================================================
-# Lua 脚本（保证释放与续期的原子性）
-# ============================================================
+# Lua 脚本：保证释放/续期/重入的原子性，仅当 GET(KEYS[1]) == ARGV[1]（token 匹配）时操作
 # 释放：仅当 value（token）匹配时才 DEL
 LUA_RELEASE = """
 if redis.call("GET", KEYS[1]) == ARGV[1] then
@@ -58,9 +53,7 @@ end
 """
 
 
-# ============================================================
 # 异常 & 状态
-# ============================================================
 class LockError(Exception):
     """锁基类异常"""
 
@@ -93,9 +86,7 @@ class LockInfo:
     reentrant_count: int = 0
 
 
-# ============================================================
 # 后端抽象
-# ============================================================
 class LockBackend:
     """锁后端抽象"""
 
@@ -105,15 +96,9 @@ class LockBackend:
     def is_held(self, name: str) -> bool: ...
 
 
-# ============================================================
 # Redis 后端
-# ============================================================
 class RedisLockBackend(LockBackend):
-    """单节点 Redis 锁后端
-
-    使用 SETNX + EX 原子抢占；释放用 Lua 校验 token；
-    续期用 Lua 校验 + PEXPIRE。
-    """
+    """单节点 Redis 锁后端：SETNX + EX 原子抢占，Lua 校验 token 释放/续期。"""
 
     KEY_PREFIX = "lock:"
 
@@ -151,15 +136,13 @@ class RedisLockBackend(LockBackend):
             return False
         key = self._key(name)
         deadline = time.time() + wait_ms / 1000.0
-        # 退避抖动
-        sleep_base = 0.05
+        sleep_base = 0.05  # 退避基准（指数增长，含随机抖动防惊群）
         while True:
             ok = cli.set(key, owner, px=ttl_ms, nx=True)
             if ok:
                 return True
             if time.time() >= deadline:
                 return False
-            # 退避 + 抖动
             sleep_s = sleep_base + random.uniform(0, 0.03)
             time.sleep(min(sleep_s, max(0, deadline - time.time())))
             sleep_base = min(sleep_base * 1.5, 0.5)
@@ -193,9 +176,7 @@ class RedisLockBackend(LockBackend):
         return bool(cli.exists(self._key(name)))
 
 
-# ============================================================
 # LocalMemory 后端（兜底 + 测试）
-# ============================================================
 class LocalMemoryLockBackend(LockBackend):
     """线程安全的进程内锁后端"""
 
@@ -234,9 +215,7 @@ class LocalMemoryLockBackend(LockBackend):
             return name in self._locks
 
 
-# ============================================================
 # 默认后端
-# ============================================================
 _default_backend: Optional[LockBackend] = None
 
 
@@ -255,18 +234,13 @@ def set_default_backend(backend: LockBackend) -> None:
     _default_backend = backend
 
 
-# ============================================================
 # Owner 工厂：每个线程/协程一个 owner
-# ============================================================
 _thread_local = threading.local()
 
 
 def _current_owner() -> str:
-    """当前执行上下文 owner
-
-    - 优先用显式 set_owner() 设置的
-    - 否则：thread_id + 进程 pid + hostname + uuid 前 8 位
-    """
+    """当前执行上下文 owner：优先 set_owner() 显式设置；否则
+    thread_id + 进程 pid + hostname + uuid 前 8 位。"""
     if getattr(_thread_local, "owner", None):
         return _thread_local.owner
     digest = hashlib.sha1(
@@ -282,19 +256,12 @@ def set_owner(owner: str) -> None:
     _thread_local.owner = owner
 
 
-# ============================================================
 # RedisLock 主类
-# ============================================================
 class RedisLock:
-    """分布式锁（基于 Redis）
+    """分布式锁（基于 Redis）。
 
-    Args:
-        name: 锁名称（业务唯一）
-        ttl: 锁过期时间（秒），防止持锁者崩溃后死锁
-        wait: 等待获取的最长时间（秒）
-        auto_renewal: 是否启动看门狗自动续期
-        backend: 自定义后端
-        reentrant: 是否允许重入
+    Args: name=锁名(业务唯一); ttl=过期秒数(防持锁者崩溃死锁); wait=最长等待秒;
+    auto_renewal=是否启动看门狗续期; backend=自定义后端; reentrant=是否允许重入。
     """
 
     def __init__(
@@ -411,15 +378,11 @@ class RedisLock:
         self._renewal_thread = None
 
 
-# ============================================================
 # RedLock（多节点，弱实现）
-# ============================================================
 class RedLock:
-    """Redlock 多节点锁
+    """Redlock 多节点锁：Redis 单点/主从切换有数据丢失风险时使用。
 
-    当 Redis 是单点/主从切换有数据丢失风险时使用。
-    需要在 settings 配置 REDIS_NODES = [{"host": ..., "port": ...}, ...]
-
+    需在 settings 配置 ``REDIS_NODES = [{"host": ..., "port": ...}, ...]``；
     实现：N 个节点中至少 N/2+1 成功获取视为成功。
     """
 
@@ -506,7 +469,6 @@ class RedLock:
             # 失败回滚
             self.release()
             return False
-        # 计算有效时间
         elapsed_ms = int((time.time() - start) * 1000)
         self._validity_ms = max(0, ttl_ms - elapsed_ms - 2)  # 2ms clock drift
         self._held = True
@@ -531,22 +493,17 @@ class RedLock:
         self.release()
 
 
-# ============================================================
 # 装饰器
-# ============================================================
 def locked(
     key: Union[str, Callable],
     ttl: int = 30,
     wait: float = 5.0,
     auto_renewal: bool = False,
 ):
-    """锁装饰器
+    """锁装饰器。
 
-    Args:
-        key: 锁 key 模板，支持 {arg_name} 占位符；或 callable(*args, **kwargs) -> str
-        ttl: 过期秒数
-        wait: 等待秒数
-        auto_renewal: 是否启动看门狗
+    Args: key=锁 key 模板（支持 {arg_name} 占位符）或 callable(*args, **kwargs) -> str;
+    ttl=过期秒数; wait=等待秒数; auto_renewal=是否启动看门狗。
     """
     def decorator(func):
         @functools.wraps(func)

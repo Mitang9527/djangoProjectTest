@@ -2,7 +2,7 @@
 i18n 工具包
 ===========
 
-Django 自带 i18n 解决「翻译文件 + LocaleMiddleware」问题，但在企业 SaaS 场景下还缺：
+Django 自带 i18n 只解决「翻译文件 + LocaleMiddleware」，本包补齐企业 SaaS 缺失能力：
 
 - 租户级语言偏好（Tenant.default_language）
 - 多源探测（Header / Query / Cookie / User / Tenant / Default）
@@ -11,46 +11,36 @@ Django 自带 i18n 解决「翻译文件 + LocaleMiddleware」问题，但在企
 - 非请求上下文（Celery task / management command）的激活器
 - 翻译完整度统计 / 扫描
 
-本包提供以上企业级能力，零新增依赖（只用 Django / DRF / cache 既有组件）。
+零新增依赖（只用 Django / DRF / cache 既有组件）。
 
 快速开始
 --------
 
-**1. 启用租户级语言**::
+**1. 启用**::
 
     # settings.py
     INSTALLED_APPS += ["framework.i18n"]
     MIDDLEWARE.insert(0, "framework.i18n.middleware.I18nMiddleware")
 
-**2. 探测并激活当前语言**::
+**2. 探测并激活语言（DRF View）**::
 
-    # DRF View
     from framework.i18n import activate_for_request
-
-    class MyView(APIView):
-        def get(self, request):
-            lang = activate_for_request(request)
-            ...
+    lang = activate_for_request(request)
 
 **3. 动态翻译（数据库驱动）**::
 
     from framework.i18n import t, register_translation
-
     register_translation("zh-hans", "common.save_success", "保存成功")
-    register_translation("en", "common.save_success", "Saved successfully")
-
     message = t("common.save_success")   # 自动按当前语言
 
 **4. 错误消息本地化**::
 
     from framework.i18n import localize_error
-
     raise ValidationError(localize_error("user.email_exists"))
 
 **5. 非请求上下文激活**::
 
     from framework.i18n import activate_language
-
     with activate_language("en"):
         send_email(...)   # 邮件模板用英文
 

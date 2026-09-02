@@ -1,26 +1,7 @@
 """
-loguru 日志管理器 — 接管 Django 标准 logging, 支持多 Logger 分离。
-
-13 项优化:
- 1. 文件命名用 {time:YYYY-MM-DD} 动态日期 (修复跨天轮转 bug)
- 2. enqueue=True 异步写入 (线程安全 + 不阻塞请求)
- 3. InterceptHandler 保留原始 logger name
- 4. JSON 结构化日志 (生产模式, 适配 ELK/Loki)
- 5. Request-ID 集成 (contextualize 全链路追踪)
- 6. 异常格式化 (backtrace=True + diagnose)
- 7. reconfigure() 支持 (运行时动态重配置)
- 8. 控制台/文件分级 (控制台 DEBUG, 文件 INFO)
- 9. retention 细化 (app/celery/api 14 天, error 30 天, 按子目录隔离)
-10. Sentry event_id 关联 (ERROR+ 自动转发, request_id tag 贯穿)
-11. 日志采样 (高频同源日志限流, ERROR+ 不限)
-12. filter 提取为方法 (消除内联 lambda)
-13. 控制台超链接跳转 (OSC 8, 支持 VSCode/iTerm2/Windows Terminal 点击 file:line 跳转源码)
-
-日志文件 (logs/ 子目录):
-    logs/app/{time:YYYY-MM-DD}.log      — 通用应用日志
-    logs/celery/{time:YYYY-MM-DD}.log   — Celery 任务日志
-    logs/api/{time:YYYY-MM-DD}.log      — API 请求日志
-    logs/error/{time:YYYY-MM-DD}.log    — 所有 ERROR+ (跨域聚合)
+loguru 日志管理器 — 接管 Django 标准 logging，支持多 Logger 分离。
+特性: 动态日期命名、enqueue 异步、InterceptHandler 保留 logger name、JSON 结构化(生产)、
+Request-ID 全链路、retention 细化(app/celery/api 14 天 / error 30 天)、Sentry ERROR+ 转发、日志采样、OSC8 超链接跳转。
 
 用法:
     from loguru import logger                    # 默认 → app log
@@ -41,36 +22,22 @@ from typing import Optional
 
 from loguru import logger
 
-# ---------------------------------------------------------------
 # 日志源标识 (用于 filter 路由)
-# ---------------------------------------------------------------
-
 SOURCE_APP    = "app"
 SOURCE_CELERY = "celery"
 SOURCE_API    = "api"
 
-# 绑定专用 logger
 celery_logger = logger.bind(source=SOURCE_CELERY)
 api_logger    = logger.bind(source=SOURCE_API)
 
 
-# ---------------------------------------------------------------
 # #11 — 日志采样器
-# ---------------------------------------------------------------
 
 class RateLimitFilter:
     """
-    日志采样器 — 同一 source:message 在 time_window 秒内只记录 max_count 次。
-
-    ERROR+ 始终放行，不做采样。
-    用于高频日志 (心跳、WebSocket ping、轮询等) 防止日志爆炸。
-
-    用法:
-        # 作为 sink filter
-        logger.add("noisy.log", filter=RateLimitFilter(max_count=5, time_window=60))
-
-        # 每个文件 sink 独立实例 (各自计数)
-        logger.add("app.log", filter=RateLimitFilter())
+    日志采样器 — 同一 source:message 在 time_window 秒内只记录 max_count 次；ERROR+ 始终放行。
+    用于高频日志(心跳/WebSocket ping/轮询)防日志爆炸。
+    用法: logger.add("noisy.log", filter=RateLimitFilter(max_count=5, time_window=60))；每个文件 sink 独立实例各自计数。
     """
 
     def __init__(self, max_count: int = 50, time_window: float = 60.0):
@@ -81,7 +48,6 @@ class RateLimitFilter:
 
     def __call__(self, record) -> bool:
         """loguru filter: 返回 True 表示允许记录"""
-        # ERROR+ 始终记录
         if record["level"].no >= logger.level("ERROR").no:
             return True
 
@@ -90,7 +56,6 @@ class RateLimitFilter:
 
         with self._lock:
             timestamps = self._counts[key]
-            # 清理过期时间戳
             cutoff = now - self.time_window
             while timestamps and timestamps[0] < cutoff:
                 timestamps.pop(0)
@@ -107,9 +72,7 @@ class RateLimitFilter:
             self._counts.clear()
 
 
-# ---------------------------------------------------------------
 # #3 — InterceptHandler (保留原始 logger name)
-# ---------------------------------------------------------------
 
 class InterceptHandler(logging.Handler):
     """将 Python 标准库的 logging 消息重定向到 loguru，保留原始 logger name。"""
@@ -120,9 +83,7 @@ class InterceptHandler(logging.Handler):
         except ValueError:
             level = record.levelno
 
-        # #3 — 跳过 logging 模块帧, 定位到真正的调用者
-        #       sys._getframe(1) = emit() 的调用者 (通常在 logging 模块内)
-        #       逐帧向上跳过所有 logging 模块的内部帧, 直到到达用户代码
+        # #3 — 跳过 logging 模块内部帧 (sys._getframe 逐帧上溯)，定位到真正的调用者
         try:
             frame = sys._getframe(1)
         except (ValueError, AttributeError):
@@ -132,15 +93,12 @@ class InterceptHandler(logging.Handler):
             frame = frame.f_back
             depth += 1
 
-        # 保留原始 logger name (Django/uvicorn/gunicorn 等)
         logger.bind(logger_name=record.name).opt(
             depth=depth, exception=record.exc_info
         ).log(level, record.getMessage())
 
 
-# ---------------------------------------------------------------
 # #10 — Sentry 集成 (ERROR+ 自动转发)
-# ---------------------------------------------------------------
 
 _sentry_enabled = False
 
@@ -153,12 +111,8 @@ def mark_sentry_enabled():
 
 def _sentry_sink(message):
     """
-    Loguru sink — 将 ERROR+ 日志转发到 Sentry SDK。
-
-    - 自动携带 request_id tag (贯穿 Sentry 事件)
-    - 自动携带 source tag (区分日志来源)
-    - 异常自动 capture_exception, 消息自动 capture_message
-    - Sentry 未初始化时静默跳过
+    Loguru sink — 将 ERROR+ 日志转发 Sentry SDK；自动携带 request_id/source tag，
+    异常 capture_exception、消息 capture_message；Sentry 未初始化时静默跳过。
     """
     if not _sentry_enabled:
         return
@@ -196,16 +150,12 @@ def _sentry_sink(message):
         pass  # 日志 sink 不应抛出异常
 
 
-# ---------------------------------------------------------------
 # #4 — JSON 序列化 sink (生产模式, ELK/Loki 兼容)
-# ---------------------------------------------------------------
 
 def _json_serializer(message):
     """
     自定义 JSON 序列化 — 输出到 stderr (供容器日志驱动采集)。
-
-    字段: timestamp, level, logger, function, line, message,
-          source, request_id, exception (type/value), extra
+    字段: timestamp, level, logger, function, line, message, source, request_id, exception(type/value), extra
     """
     record = message.record
     log_entry = {
@@ -220,7 +170,6 @@ def _json_serializer(message):
         "request_id": record["extra"].get("request_id", "-"),
     }
 
-    # 异常信息
     if record["exception"]:
         exc = record["exception"]
         log_entry["exception"] = {
@@ -228,7 +177,6 @@ def _json_serializer(message):
             "value": str(exc.value) if exc.value else "",
         }
 
-    # 额外字段 (排除已提取的)
     known_keys = {"source", "request_id", "logger_name"}
     extra_keys = set(record["extra"].keys()) - known_keys
     if extra_keys:
@@ -239,9 +187,7 @@ def _json_serializer(message):
     print(json.dumps(log_entry, ensure_ascii=False, default=str), file=sys.stderr)
 
 
-# ---------------------------------------------------------------
 # #14 — 控制台超链接跳转 (OSC 8 hyperlinks)
-# ---------------------------------------------------------------
 
 # loguru 默认 level 颜色 (raw ANSI), 用于自绘控制台格式
 _LEVEL_ANSI = {
@@ -263,9 +209,7 @@ def _osc8_link(url: str, text: str) -> str:
 
 
 def _normalize_file_uri(path: str, line: int) -> str:
-    """
-    将绝对路径规范为 file:// URI, 兼容 Windows 盘符 (D:\\x -> file:///D:/x)。
-    """
+    """将绝对路径规范为 file:// URI，兼容 Windows 盘符 (D:\\x -> file:///D:/x)。"""
     p = path.replace("\\", "/")
     if len(p) > 1 and p[1] == ":":
         p = "/" + p
@@ -273,21 +217,12 @@ def _normalize_file_uri(path: str, line: int) -> str:
 
 
 def _escape_markup(s: str) -> str:
-    """
-    转义 loguru Colorizer 标记: 仅 '<' 会被当作颜色标签解析, 转义为 '\\<'
-    (渲染后仍为 '<')。'>' 单独无歧义, 不必转义。
-    OSC8/ANSI 使用 ESC(\\x1b) 不受任何影响。
-    """
+    """转义 loguru Colorizer 标记: 仅 '<' 会被当作颜色标签解析，转义为 '\\<' (渲染后仍为 '<')；'>' 单独无歧义，不必转义。OSC8/ANSI 的 ESC(\\x1b) 不受影响。"""
     return s.replace("<", r"\<")
 
 
 def _console_supports_hyperlinks() -> bool:
-    """
-    检测当前 stdout 是否为支持 OSC 8 超链接的终端。
-    支持: VSCode 集成终端, iTerm2>=3.1, Windows Terminal, Konsole,
-    GNOME Terminal, Ghostty, WezTerm。
-    环境变量 FORCE_HYPERLINK=1 可强制开启 (优先于 isatty 检查)。
-    """
+    """检测 stdout 是否为支持 OSC 8 超链接的终端(VSCode/iTerm2>=3.1/Windows Terminal/Konsole/GNOME Terminal/Ghostty/WezTerm)；FORCE_HYPERLINK=1 强制开启(优先于 isatty 检查)。"""
     env = os.environ
 
     if env.get("FORCE_HYPERLINK"):
@@ -316,13 +251,9 @@ def _make_console_format(hyperlinks: bool):
     """
     生成控制台 sink 的 format 可调用对象。
 
-    关键: 必须用「可调用 format + colorize=False」自行拼装 ANSI/OSC8,
-    不能把 OSC8 直接内联进字符串模板 —— loguru 的 Colorizer 会把 OSC8 里的
-    '\\x1b\\\\' 反斜杠误当作转义符而解析失败; 且动态内容 (函数名 <module>、
-    消息正文里的 <tag>) 中的 '<' 也会被当成颜色标签报错。可调用 format 中我们对
-    动态文本转义 '<' 规避该问题。
-
-    当 hyperlinks=True 且终端支持时, 位置信息 file:line 包裹为可点击超链接。
+    ⚠️ 必须用「可调用 format + colorize=False」自行拼装 ANSI/OSC8，不能把 OSC8 直接内联进字符串模板 —
+    loguru 的 Colorizer 会把 OSC8 里的 '\\x1b\\\\' 反斜杠误当作转义符而解析失败；且动态内容(函数名 <module>、
+    消息正文里的 <tag>)中的 '<' 也会被当成颜色标签报错，可调用 format 中需转义 '<'。hyperlinks=True 且终端支持时 file:line 包裹为可点击超链接。
     """
     def _fmt(record):
         r = record
@@ -336,10 +267,8 @@ def _make_console_format(hyperlinks: bool):
             f"\x1b[34m{_escape_log_content(str(r['extra'].get('request_id', '-')))}"
             f"{_ANSI_RESET}"
         )
-        # 可见位置: 保留 name:function:line 习惯, 并追加真实文件路径 file:line。
-        # 关键点: PyCharm 等 IDE 运行控制台不识别 OSC 8 超链接, 但它会自动把
-        # 文本中的 "绝对路径:行号" 渲染为可点击链接。因此可见文本里必须包含真实
-        # 文件路径 (而非仅模块点分名 name), 否则 PyCharm 无法跳转。
+        # 可见文本须包含真实文件路径 file:line —— PyCharm 等 IDE 运行控制台不识别 OSC8，
+        # 但会自动把文本中的"绝对路径:行号"渲染为可点击链接，故可见文本不能仅用模块点分名 name。
         file_loc_text = f"{_escape_log_content(r['file'].path)}:{r['line']}"
         loc_text = (
             f"{_escape_log_content(r['name'])}:"
@@ -362,23 +291,20 @@ def _make_console_format(hyperlinks: bool):
 
 def _escape_log_content(s: str) -> str:
     """
-    转义日志动态内容中的 '<' 与花括号，防止 Loguru 将可调用格式的「输出结果」
-    二次解析为颜色标签/格式字段：
-      - '<' → '\\<' : 避免 Colorizer 把 '<module>' 等误判为颜色标签 (ValueError)
-      - '{' → '{{' , '}' → '}}' : 避免 format_map 把 '{detail}' 等当字段 (KeyError)
+    转义日志动态内容中的 '<' 与花括号，防止 Loguru 将可调用 format 的输出二次解析为颜色标签/格式字段:
+    - '<' → '\\<' : 避免 Colorizer 把 '<module>' 误判为颜色标签 (ValueError)
+    - '{' → '{{' / '}' → '}}' : 避免 format_map 把 '{detail}' 当字段 (KeyError)
     """
     return s.replace("<", r"\<").replace("{", "{{").replace("}", "}}")
 
 
 def _make_file_format():
     """
-    文件 sink 格式（可调用，规避 Loguru 对消息体内花括号/尖括号的二次解析）。
+    文件 sink 格式（可调用，规避 Loguru 对消息体花括号/尖括号的二次解析）。
 
-    Loguru 的字符串模板格式在渲染 `{message}` 时会把消息内容本身当作
-    format 串重新解析；当消息体含有未转义花括号或 '<...>'（如 DRF 异常
-    `{'detail': ...}` 的 repr、模块级代码函数名 `<module>`）就会抛
-    KeyError/ValueError 使日志系统自身崩溃。改用可调用 format 直接拼接，
-    并对动态内容转义，彻底消除该类崩溃。输出布局与旧 file_fmt 保持一致。
+    ⚠️ Loguru 字符串模板在渲染 `{message}` 时会把消息内容本身当作 format 串重新解析；消息体含未转义
+    花括号或 '<...>'（如 DRF 异常 `{'detail': ...}` 的 repr、模块级代码函数名 `<module>`）会抛
+    KeyError/ValueError 使日志系统崩溃。改用可调用 format 直接拼接并对动态内容转义，布局与旧 file_fmt 一致。
     """
     def _fmt(record):
         r = record
@@ -394,39 +320,25 @@ def _make_file_format():
     return _fmt
 
 
-# ---------------------------------------------------------------
 # LogManager — 统一初始化入口
-# ---------------------------------------------------------------
 
 class LogManager:
     """
     日志管理器 — 线程安全单例，支持 reconfigure。
-
-    优化清单:
-      1.  文件命名用 {time:YYYY-MM-DD} 动态日期
-      2.  enqueue=True 异步写入
-      3.  InterceptHandler 保留 logger name
-      4.  JSON 结构化日志 (非 DEBUG)
-      5.  Request-ID 集成 (configure extra 默认值)
-      6.  backtrace/diagnose 异常格式化
-      7.  reconfigure() 动态重配置
-      8.  控制台/文件分级
-      9.  retention 细化
-      10. Sentry sink (ERROR+ 转发)
-      11. 高频日志采样
-      12. filter 方法化
-      13. 控制台超链接跳转 (OSC 8, 点击 file:line 跳转源码)
+    优化清单与模块 docstring 一致（动态日期命名、enqueue 异步、InterceptHandler、JSON、Request-ID、
+    backtrace/diagnose、reconfigure、控制台/文件分级、retention 细化、Sentry、采样、filter 方法化、OSC8 跳转）。
     """
 
     _initialized = False
     _sink_ids: list = []
     _lock = threading.Lock()
 
-    # ---- #12 — filter 工厂方法 ----
+    # #12 — filter 工厂方法
 
     @staticmethod
     def _make_source_filter(source: str):
         """生成日志源过滤器 — 只允许指定 source 的日志"""
+
         def _filter(record):
             return record["extra"].get("source", SOURCE_APP) == source
         return _filter
@@ -438,21 +350,17 @@ class LogManager:
             return record["extra"].get("source", SOURCE_APP) not in excluded
         return _filter
 
-    # ---- 初始化 ----
-
     def __init__(self, log_dir: str = None, level: str = "INFO",
                  json_output: Optional[bool] = None, debug: Optional[bool] = None,
                  console_hyperlinks: Optional[bool] = None):
         """
         初始化日志系统。
-
         Args:
-            log_dir:      日志目录, 默认 logs/
-            level:        文件日志级别 (控制台始终 DEBUG if debug=True)
-            json_output:  是否输出 JSON 日志 (None=自动: 非 debug 时开启)
-            debug:        是否 DEBUG 模式 (None=从 level 推断: level=="DEBUG" 则 True)
-            console_hyperlinks: 控制台 file:line 是否生成可点击超链接
-                                (None=自动探测终端; True/False=强制开/关)
+            log_dir: 日志目录, 默认 logs/
+            level: 文件日志级别 (控制台始终 DEBUG if debug=True)
+            json_output: 是否输出 JSON 日志 (None=自动: 非 debug 时开启)
+            debug: 是否 DEBUG 模式 (None=从 level 推断: level=="DEBUG" 则 True)
+            console_hyperlinks: 控制台 file:line 是否生成可点击超链接 (None=自动探测终端; True/False=强制开/关)
         """
         with LogManager._lock:
             if LogManager._initialized:
@@ -465,18 +373,10 @@ class LogManager:
                     json_output: Optional[bool] = None, debug: Optional[bool] = None,
                     console_hyperlinks: Optional[bool] = None):
         """
-        #7 — 重新配置日志系统。
-
-        移除所有现有 sink，重新初始化。
-        可用于运行时动态调整日志级别 / 超链接开关。
-
-        用法:
-            from framework.log_utils import LogManager
-            LogManager.reconfigure(level="DEBUG", debug=True)
-            LogManager.reconfigure(console_hyperlinks=True)   # 强制开启点击跳转
+        #7 — 重新配置日志系统。移除所有现有 sink 并重新初始化，用于运行时动态调整日志级别/超链接开关。
+        用法: LogManager.reconfigure(level="DEBUG", debug=True) / LogManager.reconfigure(console_hyperlinks=True)
         """
         with cls._lock:
-            # 移除所有现有 sink
             for sink_id in cls._sink_ids:
                 try:
                     logger.remove(sink_id)
@@ -489,26 +389,22 @@ class LogManager:
             instance._setup(log_dir, level, json_output, debug, console_hyperlinks)
             cls._initialized = True
 
-    # ---- 核心初始化 ----
-
     def _setup(self, log_dir: str, level: str, json_output: Optional[bool],
                debug: Optional[bool], console_hyperlinks: Optional[bool] = None):
         """核心初始化逻辑 (被 __init__ 和 reconfigure 共用)"""
-        # 推断 debug 模式
         if debug is None:
             debug = level.upper() == "DEBUG"
 
-        # ---- #8 — 分级 ----
+        # #8 分级
         console_level = "DEBUG" if debug else "INFO"
         file_level = level.upper()
         if file_level not in ("DEBUG", "INFO", "WARNING", "ERROR"):
             file_level = "INFO"
 
-        # ---- #4 — JSON 自动开启 ----
+        # #4 JSON 自动开启
         if json_output is None:
             json_output = not debug
 
-        # ---- 日志目录 ----
         if log_dir is None:
             current_dir = os.path.dirname(os.path.abspath(__file__))
             log_dir = os.path.join(
@@ -516,31 +412,28 @@ class LogManager:
             )
         os.makedirs(log_dir, exist_ok=True)
 
-        # ---- 子目录 (app / celery / api / error) ----
         for sub in ("app", "celery", "api", "error"):
             os.makedirs(os.path.join(log_dir, sub), exist_ok=True)
 
-        # ---- #5 — 设置默认 extra (request_id, source, logger_name) ----
+        # #5 设置默认 extra (request_id, source, logger_name)
         logger.configure(extra={
             "request_id": "-",
             "source": SOURCE_APP,
             "logger_name": "-",
         })
 
-        # ---- 0. 清除所有现有 handler ----
+        # 清除所有现有 handler
         try:
             logger.remove()
         except Exception:
             pass
         LogManager._sink_ids.clear()
 
-        # ---- 1. Sentry sink (最先添加, ERROR+ 转发) ---- (#10)
+        # 1. Sentry sink (最先添加, ERROR+ 转发, #10)
         sentry_id = logger.add(_sentry_sink, level="ERROR", format=_make_file_format())
         LogManager._sink_ids.append(sentry_id)
 
-        # ---- 2. 控制台输出 ---- (#8 分级, #5 request_id, #14 超链接跳转)
-        # #14: 自动探测终端是否支持 OSC 8 超链接, 支持则 file:line 可点击跳转。
-        #      用可调用 format + colorize=False 自绘 ANSI, 避免 Colorizer 解析冲突。
+        # 2. 控制台输出 — #14: 自动探测 OSC8 超链接, 可调用 format + colorize=False 自绘 ANSI 避免 Colorizer 解析冲突
         if console_hyperlinks is None:
             console_hyperlinks = _console_supports_hyperlinks()
         console_id = logger.add(
@@ -551,10 +444,7 @@ class LogManager:
         )
         LogManager._sink_ids.append(console_id)
 
-        # ---- 公共文件格式 ---- (#5 包含 request_id)
-        # 使用可调用 format (_make_file_format) 避免消息体花括号触发 KeyError
-
-        # ---- 3. JSON 结构化日志 (生产模式) ---- (#4)
+        # 3. JSON 结构化日志 (生产模式, #4)
         if json_output:
             json_id = logger.add(
                 _json_serializer,
@@ -563,64 +453,65 @@ class LogManager:
             )
             LogManager._sink_ids.append(json_id)
 
-        # ---- 4. app.log — 通用日志 ---- (#1, #2, #9, #11, #12)
+        # 4. app.log — 通用日志 (#1,#2,#9,#11,#12)
         app_id = logger.add(
-            os.path.join(log_dir, "app", "{time:YYYY-MM-DD}.log"),  # #1 动态日期
+            os.path.join(log_dir, "app", "{time:YYYY-MM-DD}.log"),
             rotation="00:00",
-            retention="14 days",   # #9 细化
+            retention="14 days",
             compression="gz",
             level=file_level,
             format=_make_file_format(),
             encoding="utf-8",
-            enqueue=True,          # #2 异步写入
-            filter=self._make_exclusion_filter(SOURCE_CELERY, SOURCE_API),  # #12
+            enqueue=True,
+            filter=self._make_exclusion_filter(SOURCE_CELERY, SOURCE_API),
         )
         LogManager._sink_ids.append(app_id)
 
-        # ---- 5. celery.log ---- (#1, #2, #9, #12)
+        # 5. celery.log (#1,#2,#9,#12)
         celery_id = logger.add(
-            os.path.join(log_dir, "celery", "{time:YYYY-MM-DD}.log"),  # #1
+            os.path.join(log_dir, "celery", "{time:YYYY-MM-DD}.log"),
             rotation="00:00",
-            retention="14 days",   # #9
+            retention="14 days",
             compression="gz",
             level=file_level,
             format=_make_file_format(),
             encoding="utf-8",
-            enqueue=True,          # #2
-            filter=self._make_source_filter(SOURCE_CELERY),  # #12
+            enqueue=True,
+            filter=self._make_source_filter(SOURCE_CELERY),
         )
         LogManager._sink_ids.append(celery_id)
 
-        # ---- 6. api.log ---- (#1, #2, #9, #12)
+        # 6. api.log (#1,#2,#9,#12)
         api_id = logger.add(
-            os.path.join(log_dir, "api", "{time:YYYY-MM-DD}.log"),  # #1
+            os.path.join(log_dir, "api", "{time:YYYY-MM-DD}.log"),
             rotation="00:00",
-            retention="14 days",   # #9
+            retention="14 days",
             compression="gz",
             level=file_level,
             format=_make_file_format(),
             encoding="utf-8",
-            enqueue=True,          # #2
-            filter=self._make_source_filter(SOURCE_API),  # #12
+            enqueue=True,
+            filter=self._make_source_filter(SOURCE_API),
         )
         LogManager._sink_ids.append(api_id)
 
-        # ---- 7. error.log — ERROR+ 跨域聚合 ---- (#1, #2, #6, #9)
+        # 7. error.log — ERROR+ 跨域聚合 (#1,#2,#6,#9)
         error_id = logger.add(
-            os.path.join(log_dir, "error", "{time:YYYY-MM-DD}.log"),  # #1
+            os.path.join(log_dir, "error", "{time:YYYY-MM-DD}.log"),
             rotation="00:00",
-            retention="30 days",   # #9
+            retention="30 days",
             compression="gz",
             level="ERROR",
             format=_make_file_format(),
             encoding="utf-8",
-            enqueue=True,          # #2
-            backtrace=True,        # #6 完整调用栈
-            diagnose=debug,        # #6 DEBUG 时显示变量值 (生产关闭避免泄露)
+            enqueue=True,
+            backtrace=True,
+            # #6: DEBUG 时显示变量值，生产关闭避免泄露
+            diagnose=debug,
         )
         LogManager._sink_ids.append(error_id)
 
-        # ---- 7.5 ERROR 突增计数 sink ---- (#14 监控: 滑动窗口统计 ERROR+)
+        # 7.5 ERROR 突增计数 sink (#14: 滑动窗口统计 ERROR+)
         try:
             from framework.log_utils.error_spike import _error_spike_sink
             error_spike_sink_id = logger.add(
@@ -630,11 +521,11 @@ class LogManager:
         except Exception:
             pass
 
-        # ---- 8. 自定义级别 ----
+        # 8. 自定义级别
         try:
             logger.level("FATAL", no=60, color="<red>", icon="!!!")
         except Exception:
             pass
 
-        # ---- 9. 接管标准 logging ---- (#3)
+        # 9. 接管标准 logging (#3)
         logging.basicConfig(handlers=[InterceptHandler()], level=0, force=True)

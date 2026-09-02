@@ -1,17 +1,6 @@
 """
-SaaS 应用 - 业务逻辑层。
-
-将 views.py 中的纯业务逻辑抽取到此处，包括:
-- 仪表盘统计
-- 租户切换
-- 系统设置读写
-- 备份/恢复
-- 日志文件解析
-- 权限分组
-- 网关规则管理
-- 缓存管理
-
-views.py 只保留: 参数提取、权限声明、响应返回。
+SaaS 应用业务逻辑层：聚合仪表盘统计、租户切换、系统设置读写、备份/恢复、日志文件解析、
+权限分组、网关规则管理、缓存管理、配置中心与特性开关等纯业务逻辑；views.py 只保留参数提取、权限声明、响应返回。
 """
 
 from __future__ import annotations
@@ -42,9 +31,7 @@ from .models import (
 )
 
 
-# ============================================================
 # 仪表盘统计
-# ============================================================
 
 class DashboardService:
     """系统仪表盘数据服务"""
@@ -101,9 +88,7 @@ class DashboardService:
         }
 
 
-# ============================================================
 # 租户切换
-# ============================================================
 
 class TenantService:
     """租户上下文管理服务"""
@@ -130,19 +115,10 @@ class TenantService:
     @staticmethod
     def switch_tenant(user, tenant_id: Optional[str], session, request=None, access_token=None) -> Dict:
         """切换当前活跃租户并重签 JWT（对齐参考项目 /tenants/switch）。
-
-        流程：
-          1) 校验成员关系（超管特例保留：可直接切任意活跃租户）；
-          2) 吊销当前 access 对应的旧会话（UserSession.revoked_at）→ 旧 token 立即失效；
-          3) 重签 access+refresh，写入新 tenant_id claim；
-          4) 为新 token 建会话记录（jti 绑定 user + 新租户）。
-
-        Args:
-            access_token: 当前请求的 validated token（SlidingJWT 认证下为
-                          AccessToken，含 jti）；API Key / Session 认证下为 None，
-                          则跳过旧会话吊销。
-        Returns:
-            {"msg", "tenant", "access", "refresh"}；无权限时 {"error"}
+        流程：校验成员关系（超管可直接切任意活跃租户）→ 吊销旧会话（UserSession.revoked_at，旧 token 立即失效）
+        → 重签 access+refresh 写入新 tenant_id claim → 建新会话记录（jti 绑定 user+新租户）。
+        Args: access_token 为 SlidingJWT 的 AccessToken（含 jti）；API Key/Session 认证下为 None 则跳过吊销。
+        Returns: {"msg","tenant","access","refresh"}；无权限时 {"error"}。
         """
         from django.utils import timezone as dj_timezone
         from rest_framework_simplejwt.tokens import RefreshToken
@@ -191,9 +167,8 @@ class TenantService:
         refresh["username"] = user.username
         refresh["role_id"] = str(user.role.id) if user.role else None
         refresh["email"] = user.email
-        # token_version 保持当前值：切租户只吊销当前会话，不注销其它设备。
-        # 从 DB 读最新值（传入的 user 实例可能是过期对象，避免 claim 与 DB 不一致
-        # 导致认证层 token_version 校验误杀新 token）。
+        # 坑：token_version 须从 DB 读最新值（传入的 user 实例可能过期），避免认证层 token_version 校验误杀新 token；
+        # 切租户只吊销当前会话，不注销其它设备，故保持 token_version 当前值。
         if hasattr(user, "token_version"):
             try:
                 user.refresh_from_db(fields=["token_version"])
@@ -205,7 +180,7 @@ class TenantService:
         access = refresh.access_token
         create_user_session(user, access, tenant.id, request)
 
-        # 4) 兼容旧逻辑：session 里写入当前租户（middleware 三源解析之一）
+        # 4) 兼容旧逻辑：session 写当前租户（middleware 三源解析之一）
         session["current_tenant_id"] = str(tenant.id)
         logger.info(f"用户 {user.username} 切换到租户 {tenant.name}（Token 已重签）")
         return {
@@ -220,15 +195,12 @@ class TenantService:
         }
 
 
-# ============================================================
 # 租户档案 / 生命周期 / 用量（效仿参考项目 operate_tenant_lifecycle）
-# ============================================================
 
 class TenantProfileService:
     """租户档案生命周期与用量统计服务（对齐参考项目 tenants.py）。"""
 
-    # 生命周期状态 → Tenant.status 同步映射（参考项目 Tenant.is_active 布尔，
-    # 本项目 Tenant.status 三态：active / suspended / cancelled）
+    # 生命周期 → Tenant.status 映射（参考项目 is_active 布尔；本项目三态 active/suspended/cancelled）
     STATUS_BY_LIFECYCLE = {
         'trial': Tenant.Status.ACTIVE,
         'formal': Tenant.Status.ACTIVE,
@@ -270,16 +242,10 @@ class TenantProfileService:
         frozen_reason: Optional[str] = None,
         now=None,
     ) -> Dict:
-        """执行租户生命周期动作（5 态状态机，对齐参考项目 operate_tenant_lifecycle）。
-
-        Args:
-            action: convert_to_formal / renew / freeze / unfreeze / archive
-            service_expires_at: renew 时必填，须为未来时间
-            frozen_reason: freeze 时必填
-            now: 注入当前时间（测试用）
-
-        Returns:
-            成功 {"msg", "tenant": {...}}；失败 {"error": "..."}
+        """执行租户生命周期动作（5 态状态机，对齐 operate_tenant_lifecycle）。
+        Args: action ∈ convert_to_formal/renew/freeze/unfreeze/archive；renew 必填未来时间 service_expires_at；
+              freeze 必填 frozen_reason；now 供测试注入当前时间。
+        Returns: 成功 {"msg","tenant":{...}}；失败 {"error"}。
         """
         from django.utils import timezone as dj_tz
         from .models import TenantProfile
@@ -291,8 +257,7 @@ class TenantProfileService:
         profile = cls.get_or_create_profile(tenant)
         current_status = profile.effective_status(now=now)
         profile_cls = TenantProfile.LifecycleStatus
-        # 操作前捕获：tenant.status 未被本方法修改，作为「活跃 → 非活跃」转变基线
-        # （参考项目用 tenant.is_active；本项目以 Tenant.status == active 等价）
+        # 操作前基线：tenant.status 尚未被本方法修改（参考项目用 tenant.is_active；本项目等价 Tenant.status == active）
         was_active = tenant.status == Tenant.Status.ACTIVE
 
         if action == cls.ACTION_CONVERT_TO_FORMAL:
@@ -303,7 +268,7 @@ class TenantProfileService:
             profile.effective_at = profile.effective_at or now
 
         elif action == cls.ACTION_RENEW:
-            # 续费：到期时间必须在未来；过期恢复 formal；冻结且到期/试用已过 → before_freeze 置 formal
+            # 续费：到期须未来；过期恢复 formal；冻结且到期/试用已过 → before_freeze 置 formal
             if service_expires_at is None or service_expires_at <= now:
                 return {"error": "续费到期时间必须晚于当前时间"}
             profile.service_expires_at = service_expires_at
@@ -322,7 +287,7 @@ class TenantProfileService:
                 return {"error": "已归档租户不可续费"}
 
         elif action == cls.ACTION_FREEZE:
-            # 冻结：必须填原因；frozen/archived 拒绝；记录冻结前状态
+            # 冻结：必填原因；frozen/archived 拒绝；记录冻结前状态
             reason = (frozen_reason or "").strip()
             if not reason:
                 return {"error": "冻结原因必填"}
@@ -358,7 +323,7 @@ class TenantProfileService:
             profile.lifecycle_status = profile_cls.ARCHIVED
             profile.lifecycle_status_before_freeze = None
 
-        # 同步 Tenant.status；活跃 → 非活跃转变时吊销该租户全部会话
+        # 同步 Tenant.status；活跃→非活跃转变时吊销该租户全部会话
         final_status = profile.effective_status(now=now)
         tenant.status = cls.STATUS_BY_LIFECYCLE.get(final_status, Tenant.Status.SUSPENDED)
         profile.save()
@@ -399,19 +364,20 @@ class TenantProfileService:
 
     @staticmethod
     def get_usage(tenant: Tenant) -> Dict:
-        """租户用量统计（对齐参考项目 get_member_count + get_file_usage）。
+        """租户用量统计（对齐 get_member_count + get_file_usage）：members=活跃成员数；
+        file_assets/storage_bytes 基于未删除的 FileAsset 登记统计（条数 / Sum(file_size) 原始大小）。"""
+        from system.core.models import FileAsset
 
-        members: 活跃成员数（TenantMember.is_active=True）。
-        file_assets / storage_bytes: 本项目尚无 FileAsset 资产登记表（参考项目有），
-        暂以 0 占位；待资产登记模型落地后按 tenant_id 统计接入。
-        """
         members = TenantMember.objects.filter(tenant=tenant, is_active=True).count()
+        assets = FileAsset.objects.filter(tenant=tenant, is_deleted=False)
+        file_assets = assets.count()
+        storage_bytes = assets.aggregate(total=Sum('file_size'))['total'] or 0
         return {
             "tenant_id": str(tenant.id),
             "tenant_name": tenant.name,
             "members": members,
-            "file_assets": 0,
-            "storage_bytes": 0,
+            "file_assets": file_assets,
+            "storage_bytes": storage_bytes,
             "plan": (
                 {
                     "id": str(tenant.plan.id),
@@ -427,9 +393,106 @@ class TenantProfileService:
         }
 
 
-# ============================================================
+# 组织：部门 / 岗位 / 角色数据权限 / 初始化模板消费
+
+class TenantOrgService:
+    """组织与数据权限服务（对齐 departments.py / posts.py / roles.py）：部门树校验（防环）、
+    角色自定义数据权限同步（data_scope='custom' 的部门关联）、初始化模板消费（根部门+岗位种子）。"""
+
+    # 默认岗位种子（对齐参考项目 seed_posts）
+    DEFAULT_POSTS = (
+        ('manager', '经理', 10),
+        ('developer', '开发工程师', 20),
+        ('operator', '运营专员', 30),
+    )
+
+    @staticmethod
+    def is_descendant_department(tenant, department_id, possible_descendant_id) -> bool:
+        """沿 parent 链上溯判断 possible_descendant 是否在 department 子树内（防环：visited 去重）。"""
+        from .models import Department
+
+        current_id = possible_descendant_id
+        visited = set()
+        while current_id:
+            if current_id == department_id:
+                return True
+            if current_id in visited:
+                return True
+            visited.add(current_id)
+            current = Department.objects.filter(
+                id=current_id, tenant=tenant,
+            ).only('parent_id').first()
+            current_id = current.parent_id if current else None
+        return False
+
+    @staticmethod
+    def get_custom_department_ids(role) -> list:
+        """返回角色自定义数据权限的部门 ID 列表（对齐参考 build_role_public）。"""
+        from .models import RoleDataScopeDepartment
+
+        return list(
+            RoleDataScopeDepartment.objects
+            .filter(role=role, tenant_id=role.tenant_id)
+            .values_list('department_id', flat=True)
+        )
+
+    @classmethod
+    def sync_role_custom_departments(cls, role, department_ids) -> None:
+        """同步角色自定义数据权限部门：全量替换；data_scope != 'custom' 时清空关联；
+        传入部门必须存在（校验失败抛 ValueError，由视图转 400）。"""
+        from .models import Department, RoleDataScopeDepartment
+
+        unique_ids = {str(did) for did in (department_ids or [])}
+        if unique_ids:
+            existing_str = {
+                str(did) for did in Department.objects.filter(
+                    tenant_id=role.tenant_id, id__in=unique_ids,
+                ).values_list('id', flat=True)
+            }
+            if existing_str != unique_ids:
+                raise ValueError("部分自定义数据权限部门不存在")
+
+        RoleDataScopeDepartment.objects.filter(
+            role=role, tenant_id=role.tenant_id,
+        ).delete()
+        if role.data_scope == Role.DataScope.CUSTOM and unique_ids:
+            RoleDataScopeDepartment.objects.bulk_create([
+                RoleDataScopeDepartment(
+                    role=role, department_id=did, tenant_id=role.tenant_id,
+                )
+                for did in unique_ids
+            ])
+
+    @classmethod
+    def apply_initialization_template(cls, tenant, template=None):
+        """消费租户初始化模板（根部门+岗位种子）：幂等，已存在则跳过；
+        模板为空回落到默认模板，无默认模板则仅建根部门。"""
+        from .models import TenantInitializationTemplate, Department, Post
+
+        if template is None:
+            template = tenant.initialization_template
+        if template is None:
+            template = (
+                TenantInitializationTemplate.objects
+                .filter(is_default=True, is_active=True).first()
+            )
+
+        root_code = (template.root_department_code if template else 'headquarters') or 'headquarters'
+        root_name = (template.root_department_name if template else '总部') or '总部'
+        root, _ = Department.objects.get_or_create(
+            tenant=tenant, code=root_code,
+            defaults={'name': root_name, 'sort': 0},
+        )
+        if template is None or template.seed_posts:
+            for code, name, sort in cls.DEFAULT_POSTS:
+                Post.objects.get_or_create(
+                    tenant=tenant, code=code,
+                    defaults={'name': name, 'sort': sort},
+                )
+        return root
+
+
 # 用户权限
-# ============================================================
 
 class PermissionService:
     """用户权限查询服务"""
@@ -506,9 +569,7 @@ class PermissionService:
         return modules_list
 
 
-# ============================================================
 # 系统设置
-# ============================================================
 
 SETTINGS_CATEGORIES = {
     "basic": {"title": "基本设置", "icon": "settings", "permission": "system.settings.basic", "category": "general"},
@@ -547,9 +608,7 @@ class SettingsService:
         return updated
 
 
-# ============================================================
 # 备份/恢复
-# ============================================================
 
 class BackupService:
     """系统数据备份/恢复服务"""
@@ -605,9 +664,7 @@ class BackupService:
         return backups
 
 
-# ============================================================
 # 日志文件解析
-# ============================================================
 
 LOG_LEVELS = ["TRACE", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 LOG_LINE_RE = re.compile(
@@ -696,9 +753,7 @@ class LogService:
         }
 
 
-# ============================================================
 # 网关规则管理
-# ============================================================
 
 class GatewayService:
     """API 网关规则管理服务"""
@@ -848,9 +903,7 @@ class GatewayService:
             return {"error": "规则不存在"}
 
 
-# ============================================================
 # 缓存管理
-# ============================================================
 
 class CacheService:
     """缓存管理服务"""
@@ -892,14 +945,10 @@ class CacheService:
         return {"msg": "统计已重置"}
 
 
-# ============================================================
 # 配置中心服务
-# ============================================================
 
 class ConfigCenterService:
-    """
-    配置中心服务类 - 提供配置的增删改查、热加载和缓存管理
-    """
+    """配置中心服务：配置的增删改查、热加载与缓存管理"""
     
     _cache: Dict[str, Any] = {}
     _cache_updated_at: Optional[datetime] = None
@@ -920,29 +969,17 @@ class ConfigCenterService:
     
     @classmethod
     def get_config(cls, key: str, default: Any = None) -> Any:
-        """
-        获取配置值 - 支持热加载和类型自动转换
-        
-        Args:
-            key: 配置键
-            default: 默认值
-            
-        Returns:
-            解析后的配置值
-        """
+        """获取配置值（热加载 + 类型自动转换）；Args: key 配置键, default 默认值；Returns: 解析后的配置值。"""
         cache_key = cls._get_cache_key(key)
-        
-        # 检查缓存是否需要刷新
+
         if cls._cache_updated_at:
             elapsed = (datetime.now() - cls._cache_updated_at).total_seconds()
             if elapsed > cls.CACHE_TTL:
                 cls._clear_cache()
         
-        # 从缓存获取
         if cache_key in cls._cache:
             return cls._cache[cache_key]
-        
-        # 从数据库获取
+
         try:
             config = GlobalConfig.objects.filter(key=key, is_active=True).first()
             if config:
@@ -956,15 +993,7 @@ class ConfigCenterService:
     
     @classmethod
     def get_all_configs(cls, category: Optional[str] = None) -> Dict[str, Any]:
-        """
-        获取所有配置（或按分类获取）
-        
-        Args:
-            category: 配置分类，可选
-            
-        Returns:
-            配置字典 {key: parsed_value}
-        """
+        """获取全部配置（可按 category 过滤）；Returns: {key: parsed_value}。"""
         queryset = GlobalConfig.objects.filter(is_active=True)
         if category:
             queryset = queryset.filter(category=category)
@@ -977,35 +1006,69 @@ class ConfigCenterService:
     
     @classmethod
     def get_public_configs(cls) -> Dict[str, Any]:
-        """
-        获取公开配置（供前端使用）
-        
-        Returns:
-            公开配置字典
-        """
+        """获取公开配置（is_public=True，供前端使用）。"""
         queryset = GlobalConfig.objects.filter(is_active=True, is_public=True)
         return {c.key: c.parsed_value for c in queryset}
+
+    # 分组元数据（系统设置中心分组管理）：code → 展示名/说明
+    GROUP_META: Dict[str, Dict[str, str]] = {
+        GlobalConfig.Category.SYSTEM: {
+            "name": "系统配置",
+            "description": "平台基础参数（站点名称、时区、分页等）",
+        },
+        GlobalConfig.Category.FEATURE: {
+            "name": "功能配置",
+            "description": "业务功能开关与行为参数",
+        },
+        GlobalConfig.Category.BUSINESS: {
+            "name": "业务配置",
+            "description": "业务运营参数（定价、通知等）",
+        },
+        GlobalConfig.Category.SECURITY: {
+            "name": "安全配置",
+            "description": "认证与安全相关参数（登录限流、Token 有效期等）",
+        },
+    }
+
+    @classmethod
+    def get_config_groups(cls) -> List[Dict[str, Any]]:
+        """按分类分组返回全部配置（系统设置中心分组管理）。Returns 有序分组列表，每项含
+        code/name/description/configs，configs 元素含 key/name/value(已解析)/config_type/category/description/
+        is_public/is_active/default_value；按 GlobalConfig.Category 声明顺序输出全部分组（含空组），保证前端布局稳定。
+        """
+        configs_by_category: Dict[str, List[Dict[str, Any]]] = {}
+        for cfg in GlobalConfig.objects.filter(is_active=True).order_by('key'):
+            configs_by_category.setdefault(cfg.category, []).append({
+                "key": cfg.key,
+                "name": cfg.name,
+                "value": cfg.parsed_value,
+                "config_type": cfg.config_type,
+                "category": cfg.category,
+                "description": cfg.description,
+                "is_public": cfg.is_public,
+                "is_active": cfg.is_active,
+                "default_value": cfg.default_value,
+            })
+
+        groups = []
+        for code, label in GlobalConfig.Category.choices:
+            meta = cls.GROUP_META.get(code, {"name": label, "description": ""})
+            groups.append({
+                "code": code,
+                "name": meta["name"],
+                "description": meta.get("description", ""),
+                "configs": configs_by_category.get(code, []),
+            })
+        return groups
     
     @classmethod
     def set_config(cls, key: str, value: Any, user=None, 
                    name: Optional[str] = None, description: str = "",
                    category: str = "system", config_type: str = "string") -> Dict:
+        """设置配置（新增或更新）。Args: key 配置键, value 配置值, user 操作用户, name（新增时必填）,
+        description, category, config_type；Returns: {"status":"ok","config":...} 或 {"error"}。
         """
-        设置配置（新增或更新）
-        
-        Args:
-            key: 配置键
-            value: 配置值
-            user: 操作用户
-            name: 配置名称（新增时必填）
-            description: 配置描述
-            category: 分类
-            config_type: 类型
-            
-        Returns:
-            操作结果
-        """
-        # 转换值为字符串存储
+        # 值转字符串存储
         if config_type == "json":
             import json
             value_str = json.dumps(value, ensure_ascii=False)
@@ -1018,7 +1081,6 @@ class ConfigCenterService:
         config = GlobalConfig.objects.filter(key=key).first()
         
         if config:
-            # 更新
             old_value = config.value
             config.value = value_str
             config.category = category
@@ -1031,7 +1093,6 @@ class ConfigCenterService:
             config.save()
             operation = "UPDATE"
         else:
-            # 新增
             if not name:
                 return {"error": "新增配置时 name 不能为空"}
             config = GlobalConfig.objects.create(
@@ -1046,49 +1107,29 @@ class ConfigCenterService:
             )
             operation = "CREATE"
         
-        # 记录历史
         cls._record_history(key, "global_config", operation, old_value, value_str, user)
-        
-        # 清除缓存
         cls._clear_cache(key)
-        
+
         return {"status": "ok", "config": config}
     
     @classmethod
     def delete_config(cls, key: str, user=None) -> Dict:
-        """
-        删除配置
-        
-        Args:
-            key: 配置键
-            user: 操作用户
-            
-        Returns:
-            操作结果
-        """
+        """删除配置。Args: key, user；Returns: {"status":"ok"} 或 {"error":"配置不存在"}。"""
         try:
             config = GlobalConfig.objects.get(key=key)
             old_value = config.value
             config.delete()
-            
-            # 记录历史
+
             cls._record_history(key, "global_config", "DELETE", old_value, None, user)
-            
-            # 清除缓存
             cls._clear_cache(key)
-            
+
             return {"status": "ok"}
         except GlobalConfig.DoesNotExist:
             return {"error": "配置不存在"}
     
     @classmethod
     def reload_configs(cls) -> Dict:
-        """
-        强制重新加载所有配置
-        
-        Returns:
-            操作结果
-        """
+        """强制重新加载所有配置；Returns: {"status":"ok","msg":"配置已刷新"}。"""
         cls._clear_cache()
         return {"status": "ok", "msg": "配置已刷新"}
     
@@ -1110,28 +1151,14 @@ class ConfigCenterService:
             logger.error(f"记录配置历史失败: {e}")
 
 
-# ============================================================
 # 特性开关/灰度发布服务
-# ============================================================
 
 class FeatureFlagService:
-    """
-    特性开关/灰度发布服务类
-    """
-    
+    """特性开关/灰度发布服务"""
+
     @staticmethod
     def is_enabled(feature_key: str, user=None, tenant=None) -> bool:
-        """
-        判断特性是否对当前用户/租户启用
-        
-        Args:
-            feature_key: 特性键
-            user: 用户对象
-            tenant: 租户对象
-            
-        Returns:
-            bool: 是否启用
-        """
+        """判断特性对当前 user/tenant 是否启用。Args: feature_key, user, tenant；Returns: bool。"""
         try:
             feature = FeatureFlag.objects.filter(key=feature_key).first()
             if not feature:
@@ -1139,8 +1166,8 @@ class FeatureFlagService:
             
             if user:
                 return feature.is_enabled_for_user(user, tenant)
-            
-            # 如果没有用户上下文，只检查 ALL 策略
+
+            # 无用户上下文时仅检查 ALL 策略
             return (feature.status == FeatureFlag.Status.ACTIVE and 
                    feature.rollout_strategy == FeatureFlag.RolloutStrategy.ALL)
         except Exception as e:
@@ -1149,16 +1176,7 @@ class FeatureFlagService:
     
     @staticmethod
     def get_user_features(user, tenant=None) -> Dict[str, bool]:
-        """
-        获取用户所有可用的特性开关
-        
-        Args:
-            user: 用户对象
-            tenant: 租户对象
-            
-        Returns:
-            Dict: {feature_key: is_enabled}
-        """
+        """获取用户所有可用特性开关；Returns: {feature_key: is_enabled}。"""
         features = FeatureFlag.objects.filter(status=FeatureFlag.Status.ACTIVE)
         result = {}
         for feature in features:
@@ -1167,17 +1185,7 @@ class FeatureFlagService:
     
     @staticmethod
     def update_feature_flag(feature_id: str, data: Dict, user=None) -> Dict:
-        """
-        更新特性开关
-        
-        Args:
-            feature_id: 特性ID
-            data: 更新数据
-            user: 操作用户
-            
-        Returns:
-            操作结果
-        """
+        """更新特性开关。Args: feature_id, data, user；Returns: {"status":"ok","feature":...} 或 {"error"}。"""
         try:
             feature = FeatureFlag.objects.get(id=feature_id)
             old_value = str({
@@ -1185,19 +1193,17 @@ class FeatureFlagService:
                 "rollout_strategy": feature.rollout_strategy,
                 "rollout_percentage": feature.rollout_percentage,
             })
-            
-            # 更新字段
+
             for field in ["name", "description", "status", "rollout_strategy", 
                          "rollout_percentage", "starts_at", "ends_at", "metadata"]:
                 if field in data:
                     setattr(feature, field, data[field])
-            
+
             if user:
                 feature.updated_by = user
-            
+
             feature.save()
-            
-            # 记录历史
+
             new_value = str({
                 "status": feature.status,
                 "rollout_strategy": feature.rollout_strategy,
@@ -1206,43 +1212,33 @@ class FeatureFlagService:
             ConfigCenterService._record_history(
                 feature.key, "feature_flag", "UPDATE", old_value, new_value, user
             )
-            
+
             return {"status": "ok", "feature": feature}
         except FeatureFlag.DoesNotExist:
             return {"error": "特性开关不存在"}
     
     @staticmethod
     def toggle_status(feature_id: str, user=None) -> Dict:
-        """
-        切换特性开关状态
-        
-        Args:
-            feature_id: 特性ID
-            user: 操作用户
-            
-        Returns:
-            操作结果
-        """
+        """切换特性开关状态（ACTIVE↔PAUSED）。Args: feature_id, user；Returns: {"status":"ok","is_active":bool}。"""
         try:
             feature = FeatureFlag.objects.get(id=feature_id)
             old_status = feature.status
-            
+
             if feature.status == FeatureFlag.Status.ACTIVE:
                 feature.status = FeatureFlag.Status.PAUSED
             else:
                 feature.status = FeatureFlag.Status.ACTIVE
-            
+
             if user:
                 feature.updated_by = user
-            
+
             feature.save()
-            
-            # 记录历史
+
             ConfigCenterService._record_history(
                 feature.key, "feature_flag", "UPDATE", 
                 str(old_status), str(feature.status), user
             )
-            
+
             return {
                 "status": "ok", 
                 "is_active": feature.status == FeatureFlag.Status.ACTIVE

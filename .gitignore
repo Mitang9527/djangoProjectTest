@@ -160,6 +160,7 @@ cython_debug/
 # 密钥轮换数据（敏感，不要提交）
 data/secret_keys.json
 data/*.json
+framework/data/
 
 # Frontend build artifacts
 **/node_modules/
@@ -180,3 +181,8 @@ extensions/apk_tool/resources/cert/
 # 本地 agent/工作记忆数据（不进远端仓库，保留在本地）
 .workbuddy/
 deploy/README.md
+
+# Windows 保留设备名误建文件（Git Bash `> NUL` 生成的真实文件，无法常规删除）
+/NUL
+/_check_out.txt
+/_envcmp.txt

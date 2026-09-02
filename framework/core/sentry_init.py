@@ -54,7 +54,6 @@ def init_sentry():
     if not sentry_dsn:
         return
 
-    # 获取环境信息
     environment = os.environ.get("ENV", "DEV").lower()
     release = os.environ.get("RELEASE_VERSION", None)
 

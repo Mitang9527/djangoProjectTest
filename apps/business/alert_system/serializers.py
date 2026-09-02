@@ -11,6 +11,8 @@ from .models import (
     AlertSilence,
     AlertHistory,
     AlertNotificationConfig,
+    MessageTemplate,
+    InAppMessage,
     AlertChannel,
     AlertLevel,
     AlertStatus,
@@ -276,3 +278,67 @@ class TestNotifySerializer(serializers.Serializer):
     channel = serializers.ChoiceField(choices=AlertChannel.choices)
     title = serializers.CharField(max_length=200, default="测试通知")
     content = serializers.CharField(default="这是一条来自告警系统的测试消息")
+
+
+# ---------------------------------------------------------------
+# 站内信
+# ---------------------------------------------------------------
+
+class MessageTemplateSerializer(serializers.ModelSerializer):
+    """站内信模板（管理员维护）"""
+
+    class Meta:
+        model = MessageTemplate
+        fields = [
+            "id",
+            "code",
+            "title",
+            "content",
+            "html_content",
+            "is_active",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+    def validate_code(self, value):
+        """模板编码：小写字母/数字/下划线/中划线，大小写不敏感唯一"""
+        code = (value or "").strip()
+        if not code:
+            raise serializers.ValidationError("模板编码不能为空")
+        for ch in code:
+            if not (ch.isalnum() or ch in "_-"):
+                raise serializers.ValidationError(
+                    "模板编码只能包含字母、数字、下划线或中划线"
+                )
+        qs = MessageTemplate.objects.filter(code__iexact=code)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError(f"模板编码 '{code}' 已存在")
+        return code
+
+
+class InAppMessageSerializer(serializers.ModelSerializer):
+    """站内信（用户收件箱，只读）
+
+    站内信由服务端 InAppNotificationService 产生，客户端不可写；
+    标记已读走专用 action。
+    """
+
+    level_display = serializers.CharField(source="get_level_display", read_only=True)
+    is_read = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = InAppMessage
+        fields = [
+            "id",
+            "title",
+            "content",
+            "level",
+            "level_display",
+            "read_at",
+            "is_read",
+            "created_at",
+        ]
+        read_only_fields = fields

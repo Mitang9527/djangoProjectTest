@@ -1,26 +1,13 @@
 """
-API 网关限流引擎
-===============
+API 网关限流引擎：基于 Redis 滑动窗口（Sorted Set）的可配置限流器。
 
-基于 Redis 滑动窗口算法实现的可配置限流器。
+限流器类型：IPThrottle(客户端IP)、UserThrottle(认证用户ID)、AnonThrottle(匿名IP，
+登录用户放行)、TenantThrottle(租户ID)、EndpointThrottle(URL路由+用户/IP组合)。
 
-限流器类型：
-  - IPThrottle:       按客户端 IP 限流
-  - UserThrottle:     按认证用户 ID 限流
-  - AnonThrottle:     按匿名用户 IP 限流（登录用户放行）
-  - TenantThrottle:   按租户 ID 限流
-  - EndpointThrottle: 按 URL 路由 + 用户/IP 组合限流
+配置优先级（高→低）：APILimitRule(路由级) > PlanFeature(套餐级) > TenantConfig(租户级) > 全局默认。
 
-配置优先级（从高到低）：
-  APILimitRule（路由级） &gt; PlanFeature（套餐级） &gt; TenantConfig（租户级） &gt; 全局默认值
-
-滑动窗口算法：
-  使用 Redis Sorted Set：
-    1. ZREMRANGEBYSCORE 清理过期条目
-    2. ZCARD 计数当前窗口内请求数
-    3. 若 count &gt;= limit → 拒绝 (429)
-    4. ZADD 添加当前请求
-    5. EXPIRE 设置 key 过期时间
+滑动窗口算法：ZREMRANGEBYSCORE 清理过期 → ZCARD 计数 → count>=limit 拒绝(429) →
+ZADD 记录当前请求 → EXPIRE 设置 key 过期。
 """
 
 import re
@@ -39,9 +26,7 @@ from rest_framework.throttling import BaseThrottle
 from framework.cache.redis_client import get_redis
 
 
-# ─────────────────────────────────────────────────────────────
 # 全局默认限流值（延迟读取，导入时若 Django 未就绪则使用默认值）
-# ─────────────────────────────────────────────────────────────
 try:
     DEFAULT_THROTTLE_RATES = getattr(settings, "GATEWAY_THROTTLE_RATES", {
         "ip":       "1000/h",
@@ -65,9 +50,7 @@ REDIS_KEY_PREFIX = "ratelimit:gw:"
 # 时间单位 → 秒
 _TIME_UNITS = {"s": 1, "m": 60, "h": 3600, "d": 86400}
 
-# ─────────────────────────────────────────────────────────────
 # 规则缓存管理 - 支持实时刷新
-# ─────────────────────────────────────────────────────────────
 class RuleCacheManager:
     """限流规则缓存管理器，支持实时刷新"""
     
@@ -150,19 +133,12 @@ class RuleCacheManager:
 rule_cache = RuleCacheManager()
 
 
-# ─────────────────────────────────────────────────────────────
 # 工具函数
-# ─────────────────────────────────────────────────────────────
 
 def parse_rate(rate_str: str) -> Tuple[int, int]:
-    """
-    解析速率字符串，例如 "100/h" → (100, 3600)
+    """解析速率字符串，如 "100/h" → (100, 3600)。
 
-    Args:
-        rate_str: 如 "100/h", "60/m", "1000/d"
-
-    Returns:
-        (limit, window_seconds)
+    Args: rate_str 形如 "100/h"/"60/m"/"1000/d"。Returns: (limit, window_seconds)。
     """
     if not rate_str or "/" not in rate_str:
         parsed = _parse_simple_rate(rate_str)
@@ -217,9 +193,8 @@ def _redis_available() -> bool:
 def _redis_fail_open() -> bool:
     """Redis 故障时的限流策略：True=放行(fail-open)，False=拒绝(fail-closed)。
 
-    读取 settings.GATEWAY_THROTTLE_REDIS_FAIL_OPEN（默认 False）。
-    fail-closed 下 Redis 不可用会直接 429，保证限流不因基础设施故障而失效；
-    需要「降级放行、保证可用性」的环境可显式置 True。
+    读取 settings.GATEWAY_THROTTLE_REDIS_FAIL_OPEN（默认 False）。fail-closed 下
+    Redis 不可用直接 429，保证限流不因基础设施故障失效；需「降级放行」的环境可显式置 True。
     """
     try:
         return bool(getattr(settings, "GATEWAY_THROTTLE_REDIS_FAIL_OPEN", False))
@@ -228,20 +203,10 @@ def _redis_fail_open() -> bool:
 
 
 def check_sliding_window(key: str, limit: int, window_seconds: int) -> Tuple[bool, int, int]:
-    """
-    Redis 滑动窗口速率检查。
+    """Redis 滑动窗口速率检查（ZSET：member=时间戳+随机后缀防重复，score=时间戳）。
 
-    使用 ZSET 实现精确滑动窗口：
-      - members = 请求时间戳（带随机后缀防重复）
-      - scores = 时间戳
-
-    Args:
-        key: Redis 键
-        limit: 窗口内最大请求数
-        window_seconds: 窗口大小（秒）
-
-    Returns:
-        (allowed, remaining, reset_in_seconds)
+    Args: key=Redis 键; limit=窗口内最大请求数; window_seconds=窗口大小（秒）。
+    Returns: (allowed, remaining, reset_in_seconds)。
     """
     if not _redis_available():
         # Redis 不可用：默认 fail-closed（拒绝 429）；GATEWAY_THROTTLE_REDIS_FAIL_OPEN=True 时放行
@@ -290,32 +255,20 @@ def check_sliding_window(key: str, limit: int, window_seconds: int) -> Tuple[boo
         return (False, 0, window_seconds)
 
 
-# ─────────────────────────────────────────────────────────────
 # 配置管理器
-# ─────────────────────────────────────────────────────────────
 
 class GatewayConfigManager:
-    """
-    网关配置管理器：从多个来源获取限流值。
+    """网关配置管理器：从多个来源获取限流值。
 
-    优先级：
-      1. APILimitRule 表（路由级精确匹配）
-      2. PlanFeature 表（套餐级）
-      3. TenantConfig 表（租户级）
-      4. 全局默认值
+    优先级：APILimitRule(路由级) > PlanFeature(套餐级) > TenantConfig(租户级) > 全局默认。
     """
 
     @staticmethod
     def get_rate_for_request(request, throttle_type: str) -> Tuple[int, int]:
-        """
-        获取应用于当前请求的速率限制。
+        """获取当前请求的速率限制。
 
-        Args:
-            request: Django/DRF 请求对象
-            throttle_type: 'ip' | 'user' | 'tenant'
-
-        Returns:
-            (limit, window_seconds)
+        Args: request=Django/DRF 请求对象; throttle_type='ip'|'user'|'tenant'。
+        Returns: (limit, window_seconds)。
         """
         path = request.path if hasattr(request, 'path') else ''
 
@@ -400,23 +353,15 @@ class GatewayConfigManager:
 get_gateway_config = GatewayConfigManager()
 
 
-# ─────────────────────────────────────────────────────────────
 # DRF 限流器基类
-# ─────────────────────────────────────────────────────────────
 
 class ConfigurableRateThrottle(BaseThrottle):
-    """
-    可配置速率限流器基类。
+    """可配置速率限流器基类。
 
-    子类覆盖：
-      - throttle_type: 限流类型标识
-      - get_identity(request): 返回限流维度标识（IP / user_id / tenant_id）
-
-    配置来源：
-      - 全局默认值 (GATEWAY_THROTTLE_RATES)
-      - TenantConfig (key: rate_limit.{throttle_type})
-      - PlanFeature (feature_code: rate_limit.{throttle_type})
-      - APILimitRule (数据库路由规则)
+    子类覆盖 throttle_type（限流类型）与 get_identity(request)（返回限流维度标识：
+    IP / user_id / tenant_id）。
+    配置来源：全局默认 GATEWAY_THROTTLE_RATES / TenantConfig(rate_limit.{type}) /
+    PlanFeature(feature_code=rate_limit.{type}) / APILimitRule 路由规则。
     """
 
     throttle_type: str = "ip"           # 子类覆盖
@@ -431,15 +376,11 @@ class ConfigurableRateThrottle(BaseThrottle):
         self._reset_in: Optional[int] = None
 
     def allow_request(self, request, view) -> bool:
-        """
-        检查是否允许请求。
-        返回 True 则放行，False 则拒绝并触发 429。
-        """
+        """检查是否允许请求：True 放行，False 拒绝并触发 429。"""
         identity = self.get_identity(request)
         if not identity:
             return True
 
-        # 获取限流配置
         limit, window = get_gateway_config.get_rate_for_request(request, self.throttle_type)
 
         # 构建 Redis key
@@ -479,9 +420,7 @@ class ConfigurableRateThrottle(BaseThrottle):
         raise NotImplementedError("子类必须实现 get_identity()")
 
 
-# ─────────────────────────────────────────────────────────────
 # 具体限流器实现
-# ─────────────────────────────────────────────────────────────
 
 class IPThrottle(ConfigurableRateThrottle):
     """按客户端 IP 限流"""
@@ -505,11 +444,9 @@ class UserThrottle(ConfigurableRateThrottle):
 class AnonThrottle(ConfigurableRateThrottle):
     """按匿名用户 IP 限流（仅对未登录请求生效）。
 
-    登录用户返回空 identity → allow_request 直接放行，避免与 UserThrottle
-    叠加造成 anon 档（默认 60/m）误杀已登录用户；未登录请求按客户端 IP 限流。
-
-    配置来源同其他限流器，读取 GATEWAY_THROTTLE_RATES 的 "anon" 档；
-    亦可在 APILimitRule 表配置 throttle_type="anon" 的路由级规则覆盖。
+    登录用户返回空 identity → allow_request 直接放行，避免与 UserThrottle 叠加
+    造成 anon 档（默认 60/m）误杀已登录用户；未登录请求按客户端 IP 限流。
+    配置来源同其他限流器，也可用 APILimitRule throttle_type="anon" 路由规则覆盖。
     """
     throttle_type = "anon"
 
@@ -549,9 +486,8 @@ class EndpointThrottle(ConfigurableRateThrottle):
         if not identity:
             return True
 
-        # 按优先级链取值：路由规则(APILimitRule, throttle_type=endpoint) →
-        # PlanFeature → TenantConfig → 全局默认（GATEWAY_THROTTLE_RATES['endpoint']）。
-        # 注意：不能在「规则存在但路径未匹配」时硬编码回退，否则会跳过套餐/租户/全局配置。
+        # 按优先级链取值：路由规则 → PlanFeature → TenantConfig → 全局默认。
+        # ⚠️ 规则存在但路径未匹配时不可硬编码回退，否则会跳过套餐/租户/全局配置。
         limit, window = get_gateway_config.get_rate_for_request(request, "endpoint")
 
         key = f"{REDIS_KEY_PREFIX}endpoint:{identity}"
