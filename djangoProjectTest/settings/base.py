@@ -849,7 +849,6 @@ _API_TAG_DESCRIPTIONS = {
     'saas': '多租户 SaaS 管理（租户/套餐/额度）',
     'ai_studio': 'AI 创作服务（生成任务/结果拉取）',
     'alert_system': '告警与通知系统（规则/历史/通知配置）',
-    'soul': 'Soul 业务模块',
     'apk_tool': 'APK 工具（扩展）',
     'adb_web': 'ADB Web 调试（扩展）',
     'web_automation': 'Web 自动化（扩展）',
