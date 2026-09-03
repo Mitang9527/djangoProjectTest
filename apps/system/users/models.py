@@ -1,3 +1,12 @@
+"""用户域数据模型。
+
+核心模型：
+- User          自定义用户（继承 AbstractUser，扩展昵称/手机号/头像/角色/令牌版本）
+- UserSession   用户会话记录（多端登录、设备识别、踢下线）
+- OAuthProvider 第三方 OAuth 提供商配置
+- OAuthAccount  第三方账号绑定关系
+"""
+
 import uuid
 
 from django.conf import settings

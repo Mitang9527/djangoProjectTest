@@ -1,3 +1,8 @@
+"""密钥轮换管理。
+
+维护密钥的版本化存储（当前密钥 + 历史密钥），提供密钥生成、轮换、回溯取用等能力，
+与 ``crypto.py`` 配合实现平滑轮换。存储于磁盘 JSON 文件，路径由 settings 指定。
+"""
 import json
 import os
 import sys

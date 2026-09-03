@@ -1,3 +1,9 @@
+"""文件上传校验器。
+
+强制扩展名白名单 + MIME 同步校验，SVG 一律拒绝（XSS 风险）；视频上限 100MB、
+其余类型 10MB；未知扩展名经 ``mimetypes.guess_type`` 判定。所有规则由
+``settings`` 注入，供上传视图统一调用。
+"""
 import os
 import hashlib
 import mimetypes

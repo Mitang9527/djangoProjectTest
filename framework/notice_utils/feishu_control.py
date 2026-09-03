@@ -1,3 +1,8 @@
+"""飞书机器人通知。
+
+封装飞书自定义机器人 webhook 发送（文本 / Markdown / 富文本），支持加签安全设置。
+渠道开关与地址由 settings / 环境变量注入。
+"""
 import base64
 import hashlib
 import hmac

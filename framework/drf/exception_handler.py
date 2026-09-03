@@ -1,3 +1,8 @@
+"""DRF 全局异常处理器。
+
+统一将 DRF 校验错误、认证错误与未捕获异常转换为规范响应结构（``{detail, code}``），
+生产环境对外隐藏技术细节（路径/类名/堆栈），仅返回通用文案；开发环境保留调试信息。
+"""
 from rest_framework.views import exception_handler
 from rest_framework.response import Response
 from rest_framework import status

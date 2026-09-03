@@ -1,3 +1,8 @@
+"""子进程执行工具。
+
+提供带实时输出回传的子进程执行封装（run_with_live_output），支持超时控制与
+编码处理，用于系统命令/脚本的异步执行场景。
+"""
 import time
 import subprocess
 import platform

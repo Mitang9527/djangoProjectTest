@@ -1,3 +1,8 @@
+"""密钥加密/签名器。
+
+基于 Django Signing 实现支持多密钥版本化的签名器：签名时用当前密钥，验签时按
+版本回溯历史密钥，支撑密钥平滑轮换（旧密钥签发的密文仍可解密）。
+"""
 import sys
 from pathlib import Path
 

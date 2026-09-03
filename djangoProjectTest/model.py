@@ -1,3 +1,9 @@
+"""环境配置模型（Pydantic）。
+
+以强类型方式集中声明并校验所有环境变量（对应 ``.env`` / ``.env.template``），
+生成全局单例 ``global_config``。settings 各层从这里取值，避免散落的
+``os.environ.get``；复杂类型（list 等）通过 ``field_validator`` 兼容逗号分隔写法。
+"""
 import sys
 from pathlib import Path
 from typing import List, Optional, Any

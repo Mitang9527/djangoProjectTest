@@ -1,3 +1,14 @@
+"""核心平台基础数据模型。
+
+包含平台级基础设施模型：
+- AuditLog / AuditLogArchive   增强版审计日志（含归档与排除模型清单）
+- LoginLog / OperationLog      登录日志与操作日志
+- APIKey                       平台级 API 密钥（含轮换与过期）
+- DictType / DictItem          数据字典（键值配置）
+- FileAsset                    文件资产登记
+- Menu                         动态菜单（RBAC 权限挂载）
+"""
+
 import hashlib
 import json
 import secrets

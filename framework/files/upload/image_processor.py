@@ -1,3 +1,8 @@
+"""图片处理器。
+
+基于 Pillow 提供图片压缩、尺寸缩放与可选水印能力，上传后按配置统一处理以控制
+存储与带宽成本。支持 JPEG/PNG/WEBP/GIF 格式。
+"""
 import os
 import hashlib
 from pathlib import Path

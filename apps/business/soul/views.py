@@ -1,3 +1,8 @@
+"""Soul 示例应用视图（脚手架 demo）。
+
+以 DRF ViewSet 演示标准 CRUD 视图与自定义 action 的写法，作为新业务模块的起步模板。
+"""
+
 from loguru import logger
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action

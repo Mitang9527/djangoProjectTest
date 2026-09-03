@@ -1,3 +1,9 @@
+"""用户域路由。
+
+挂载用户注册/登录/登出、令牌、用户管理、MFA、二维码登录、会话、改密、找回密码、
+OAuth2 等全部用户相关端点，由项目根路由以 /api/v1/users/ 前缀接入。
+"""
+
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (

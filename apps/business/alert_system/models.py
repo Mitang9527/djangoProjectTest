@@ -1,3 +1,14 @@
+"""告警与脱敏系统 - 数据模型。
+
+核心模型：
+- AlertRule               告警规则（按级别/通道/接收人定义触发与投递策略）
+- AlertSilence            静默窗口（指定时间内抑制重复告警）
+- AlertHistory            告警发送历史（含状态机：待处理/已发送/失败/已抑制）
+- MessageTemplate         消息模板（登录/设备/告警等场景）
+- InAppMessage            站内信（用户收件箱）
+- AlertNotificationConfig 通知渠道配置（邮箱/钉钉/飞书等）
+"""
+
 from django.db import models
 from django.utils import timezone
 from django.contrib.auth import get_user_model

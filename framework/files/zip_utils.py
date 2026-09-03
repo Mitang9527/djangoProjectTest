@@ -1,3 +1,8 @@
+"""文件压缩工具。
+
+提供将指定目录中超过 N 天未修改的子文件夹打包为 zip 并删除源文件的清理能力，
+用于日志/临时目录的归档瘦身。
+"""
 import os
 import time
 import zipfile

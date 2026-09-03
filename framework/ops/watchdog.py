@@ -1,4 +1,9 @@
-﻿import os
+"""文件系统监控管理器。
+
+基于 watchdog 监听指定目录的文件变化，将底层事件与上层业务逻辑解耦，供
+热加载/文件变更触发等场景使用。
+"""
+import os
 import time
 import queue
 import threading

@@ -1,3 +1,8 @@
+"""生产环境配置（ENV=PROD）。
+
+继承 ``base.py``，关闭 DEBUG，启用数据库连接池（framework.db）与 Prometheus
+指标采集，并做 JWT_SIGNING_KEY / API_SECRET_KEY 非空硬校验（缺失即启动失败）。
+"""
 from .base import *
 from ..model import global_config
 

@@ -1,3 +1,10 @@
+"""用户域视图层。
+
+承载用户注册、登录/登出、令牌签发与刷新、用户信息、用户管理（CRUD）、MFA 状态
+与设置等 API 视图。登录统一走 CustomTokenObtainPairView 以叠加 token_version
+即时失效、登录日志落库等安全机制。
+"""
+
 from django.apps import apps
 from django.contrib.auth import authenticate, get_user_model
 from django.utils.translation import gettext_lazy as _

@@ -1,3 +1,9 @@
+"""用户域序列化器。
+
+覆盖注册、登录、令牌刷新/登出、用户详情/管理、MFA 设置、角色等全部序列化与
+校验逻辑；登录令牌签发基于 SimpleJWT，叠加 token_version 即时失效机制。
+"""
+
 from datetime import datetime as _dt, timezone as _dt_tz
 
 from rest_framework import serializers

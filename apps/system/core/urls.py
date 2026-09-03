@@ -1,3 +1,10 @@
+"""核心平台路由。
+
+挂载平台级 API 视图：健康检查、文件上传、API Key、审计日志、登录/操作日志、
+数据字典、文件资产、菜单等。路由统一由项目根 djangoProjectTest/urls.py
+以 /api/v1/core/ 前缀接入。
+"""
+
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 

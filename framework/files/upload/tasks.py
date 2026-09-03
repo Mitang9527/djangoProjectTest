@@ -1,3 +1,8 @@
+"""文件清理 Celery 任务。
+
+提供定时清理临时目录/过期文件的 ``clean_temp_files`` 任务，支持 dry-run 预览，
+由 beat 调度或手动触发。
+"""
 import os
 import time
 from pathlib import Path

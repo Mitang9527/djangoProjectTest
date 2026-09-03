@@ -1,3 +1,10 @@
+"""审计日志写入层。
+
+基于 Django 信号的通用审计机制：监听模型 pre_save/post_save/pre_delete 与
+登录/登出/登录失败信号，自动记录字段级变更到 AuditLog / LoginLog / OperationLog。
+通过线程本地存储（threading.local）传递当前请求上下文，避免显式传参。
+"""
+
 import copy
 import threading
 import functools

@@ -1,3 +1,10 @@
+"""核心平台视图层。
+
+集中承载平台级 API 视图：健康检查、文件上传（图片/音频/文档）、API Key 管理、
+审计日志、登录/操作日志、数据字典、文件资产、动态菜单、系统信息等。
+大部分以 DRF ViewSet 暴露，配合 framework.drf 的鉴权与限流能力使用。
+"""
+
 import os
 from datetime import datetime, timedelta
 from datetime import timezone as dt_timezone

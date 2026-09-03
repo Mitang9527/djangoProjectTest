@@ -1,3 +1,8 @@
+"""开发环境配置（ENV=DEV）。
+
+继承 ``base.py``，开启 DEBUG，使用本地 SQLite，关闭数据库连接池；供本地联调
+（前端 5273 / 后端 8300）使用。
+"""
 from .base import *
 from ..model import global_config
 
