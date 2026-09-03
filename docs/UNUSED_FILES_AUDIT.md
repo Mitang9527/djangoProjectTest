@@ -168,11 +168,11 @@ del /f /a \\?\D:\Code\djangoProjectTest\NUL
 | 路径 | 体积 | 疑问点 |
 | --- | --- | --- |
 | ~~`extensions/apk_tool/resources/DEF_APK/`~~ | ~~121 MB~~ | **已删除**（2026-09-03）。原被 `constants.py` 引用为默认模板，删除后 `apk_tool` 收敛为仅支持 `custom` 自定义上传，`APK_TYPE_CHOICES` 同步收敛 |
-| `tasks.py` | 33 KB | Invoke 任务集（`dev/db/code/pro/docker/git/secret/log` 8 个命名空间），功能完整，但 **Makefile、CI、pre-commit 均未调用**，疑似已被 Makefile 取代 |
+| ~~`tasks.py`~~ | ~~33 KB~~ | 待决策：Invoke 任务集，但 **Makefile、CI、pre-commit 均未调用**，疑似已被 Makefile 取代。内部仍残留 `uv sync`/`uv.lock` 引用（uv.lock 已删） |
 | `apps/system/saas/management/commands/seed_data.py` | 18 KB | Django 命令（可 `manage.py seed_data` 运行），零引用，是可保留的一次性播种工具 |
 | `ai_studio.postman_collection.json` | 6.3 KB | API 调试集合，无任何文档引用它 |
 | `check_admin.py` | 1.7 KB | 根目录一次性检查脚本，逻辑与 `scripts/create_admin.py` 重叠 |
-| `requirements.txt` vs `requirements/base.txt` | — | 两套依赖声明内容高度重叠（173 行 vs 111 行）。CI 用 `requirements/test.txt`、`pip-audit` 用 `requirements.txt`、`pyproject.toml` 另有完整 `dependencies`。三套并存易漂移，建议收敛到 `pyproject.toml` + `uv.lock` |
+| ~~`requirements.txt` vs `requirements/base.txt`~~ | — | **已收敛**（2026-09-03）。以 requirements 体系为唯一事实源：删 `pyproject.toml` 的 `dependencies` 段 + 孤儿 `uv.lock`；`requirements.txt` 补 `dingtalkchatbot`，oidc 版本统一 `>=5.0` |
 
 ---
 

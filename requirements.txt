@@ -47,6 +47,8 @@ python-magic>=0.4.27
 pyzmq>=25.0.0
 referencing>=0.30.0
 requests>=2.31.0
+# 钉钉机器人（framework/notice_utils/dingtalk_control 使用）
+dingtalkchatbot>=1.0.0
 rpds-py>=0.10.0
 six>=1.16.0
 soupsieve>=2.5.0
