@@ -173,7 +173,6 @@ logs/
 # Large local binary resources
 extensions/apk_tool/resources/*.jar
 extensions/apk_tool/resources/win/*.exe
-extensions/apk_tool/resources/DEF_APK/*.apk
 
 # Local signing materials
 extensions/apk_tool/resources/cert/

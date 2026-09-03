@@ -19,8 +19,7 @@ from loguru import logger
 from ruamel.yaml import YAML
 
 from .constants import (
-    APKTOOL_JAR, APK_LARGE, APK_SMALL, APK_SCREENLESS,
-    ZIPALIGN_EXE, APKSIGNER_BAT, KEYSTORE_CONFIG,
+    APKTOOL_JAR, ZIPALIGN_EXE, APKSIGNER_BAT, KEYSTORE_CONFIG,
     VALID_PACKAGE_NAMES, ANDROID_NAMESPACE,
     get_task_workdir, get_task_output_dir, get_decompile_dir,
     get_slclient_json_path, get_manifest_path, get_yml_path,
@@ -107,10 +106,10 @@ def run_command(command: List[str], timeout: Optional[float] = None) -> Dict[str
     }
 
 
-def decompile_apk(task_id: str, apk_type: str = 'large', custom_apk_path: Optional[str] = None) -> Dict[str, Any]:
+def decompile_apk(task_id: str, apk_type: str = 'custom', custom_apk_path: Optional[str] = None) -> Dict[str, Any]:
     """
-    反编译 APK
-    apk_type: 'large' / 'small' / 'screenless' / 'custom'
+    反编译 APK（仅支持自定义上传 APK；内置模板包 DEF_APK 已移除）
+    apk_type: 'custom'
     """
     logger.info(f"[APK] 开始反编译 — task_id={task_id}, apk_type={apk_type}")
     workdir = get_task_workdir(task_id)
@@ -121,15 +120,8 @@ def decompile_apk(task_id: str, apk_type: str = 'large', custom_apk_path: Option
         shutil.rmtree(decompile_dir, ignore_errors=True)
         logger.debug(f"[APK] 清理旧反编译目录: {decompile_dir}")
 
-    # 确定 APK 源文件
-    apk_map = {
-        'large': APK_LARGE,
-        'small': APK_SMALL,
-        'screenless': APK_SCREENLESS,
-    }
-    apk_source = apk_map.get(apk_type)
-    if apk_type == 'custom' and custom_apk_path:
-        apk_source = Path(custom_apk_path)
+    # 确定 APK 源文件（仅自定义上传路径）
+    apk_source = Path(custom_apk_path) if (apk_type == 'custom' and custom_apk_path) else None
 
     if not apk_source or not apk_source.exists():
         logger.error(f"[APK] APK 文件不存在: {apk_source}")

@@ -14,11 +14,6 @@ WORKSPACE_BASE = Path(settings.MEDIA_ROOT) / 'apk_tool'
 # apktool.jar
 APKTOOL_JAR = RESOURCE_BASE / 'apktool.jar'
 
-# 内置 APK 路径
-APK_LARGE = RESOURCE_BASE / 'DEF_APK' / 'LargeApp.apk'
-APK_SMALL = RESOURCE_BASE / 'DEF_APK' / 'SmallApp.apk'
-APK_SCREENLESS = RESOURCE_BASE / 'DEF_APK' / 'Screenless.apk'
-
 # 签名证书
 KEYSTORE_BIG = RESOURCE_BASE / 'cert' / 'shanli.jks'
 KEYSTORE_SMALL = RESOURCE_BASE / 'cert' / 'shanlitech.keystore'

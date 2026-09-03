@@ -19,14 +19,11 @@ class BuildTask(models.Model):
     ]
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
 
-    # APK 类型
+    # APK 类型（内置模板包 DEF_APK 已移除，仅支持自定义上传）
     APK_TYPE_CHOICES = [
-        ('large', '大屏 APK'),
-        ('small', '小屏 APK'),
-        ('screenless', '无屏 APK'),
         ('custom', '自定义 APK'),
     ]
-    apk_type = models.CharField(max_length=20, choices=APK_TYPE_CHOICES, default='large')
+    apk_type = models.CharField(max_length=20, choices=APK_TYPE_CHOICES, default='custom')
 
     # 自定义 APK 上传路径
     custom_apk = models.FileField(upload_to='apk_tool/uploads/', blank=True, null=True)
