@@ -8,6 +8,14 @@ import re
 
 from django.conf import settings
 
+STRENGTH_CHECK_LABELS = {
+    "length": "长度",
+    "upper": "大写字母",
+    "lower": "小写字母",
+    "digit": "数字",
+    "special": "特殊字符",
+}
+
 
 def password_strength(password: str) -> dict:
     checks = {

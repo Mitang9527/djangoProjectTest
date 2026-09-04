@@ -54,7 +54,7 @@ class DemoLoginView(APIView):
     def post(self, request):
         ip = _client_ip(request)
 
-        if not getattr(settings, "ALLOW_DEMO_LOGIN", False):
+        if not getattr(settings,"ALLOW_DEMO_LOGIN", False):
             logger.warning(
                 f"[DEMO-LOGIN] 禁用状态尝试登录 username={request.data.get('username')} ip={ip}"
             )
@@ -67,7 +67,9 @@ class DemoLoginView(APIView):
                 {"detail": "演示登录已禁用，请使用正式登录方式（注册 / OIDC SSO）"},
                 status=status.HTTP_403_FORBIDDEN,
             )
+
         username = (request.data.get('username') or '').strip()
+
         if not username:
             logger.info(f"[DEMO-LOGIN] 用户名为空 ip={ip}")
             record_login_log(email='', status='failed', request=request,

@@ -1,5 +1,7 @@
 """自助修改密码端点（对齐铁律 11「改密也自增 token_version」）。
-流程：校验旧密码（错返回 code=old_password_wrong）→ 强度校验（5 项中 ≥4 项）→ set_password + token_version 自增（全端旧 token 失效）→ 吊销全部会话 → 为当前设备重签 access/refresh（第 8 个 JWT 签发点，当前免重登其余下线）→ SENSITIVE 审计（PASSWORD_CHANGE）。
+流程：校验旧密码（错返回 code=old_password_wrong）→ 强度校验（5 项中 ≥4 项）→ set_password + token_version 自增（全端旧 token 失效）
+→ 吊销全部会话 → 为当前设备重签 access/refresh（第 8 个 JWT 签发点，当前免重登其余下线）
+→ SENSITIVE 审计（PASSWORD_CHANGE）。
 注意：刷新 token 不校验会话记录，仅靠黑名单 + token_version 兜底，故踢其他设备必须升 token_version 而不能只吊销会话。
 """
 from django.utils import timezone
@@ -7,7 +9,7 @@ from rest_framework import permissions, serializers, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from framework.security.password import password_strength
+from framework.security.password import password_strength, STRENGTH_CHECK_LABELS
 
 
 class ChangePasswordSerializer(serializers.Serializer):
@@ -17,9 +19,11 @@ class ChangePasswordSerializer(serializers.Serializer):
     def validate_new_password(self, value):
         strength = password_strength(value)
         if not strength["strong"]:
-            failed = [name for name, ok in strength["checks"].items() if not ok]
+            failed_keys = [name for name, ok in strength["checks"].items() if not ok]
+
+            failed_labels = [STRENGTH_CHECK_LABELS.get(key, key) for key in failed_keys]
             raise serializers.ValidationError(
-                f"密码强度不足，未通过：{'、'.join(failed)}"
+                f"密码强度不足，未通过,缺少：{'、'.join(failed_labels)}"
             )
         return value
 
@@ -38,7 +42,8 @@ class ChangePasswordView(APIView):
     def post(self, request):
         serializer = ChangePasswordSerializer(data=request.data)
         if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response(serializer.errors,
+                            status=status.HTTP_400_BAD_REQUEST)
 
         user = request.user
         old_password = serializer.validated_data["old_password"]
