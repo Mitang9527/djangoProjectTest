@@ -98,7 +98,7 @@ def _log(msg: str, level: str = "info") -> None:
 
 def _probe_port(host: str, port: int, timeout: float = 3.0) -> None:
     """TCP 快速探测端口（失败抛异常）。localhost 归一化为 127.0.0.1。"""
-    if not host or host in ("localhost", "::1", "0.0.0.0"):
+    if not host or host in ("localhost", "::1", "0.0.0.0"):  # nosec B104  # 此处 0.0.0.0 是取值默认值/字符串比较，不是 bind 绑定
         host = "127.0.0.1"
     sock = socket.create_connection((host, int(port)), timeout=timeout)
     sock.close()

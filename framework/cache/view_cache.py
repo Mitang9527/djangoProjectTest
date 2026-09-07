@@ -58,10 +58,13 @@ def view_cache_key(request, prefix: str) -> str:
     """生成视图缓存键: v3:{prefix}:{tenant}:{user}:{path}:{query_hash}"""
     tenant = _tenant_key(request)
     user_id = str(request.user.id) if request.user.is_authenticated else "anon"
-    path = hashlib.md5(request.path.encode()).hexdigest()[:12]
+    # usedforsecurity=False：仅用于压缩缓存键长度，非安全用途
+    path = hashlib.md5(request.path.encode(), usedforsecurity=False).hexdigest()[:12]
 
     # 查询参数加入键（避免不同参数返回相同缓存）
-    query = hashlib.md5(request.META.get('QUERY_STRING', '').encode()).hexdigest()[:8]
+    query = hashlib.md5(
+        request.META.get('QUERY_STRING', '').encode(), usedforsecurity=False
+    ).hexdigest()[:8]
 
     return f"{CACHE_VERSION}:view:{prefix}:{tenant}:{user_id}:{path}:{query}"
 

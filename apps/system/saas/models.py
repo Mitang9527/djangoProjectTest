@@ -897,7 +897,10 @@ class FeatureFlag(models.Model):
         if self.rollout_strategy == self.RolloutStrategy.PERCENTAGE:
             # 使用用户ID哈希确定是否在比例内，确保同一用户结果稳定
             import hashlib
-            user_hash = int(hashlib.md5(str(user.id).encode()).hexdigest(), 16) % 100
+            # usedforsecurity=False：仅用于灰度分桶（同一用户结果稳定），非安全用途
+            user_hash = int(
+                hashlib.md5(str(user.id).encode(), usedforsecurity=False).hexdigest(), 16
+            ) % 100
             return user_hash < self.rollout_percentage
 
         if self.rollout_strategy == self.RolloutStrategy.USER_GROUPS:

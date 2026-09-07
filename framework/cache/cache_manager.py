@@ -197,7 +197,11 @@ def cached(prefix: str, ttl: int = 300, tags: List[str] = None,
             else:
                 sorted_kwargs = sorted(kwargs.items())
                 key_parts = [str(args), str(sorted_kwargs)]
-                key_parts = [hashlib.md5(p.encode()).hexdigest()[:16] for p in key_parts]
+                # usedforsecurity=False：仅用于压缩缓存键长度，非安全用途
+                key_parts = [
+                    hashlib.md5(p.encode(), usedforsecurity=False).hexdigest()[:16]
+                    for p in key_parts
+                ]
 
             cached_value = cache_get(prefix, *key_parts)
             if cached_value is not None:

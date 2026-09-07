@@ -28,6 +28,27 @@ class BackupInfo:
     is_compressed: bool = True
 
 
+def _safe_extract_tar(tar, dest) -> None:
+    """安全解压 tar 包，阻断路径穿越（tar slip）。
+
+    备份包可能来自外部或不可信来源，恶意构造的成员名（``../``、绝对路径、指向外部的
+    符号链接）会让 ``extractall`` 把文件写到目标目录之外。这里优先使用 Python 3.12+
+    的 ``filter="data"``；低版本退化为逐成员手工校验。
+    """
+    try:
+        tar.extractall(path=dest, filter="data")
+        return
+    except TypeError:
+        pass  # Python < 3.11.4 无 filter 参数 → 走下面的手工校验
+
+    target = Path(dest).resolve()
+    for member in tar.getmembers():
+        member_dest = (target / member.name).resolve()
+        if member_dest != target and target not in member_dest.parents:
+            raise ValueError(f"拒绝解压：备份包含越界成员 {member.name!r}")
+    tar.extractall(path=dest)
+
+
 class BackupManager:
     """备份管理器"""
     
@@ -211,7 +232,7 @@ class BackupManager:
         media_root.mkdir(parents=True, exist_ok=True)
         
         with tarfile.open(backup.path, "r:gz") as tar:
-            tar.extractall(path=media_root.parent)
+            _safe_extract_tar(tar, media_root.parent)
         
         logger.info(f"Media restored successfully from: {backup.path}")
         return True

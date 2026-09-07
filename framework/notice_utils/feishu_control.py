@@ -76,7 +76,8 @@ class FeiShuTalkChatBot:
                 webhook,
                 headers=headers,
                 data=json.dumps(payload),
-                verify=False,
+                # 证书校验保持开启：原为 verify=False，会让 webhook 流量暴露在
+                # 中间人风险下。若内网网关使用自签证书，应配置 CA 而非关闭校验。
                 timeout=10
             )
             response.raise_for_status()

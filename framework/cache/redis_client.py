@@ -235,7 +235,7 @@ class RedisClient:
             value = client.get(key)
             if value is None:
                 return default
-            return pickle.loads(value)
+            return pickle.loads(value)  # nosec B301  # 仅反序列化本服务自己写入 Redis 的数据
         except Exception as e:
             logger.error(f"Redis get 操作失败: {str(e)}")
             return default
@@ -313,7 +313,7 @@ class RedisClient:
             value = client.hget(name, key)
             if value is None:
                 return default
-            return pickle.loads(value)
+            return pickle.loads(value)  # nosec B301  # 仅反序列化本服务自己写入 Redis 的数据
         except Exception as e:
             logger.error(f"Redis hget 操作失败: {str(e)}")
             return default
@@ -325,7 +325,7 @@ class RedisClient:
             result = {}
             data = client.hgetall(name)
             for k, v in data.items():
-                result[k.decode()] = pickle.loads(v)
+                result[k.decode()] = pickle.loads(v)  # nosec B301  # 仅反序列化本服务自己写入 Redis 的数据
             return result
         except Exception as e:
             logger.error(f"Redis hgetall 操作失败: {str(e)}")
@@ -346,7 +346,7 @@ class RedisClient:
         try:
             client = self.get_client()
             value = client.rpop(name)
-            return pickle.loads(value) if value else None
+            return pickle.loads(value) if value else None  # nosec B301  # 仅反序列化本服务自己写入 Redis 的数据
         except Exception as e:
             logger.error(f"Redis rpop 操作失败: {str(e)}")
             return None

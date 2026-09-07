@@ -24,7 +24,9 @@ addopts = [
     "--cov-report=xml:coverage.xml",
     "--cov-fail-under=15",
 ]
-testpaths = ["tests", "apps", "extensions"]
+# framework 自带 115 个测试（i18n/idempotency/locks/storage/versioning）。
+# 此前漏在此处 → pytest 不带路径时收集不到，这部分在 CI 里形同未跑。
+testpaths = ["tests", "apps", "extensions", "framework"]
 markers = [
     "unit: 单元测试 (快速, 无外部依赖)",
     "integration: 集成测试 (需要 DB/Redis)",
@@ -143,6 +145,28 @@ ignore_errors = true
 [[tool.mypy.overrides]]
 module = ["requests", "requests.*"]
 disable_error_code = ["import-untyped"]
+
+# ================================================================
+# Bandit 配置 (安全扫描)
+# CI 与 pre-commit 都以 `bandit -c pyproject.toml` 调用；此前缺此段，
+# 配置静默退化为 bandit 默认值（连排除目录都不生效）。
+# ================================================================
+[tool.bandit]
+# 只扫自有代码：排除第三方/生成物/前端产物/数据目录
+exclude_dirs = [
+    "tests",
+    ".venv",
+    "venv",
+    "node_modules",
+    "openapi-client",
+    "extensions/apk_tool",
+    "django_vue",
+    "static",
+    "media",
+    "logs",
+    "htmlcov",
+    "*/migrations/*",
+]
 
 [[tool.mypy.overrides]]
 module = ["framework.*", "extensions.*"]

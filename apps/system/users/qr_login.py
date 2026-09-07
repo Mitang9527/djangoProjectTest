@@ -135,7 +135,7 @@ class QRLoginService:
             return None
         if raw is None or raw == 0:
             return None
-        return pickle.loads(raw)
+        return pickle.loads(raw)  # nosec B301  # 仅反序列化本服务自己写入 Redis 的数据
 
     @classmethod
     def _issue_jwt(cls, user, request) -> dict:

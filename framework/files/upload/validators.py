@@ -333,7 +333,8 @@ def safe_file_upload(
 
     if random_filename:
         ext = Path(file.name).suffix.lower()
-        filename = f"{hashlib.md5(str(os.urandom(16)).encode()).hexdigest()}{ext}"
+        # usedforsecurity=False：仅用于生成随机文件名，非安全用途
+        filename = f"{hashlib.md5(str(os.urandom(16)).encode(), usedforsecurity=False).hexdigest()}{ext}"
     else:
         filename = file.name
 

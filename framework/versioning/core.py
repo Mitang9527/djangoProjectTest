@@ -166,7 +166,7 @@ class VersionRegistry:
         if user and getattr(user, "is_authenticated", False):
             return f"u:{user.pk}"
         # 匿名用户：IP+UA
-        ip = request.META.get("REMOTE_ADDR", "0.0.0.0")
+        ip = request.META.get("REMOTE_ADDR", "0.0.0.0")  # nosec B104  # 此处 0.0.0.0 是取值默认值/字符串比较，不是 bind 绑定
         ua = request.META.get("HTTP_USER_AGENT", "")
         return f"a:{ip}:{hash(ua) % 10000}"
 

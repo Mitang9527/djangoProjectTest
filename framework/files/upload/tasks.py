@@ -5,6 +5,7 @@
 """
 import os
 import time
+import tempfile
 from pathlib import Path
 from datetime import timedelta, datetime
 from django.conf import settings
@@ -35,7 +36,8 @@ def clean_temp_files(
         if not temp_dirs:
             temp_dirs = [
                 os.path.join(settings.MEDIA_ROOT, 'temp'),
-                '/tmp',
+                # 不要用硬编码 '/tmp'：Windows 下不存在，且应尊重 TMPDIR。
+                tempfile.gettempdir(),
             ]
 
     stats = {

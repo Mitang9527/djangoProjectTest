@@ -32,6 +32,18 @@ class OAuth2Error(Exception):
         self.code = code
 
 
+def _ensure_http_url(url: str) -> None:
+    """校验 provider 端点 scheme。
+
+    端点 URL 取自后台配置的 provider 字段（token_url / userinfo_url），虽然不是终端
+    用户输入，但仍需挡掉 ``file://``、``ftp://`` 等非 HTTP scheme，避免配置被篡改后
+    演变为 SSRF 或本地文件读取。
+    """
+    if urllib.parse.urlparse(url or "").scheme not in ("http", "https"):
+        logger.warning(f"[OAuth2] 非法的 provider 端点: {url}")
+        raise OAuth2Error("第三方服务地址非法", 400, "provider_bad_url")
+
+
 _GETDEL_SCRIPT = """
 local v = redis.call('GET', KEYS[1])
 if v then
@@ -251,7 +263,7 @@ class OAuth2Service:
         if raw is None or raw == 0:
             return None
         try:
-            return pickle.loads(raw)
+            return pickle.loads(raw)  # nosec B301  # 仅反序列化本服务自己写入 Redis 的数据
         except Exception:
             return None
 
@@ -259,12 +271,14 @@ class OAuth2Service:
 
     @staticmethod
     def _http_post_form(url: str, data: dict) -> dict:
+        _ensure_http_url(url)
         body = urllib.parse.urlencode(data).encode("utf-8")
         req = urllib.request.Request(url, data=body, method="POST")
         req.add_header("Content-Type", "application/x-www-form-urlencoded")
         req.add_header("Accept", "application/json")
         try:
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            # scheme 已由 _ensure_http_url() 限制为 http/https
+            with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310
                 return json.loads(resp.read().decode("utf-8") or "{}")
         except urllib.error.HTTPError as e:
             logger.warning(f"[OAuth2] token 交换 HTTP {e.code}: {url}")
@@ -284,12 +298,14 @@ class OAuth2Service:
 
     @staticmethod
     def _http_get_json(url: str, headers: dict | None = None) -> dict:
+        _ensure_http_url(url)
         req = urllib.request.Request(url, method="GET")
         req.add_header("Accept", "application/json")
         for k, v in (headers or {}).items():
             req.add_header(k, v)
         try:
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            # scheme 已由 _ensure_http_url() 限制为 http/https
+            with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310
                 return json.loads(resp.read().decode("utf-8") or "{}")
         except urllib.error.HTTPError as e:
             logger.warning(f"[OAuth2] userinfo HTTP {e.code}: {url}")

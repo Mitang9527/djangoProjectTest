@@ -81,7 +81,8 @@ class ImageProcessor:
 
         if output_path is None:
             ext = input_path.suffix.lower()
-            filename = f"{hashlib.md5(str(input_path).encode()).hexdigest()}{ext}"
+            # usedforsecurity=False：仅用于派生输出/缩略图文件名，非安全用途
+            filename = f"{hashlib.md5(str(input_path).encode(), usedforsecurity=False).hexdigest()}{ext}"
             output_path = input_path.parent / filename
 
         output_path = Path(output_path)
@@ -172,7 +173,8 @@ class ImageProcessor:
 
         if output_path is None:
             ext = input_path.suffix.lower()
-            filename = f"{hashlib.md5(str(input_path).encode()).hexdigest()}{ext}"
+            # usedforsecurity=False：仅用于派生输出/缩略图文件名，非安全用途
+            filename = f"{hashlib.md5(str(input_path).encode(), usedforsecurity=False).hexdigest()}{ext}"
             output_path = input_path.parent / filename
 
         output_path = Path(output_path)
@@ -254,7 +256,8 @@ class ImageProcessor:
 
         if output_path is None:
             ext = input_path.suffix.lower()
-            filename = f"{hashlib.md5(str(input_path).encode()).hexdigest()}{ext}"
+            # usedforsecurity=False：仅用于派生输出/缩略图文件名，非安全用途
+            filename = f"{hashlib.md5(str(input_path).encode(), usedforsecurity=False).hexdigest()}{ext}"
             output_path = input_path.parent / filename
 
         output_path = Path(output_path)
@@ -336,7 +339,7 @@ class ImageProcessor:
 
         if output_path is None:
             ext = input_path.suffix.lower()
-            filename = f"{hashlib.md5(str(input_path).encode()).hexdigest()}_thumb{ext}"
+            filename = f"{hashlib.md5(str(input_path).encode(), usedforsecurity=False).hexdigest()}_thumb{ext}"
             output_path = input_path.parent / filename
 
         output_path = Path(output_path)

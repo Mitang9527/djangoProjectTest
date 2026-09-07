@@ -105,7 +105,7 @@ class RedisStateStore(StateStore):
                 return None
             try:
                 import pickle
-                return pickle.loads(raw)
+                return pickle.loads(raw)  # nosec B301  # 仅反序列化本服务自己写入 Redis 的数据
             except Exception:
                 return raw.decode() if isinstance(raw, bytes) else raw
         except Exception:

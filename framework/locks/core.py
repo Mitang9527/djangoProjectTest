@@ -244,7 +244,8 @@ def _current_owner() -> str:
     if getattr(_thread_local, "owner", None):
         return _thread_local.owner
     digest = hashlib.sha1(
-        f"{threading.get_ident()}-{socket.gethostname()}-{uuid.uuid4()}".encode()
+        f"{threading.get_ident()}-{socket.gethostname()}-{uuid.uuid4()}".encode(),
+        usedforsecurity=False,  # 仅用于生成锁持有者标识，非安全用途
     ).hexdigest()[:8]
     owner = f"owner-{digest}"
     _thread_local.owner = owner

@@ -26,12 +26,18 @@ def get_local_ip():
 
 def get_public_ip():
     """
-    获取公网IP地址
-    :return:
+    获取公网IP地址。
+
+    ⚠️ 依赖外部公共服务 httpbin.org，仅用于本地调试（本文件 __main__ 中展示），
+    不参与生产链路。请求必须带 timeout，失败时返回 'unknown' 而不是抛异常——
+    否则一个不可达的第三方接口会拖垮整个 get_system_info() 调用方。
     """
-    res = requests.get('http://httpbin.org/ip')
-    ip = res.json()['origin']
-    return ip
+    try:
+        res = requests.get('http://httpbin.org/ip', timeout=5)
+        return res.json()['origin']
+    except Exception as e:   # noqa: BLE001 - 外部服务不可达属预期情况
+        logger.warning(f"获取公网IP失败: {e}")
+        return 'unknown'
 
 def get_system_info():
     """

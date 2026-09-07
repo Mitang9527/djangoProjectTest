@@ -39,6 +39,8 @@ if not _dj_settings.configured:
     django.setup()
 
 
+from django.test import override_settings
+
 from framework.i18n import (
     normalize_language_code,
     parse_accept_language,
@@ -99,16 +101,26 @@ class NormalizeLanguageCodeTest(unittest.TestCase):
         self.assertEqual(normalize_language_code("  zh_CN  "), "zh-hans")
 
 
+# ⚠️ 必须显式 override：本文件支持两种运行方式（独立 `python tests.py` 走上面自建的
+# 最小 settings；pytest 走 DJANGO_SETTINGS_MODULE），两者的 LANGUAGES 并不一致
+# （settings.base 只开了 zh-hans + en，没有 ja）。不 override 的话 pytest 下
+# is_supported_language("ja") 会返回 False 而失败。
+_TEST_LANGUAGES = [("zh-hans", "简体中文"), ("en", "English"), ("ja", "日本語")]
+
+
 class IsSupportedLanguageTest(unittest.TestCase):
 
+    @override_settings(LANGUAGES=_TEST_LANGUAGES)
     def test_supported(self):
         self.assertTrue(is_supported_language("zh_CN"))
         self.assertTrue(is_supported_language("en"))
         self.assertTrue(is_supported_language("ja"))
 
+    @override_settings(LANGUAGES=_TEST_LANGUAGES)
     def test_unsupported(self):
         self.assertFalse(is_supported_language("xyz"))
 
+    @override_settings(LANGUAGES=_TEST_LANGUAGES)
     def test_empty(self):
         self.assertFalse(is_supported_language(""))
         self.assertFalse(is_supported_language(None))

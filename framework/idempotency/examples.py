@@ -103,11 +103,11 @@ def example_3_context_manager():
             return response
 
     print("[示例3] 第一次调用:")
-    r1 = process_upload("UP001", "/tmp/a.mp4")
+    r1 = process_upload("UP001", "uploads/a.mp4")
     print(f"  → 响应: {r1}")
 
     print("[示例3] 第二次调用（重放）:")
-    r2 = process_upload("UP001", "/tmp/a.mp4")
+    r2 = process_upload("UP001", "uploads/a.mp4")
     assert r1 == r2
 
 

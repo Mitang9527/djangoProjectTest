@@ -183,7 +183,7 @@ class RedisIdempotencyBackend(IdempotencyBackend):
         if not raw:
             return None
         try:
-            return IdempotencyRecord.from_dict(pickle.loads(raw))
+            return IdempotencyRecord.from_dict(pickle.loads(raw))  # nosec B301  # 仅反序列化本服务自己写入 Redis 的数据
         except Exception as e:
             logger.warning(f"[idempotency] 解析记录失败: {e}")
             return None
